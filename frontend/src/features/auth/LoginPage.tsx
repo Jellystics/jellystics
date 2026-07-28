@@ -216,7 +216,7 @@ export default function LoginPage() {
           </Typography>
           <Box
             component="a"
-            href="https://github.com/CyferShepard/Jellystat"
+            href="https://github.com/Jellystics/jellystics"
             target="_blank"
             rel="noopener noreferrer"
             sx={{
