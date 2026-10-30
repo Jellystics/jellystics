@@ -1,7 +1,12 @@
 # Stage 1: Build frontend
 FROM node:22-bookworm-slim AS frontend-builder
 
-RUN npm install -g pnpm
+# pnpm 11 ships a native binary that needs libatomic (absent from the slim image)
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
+RUN npm install -g pnpm@11.5.2
+
+# pnpm 11 refuses to purge node_modules without a TTY unless CI is set
+ENV CI=true
 
 WORKDIR /app
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./frontend/
