@@ -18,6 +18,17 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// AuthorizationHeader builds the standard `Authorization: MediaBrowser ...` value.
+// Jellyfin 12+ disables the legacy X-Emby-* headers and ?api_key= by default,
+// so every request must use this form. token may be empty (login request).
+func AuthorizationHeader(token string) string {
+	h := `MediaBrowser `
+	if token != "" {
+		h += fmt.Sprintf("Token=%q, ", token)
+	}
+	return h + `Client="Jellystics", Device="Server", DeviceId="jellystics-server", Version="1.0"`
+}
+
 func NewClient(host, apiKey string) *Client {
 	return &Client{
 		baseURL:    strings.TrimRight(host, "/"),
@@ -35,7 +46,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 	if err != nil {
 		return err
 	}
-	req.Header.Set("X-Emby-Token", c.apiKey)
+	req.Header.Set("Authorization", AuthorizationHeader(c.apiKey))
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -125,8 +136,7 @@ func (c *Client) AuthenticateUser(ctx context.Context, username, password string
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Emby-Authorization",
-		`MediaBrowser Client="Jellystics", Device="Server", DeviceId="jellystics-server", Version="1.0"`)
+	req.Header.Set("Authorization", AuthorizationHeader(""))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -174,7 +184,7 @@ func (c *Client) post(ctx context.Context, path string, body any, out any) error
 	if err != nil {
 		return err
 	}
-	req.Header.Set("X-Emby-Token", c.apiKey)
+	req.Header.Set("Authorization", AuthorizationHeader(c.apiKey))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
@@ -241,7 +251,7 @@ func GetSystemInfo(ctx context.Context, baseURL, apiKey string) (map[string]inte
 	if err != nil {
 		return nil, 0, err
 	}
-	req.Header.Set("X-Emby-Token", apiKey)
+	req.Header.Set("Authorization", AuthorizationHeader(apiKey))
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := httpClient.Do(req)

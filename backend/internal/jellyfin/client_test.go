@@ -59,7 +59,7 @@ func TestGetLibraries_Success(t *testing.T) {
 	var gotPath, gotToken, gotAccept string
 	c, _ := newTestClient(t, apiKey, func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		gotToken = r.Header.Get("X-Emby-Token")
+		gotToken = tokenFromAuth(r.Header.Get("Authorization"))
 		gotAccept = r.Header.Get("Accept")
 		_, _ = w.Write([]byte(`{"Items":[
 			{"ItemId":"lib1","Id":"lib1","Name":"Movies","Type":"CollectionFolder","CollectionType":"movies"},
@@ -75,7 +75,7 @@ func TestGetLibraries_Success(t *testing.T) {
 		t.Errorf("path = %q, want /Users/admin-123/Views", gotPath)
 	}
 	if gotToken != apiKey {
-		t.Errorf("X-Emby-Token = %q, want %q", gotToken, apiKey)
+		t.Errorf("Token = %q, want %q", gotToken, apiKey)
 	}
 	if gotAccept != "application/json" {
 		t.Errorf("Accept = %q, want application/json", gotAccept)
@@ -397,7 +397,7 @@ func TestAuthenticateUser_Success(t *testing.T) {
 		gotPath = r.URL.Path
 		gotMethod = r.Method
 		gotContentType = r.Header.Get("Content-Type")
-		gotAuthHeader = r.Header.Get("X-Emby-Authorization")
+		gotAuthHeader = r.Header.Get("Authorization")
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		_, _ = w.Write([]byte(`{"AccessToken":"tok-abc","User":{"Id":"u1","Name":"alice","Policy":{"IsAdministrator":true}}}`))
@@ -417,7 +417,7 @@ func TestAuthenticateUser_Success(t *testing.T) {
 		t.Errorf("Content-Type = %q, want application/json", gotContentType)
 	}
 	if !strings.HasPrefix(gotAuthHeader, "MediaBrowser ") {
-		t.Errorf("X-Emby-Authorization = %q, want MediaBrowser prefix", gotAuthHeader)
+		t.Errorf("Authorization = %q, want MediaBrowser prefix", gotAuthHeader)
 	}
 	// body should be valid JSON containing the credentials
 	var parsed struct {
@@ -508,7 +508,7 @@ func TestGetInstalledPlugins_Success(t *testing.T) {
 	var gotPath, gotToken string
 	c, _ := newTestClient(t, "plugtok", func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		gotToken = r.Header.Get("X-Emby-Token")
+		gotToken = tokenFromAuth(r.Header.Get("Authorization"))
 		_, _ = w.Write([]byte(`[
 			{"Name":"Playback Reporting","ConfigurationFileName":"Jellyfin.Plugin.PlaybackReporting.xml"},
 			{"Name":"Other"}
@@ -706,7 +706,7 @@ func TestGetSystemInfo_Success(t *testing.T) {
 	var gotPath, gotToken, gotAccept string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		gotToken = r.Header.Get("X-Emby-Token")
+		gotToken = tokenFromAuth(r.Header.Get("Authorization"))
 		gotAccept = r.Header.Get("Accept")
 		_, _ = w.Write([]byte(`{"ServerName":"MyJelly","Version":"10.9.0","Id":"srv-1"}`))
 	}))
@@ -792,7 +792,7 @@ func TestSubmitCustomQuery_Success(t *testing.T) {
 	c, _ := newTestClient(t, "qtok", func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotMethod = r.Method
-		gotToken = r.Header.Get("X-Emby-Token")
+		gotToken = tokenFromAuth(r.Header.Get("Authorization"))
 		gotContentType = r.Header.Get("Content-Type")
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		_, _ = w.Write([]byte(`{"results":[
@@ -864,4 +864,18 @@ func TestSubmitCustomQuery_MalformedJSON(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for malformed JSON, got nil")
 	}
+}
+
+// tokenFromAuth extracts Token="..." from an Authorization: MediaBrowser header.
+func tokenFromAuth(h string) string {
+	const k = `Token="`
+	i := strings.Index(h, k)
+	if i < 0 {
+		return ""
+	}
+	rest := h[i+len(k):]
+	if j := strings.Index(rest, `"`); j >= 0 {
+		return rest[:j]
+	}
+	return ""
 }

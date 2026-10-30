@@ -77,7 +77,7 @@ func (h *ProxyApiHandler) Proxy(c *gin.Context) {
 		apiKey = *cfg.JFApiKey
 	}
 	if apiKey != "" {
-		q.Set("api_key", apiKey)
+		q.Set("ApiKey", apiKey)
 	}
 
 	jfURL := strings.TrimRight(*cfg.JFHost, "/") + jfPath
@@ -90,6 +90,10 @@ func (h *ProxyApiHandler) Proxy(c *gin.Context) {
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
+	}
+
+	if apiKey != "" {
+		req.Header.Set("Authorization", jellyfin.AuthorizationHeader(apiKey))
 	}
 
 	resp, err := h.httpClient.Do(req)
