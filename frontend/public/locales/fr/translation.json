@@ -327,7 +327,8 @@
     "apply": "Appliquer",
     "reset": "Réinitialiser",
     "selected": "sélectionnés",
-    "preview": "Aperçu"
+    "preview": "Aperçu",
+    "reload": "Recharger"
   },
   "theme": {
     "lightMode": "Mode clair",
@@ -360,7 +361,9 @@
     "slate": "Gris ardoise"
   },
   "error": {
-    "loadDashboard": "Impossible de charger les données du tableau de bord"
+    "loadDashboard": "Impossible de charger les données du tableau de bord",
+    "somethingWentWrong": "Une erreur s'est produite",
+    "backToDashboard": "Retour au tableau de bord"
   },
   "units": {
     "kilobytes": "Ko",

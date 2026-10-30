@@ -1,15 +1,17 @@
 import { Box, Paper, Typography, Divider, Skeleton } from '@mui/material'
+import EmptyState from '@/shared/components/EmptyState/EmptyState'
 
 interface ChartCardProps {
   title: string
   children: React.ReactNode
   loading?: boolean
   empty?: boolean
+  emptyMessage?: string
   height?: number | 'auto'
   action?: React.ReactNode
 }
 
-export default function ChartCard({ title, children, loading, empty, height = 280, action }: ChartCardProps) {
+export default function ChartCard({ title, children, loading, empty, emptyMessage, height = 280, action }: ChartCardProps) {
   return (
     <Paper sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider' }}>
       <Box
@@ -29,8 +31,10 @@ export default function ChartCard({ title, children, loading, empty, height = 28
       </Box>
       <Divider sx={{ mt: 1.5, mb: 0 }} />
       <Box sx={{ px: 3, py: 2.5 }}>
-        {loading || empty ? (
+        {loading ? (
           <Skeleton variant="rectangular" width="100%" height={height === 'auto' ? 200 : height} sx={{ borderRadius: 2 }} />
+        ) : empty ? (
+          <EmptyState message={emptyMessage} height={height === 'auto' ? 200 : height} />
         ) : (
           <Box sx={{ height, minWidth: 0, minHeight: height === 'auto' ? undefined : height, width: '100%' }}>{children}</Box>
         )}

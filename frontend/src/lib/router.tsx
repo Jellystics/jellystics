@@ -16,10 +16,12 @@ import UserDetailPage from '@/features/users/UserDetailPage'
 import StatisticsPage from '@/features/statistics/StatisticsPage'
 import SettingsPage from '@/features/settings/SettingsPage'
 import AboutPage from '@/features/about/AboutPage'
+import RouteErrorBoundary from '@/shared/components/ErrorBoundary/RouteErrorBoundary'
 
 export const router = createBrowserRouter([
   {
     element: <PublicGuard />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/setup', element: <SetupPage /> },
@@ -27,24 +29,31 @@ export const router = createBrowserRouter([
   },
   {
     element: <AuthGuard />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         path: '/',
         element: <AppShell />,
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'activity', element: <ActivityPage /> },
-          { path: 'activity/timeline', element: <TimelinePage /> },
-          { path: 'libraries', element: <LibrariesPage /> },
-          { path: 'libraries/:id', element: <LibraryDetailPage /> },
-          { path: 'libraries/:libraryId/items/:itemId', element: <ItemDetailPage /> },
-          { path: 'libraries/:libraryId/albums/:albumId', element: <AlbumDetailPage /> },
-          { path: 'items/:itemId', element: <ItemDetailPage /> },
-          { path: 'users', element: <UsersPage /> },
-          { path: 'users/:id', element: <UserDetailPage /> },
-          { path: 'statistics', element: <StatisticsPage /> },
-          { path: 'settings', element: <SettingsPage /> },
-          { path: 'about', element: <AboutPage /> },
+          {
+            // Pathless layout route: keeps AppShell mounted when a page throws
+            errorElement: <RouteErrorBoundary />,
+            children: [
+              { index: true, element: <DashboardPage /> },
+              { path: 'activity', element: <ActivityPage /> },
+              { path: 'activity/timeline', element: <TimelinePage /> },
+              { path: 'libraries', element: <LibrariesPage /> },
+              { path: 'libraries/:id', element: <LibraryDetailPage /> },
+              { path: 'libraries/:libraryId/items/:itemId', element: <ItemDetailPage /> },
+              { path: 'libraries/:libraryId/albums/:albumId', element: <AlbumDetailPage /> },
+              { path: 'items/:itemId', element: <ItemDetailPage /> },
+              { path: 'users', element: <UsersPage /> },
+              { path: 'users/:id', element: <UserDetailPage /> },
+              { path: 'statistics', element: <StatisticsPage /> },
+              { path: 'settings', element: <SettingsPage /> },
+              { path: 'about', element: <AboutPage /> },
+            ],
+          },
         ],
       },
     ],

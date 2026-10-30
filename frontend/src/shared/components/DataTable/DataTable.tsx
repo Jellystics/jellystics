@@ -46,6 +46,7 @@ import {
   Filter24Regular,
 } from '@fluentui/react-icons'
 import { useTranslation } from 'react-i18next'
+import EmptyState from '@/shared/components/EmptyState/EmptyState'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 
 export interface FilterDef {
@@ -598,6 +599,14 @@ export default function DataTable<T>({
                       ))}
                     </TableRow>
                   ))
+                : table.getRowModel().rows.length === 0
+                ? (
+                    <TableRow>
+                      <TableCell colSpan={columns.length} sx={{ border: 0, py: 4 }}>
+                        <EmptyState height="auto" />
+                      </TableCell>
+                    </TableRow>
+                  )
                 : table.getRowModel().rows.map((row) => (
                     <TableRow
                       key={row.id}

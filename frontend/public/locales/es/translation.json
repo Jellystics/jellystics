@@ -327,7 +327,8 @@
     "apply": "Aplicar",
     "reset": "Restablecer",
     "selected": "seleccionados",
-    "preview": "Vista previa"
+    "preview": "Vista previa",
+    "reload": "Recargar"
   },
   "theme": {
     "lightMode": "Modo claro",
@@ -360,7 +361,9 @@
     "slate": "Gris pizarra"
   },
   "error": {
-    "loadDashboard": "Error al cargar los datos del panel"
+    "loadDashboard": "Error al cargar los datos del panel",
+    "somethingWentWrong": "Se ha producido un error",
+    "backToDashboard": "Volver al panel"
   },
   "units": {
     "kilobytes": "KB",

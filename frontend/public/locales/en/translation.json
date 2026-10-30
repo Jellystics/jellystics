@@ -327,7 +327,8 @@
     "apply": "Apply",
     "reset": "Reset",
     "selected": "selected",
-    "preview": "Preview"
+    "preview": "Preview",
+    "reload": "Reload"
   },
   "theme": {
     "lightMode": "Light mode",
@@ -360,7 +361,9 @@
     "slate": "Slate Gray"
   },
   "error": {
-    "loadDashboard": "Failed to load dashboard data"
+    "loadDashboard": "Failed to load dashboard data",
+    "somethingWentWrong": "Something went wrong",
+    "backToDashboard": "Back to dashboard"
   },
   "units": {
     "kilobytes": "KB",
