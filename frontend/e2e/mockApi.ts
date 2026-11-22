@@ -14,6 +14,11 @@ const OBJECTS: Record<string, unknown> = {
   '/stats/getBingeStats': { totalBingeSessions: 0, topBingedSeries: [] },
   '/stats/getViewingDiversity': { uniqueGenres: 0, uniqueLibraries: 0, uniqueItems: 0, diversityScore: 0, genreBreakdown: [] },
   '/sessions/current': [],
+  // --- phase 7 settings ---
+  '/api/getconfig': { JF_HOST: 'http://jellyfin.test', app_url: '', settings: { KeepLogsForDays: 30 } },
+  '/api/getTaskSettings': {},
+  '/api/CheckForUpdates': { current_version: '1.0.0', latest_version: 'v1.0.0', update_available: false, message: 'Up to date' },
+  // --- end phase 7 settings ---
 }
 
 const json = (body: unknown, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })

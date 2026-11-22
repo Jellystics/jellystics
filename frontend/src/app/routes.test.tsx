@@ -22,11 +22,7 @@ vi.mock('@/features/libraries/AlbumDetailPage', async () => {
 vi.mock('@/features/users/UsersPage', () => ({ default: () => <p>legacy-users</p> }))
 vi.mock('@/features/users/UserDetailPage', () => ({ default: () => <p>legacy-user</p> }))
 vi.mock('@/features/statistics/StatisticsPage', () => ({ default: () => <p>legacy-statistics</p> }))
-vi.mock('@/features/settings/SettingsPage', async () => {
-  const { useSearchParams } = await import('react-router-dom')
-  return { default: function Settings() { return <p>legacy-settings:{useSearchParams()[0].get('view')}</p> } }
-})
-vi.mock('@/features/about/AboutPage', () => ({ default: () => <p>legacy-about</p> }))
+vi.mock('./pages/settings/SettingsPage', async (orig) => ({ ...(await orig<object>()), SettingsPage: ({ section }: { section: string }) => <p>settings:{section}</p> }))
 
 function mockFetch(map: Record<string, unknown>) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -103,8 +99,11 @@ it('legacy item page sees itemId (episode id wins)', async () => {
 it('legacy album page sees albumId', async () => {
   renderApp('/albums/a7'); expect(await screen.findByText('legacy-album:a7')).toBeInTheDocument()
 })
-it('settings section maps to ?view=', async () => {
-  renderApp('/settings/backup'); expect(await screen.findByText('legacy-settings:backup')).toBeInTheDocument()
+it('settings section renders the new page', async () => {
+  renderApp('/settings/backup'); expect(await screen.findByText('settings:backup')).toBeInTheDocument()
+})
+it('settings about renders the new page', async () => {
+  renderApp('/settings/about'); expect(await screen.findByText('settings:about')).toBeInTheDocument()
 })
 it('coming soon pages render', async () => {
   renderApp('/live'); expect(await screen.findByText('app.comingSoon.title')).toBeInTheDocument()
@@ -119,7 +118,7 @@ it('shows the breadcrumb trail for a user page', async () => {
   expect(crumbTrail()).toEqual([['app.nav.users', '/users'], ['app.crumb.user', null]])
 })
 it('shows the breadcrumb trail for a settings section', async () => {
-  renderApp('/settings/backup'); await screen.findByText('legacy-settings:backup')
+  renderApp('/settings/backup'); await screen.findByText('settings:backup')
   expect(crumbTrail()).toEqual([['app.nav.settings', '/settings'], ['app.crumb.settings.backup', null]])
 })
 

@@ -18,8 +18,8 @@ import AlbumDetailPage from '@/features/libraries/AlbumDetailPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StatisticsPage from '@/features/statistics/StatisticsPage'
-import SettingsPage from '@/features/settings/SettingsPage'
-import AboutPage from '@/features/about/AboutPage'
+import { SettingsPage } from './pages/settings/SettingsPage'
+import { SETTINGS_SECTIONS as SECTIONS, type SettingsSection } from './pages/settings/sections'
 
 /** Redirect keeping the current query string (and optionally overriding it). */
 function To({ to, search }: { to: string; search?: string }) {
@@ -62,11 +62,11 @@ function AlbumPage() {
   return <LegacyAt path="/libraries/_/albums/:albumId" location={{ pathname: `/libraries/_/albums/${id}` }}><AlbumDetailPage /></LegacyAt>
 }
 
-function SettingsSection() {
+function SettingsSection({ fixed }: { fixed?: SettingsSection }) {
   const { section = 'config' } = useParams()
-  const sp = new URLSearchParams(useLocation().search); sp.set('view', section)
-  if (!SETTINGS_SECTIONS.includes(section)) return <NotFoundPage />
-  return <LegacyAt path="/settings" location={{ pathname: '/settings', search: `?${sp}` }}><SettingsPage /></LegacyAt>
+  const current = fixed ?? section
+  if (!(SECTIONS as readonly string[]).includes(current)) return <NotFoundPage />
+  return <SettingsPage section={current as SettingsSection} />
 }
 
 type Match = Parameters<NonNullable<RouteHandle['crumb']>>[0]
@@ -103,7 +103,7 @@ export const routes: RouteObject[] = [
       { path: '/discover', ...nav('discover'), element: <ComingSoon nav="discover" /> },
       { path: '/playback', ...nav('playback'), element: <ComingSoon nav="playback" /> },
       { path: '/settings', ...nav('settings'), element: <SettingsIndex /> },
-      { path: '/settings/about', ...nav('settings', settingsTrail), element: legacy(<AboutPage />) },
+      { path: '/settings/about', ...nav('settings', settingsTrail), element: <SettingsSection fixed="about" /> },
       { path: '/settings/:section', ...nav('settings', settingsTrail), element: <SettingsSection /> },
       { path: '/items/:id', element: <ItemRedirect /> },
       { path: '/libraries/:lib/items/:id', element: <ItemRedirect /> },
