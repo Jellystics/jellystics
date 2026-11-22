@@ -17,6 +17,7 @@ function KeepLogsCard() {
   useEffect(() => { const d = cfg.data?.settings?.KeepLogsForDays; if (d) setDays(String(d)) }, [cfg.data])
   const n = Number(days)
   const valid = Number.isInteger(n) && n >= 1
+  const ready = cfg.isSuccess
   const save = useMutation({
     mutationFn: () => apiFetch('/api/setconfig', { method: 'POST', body: { KeepLogsForDays: n, app_url: cfg.data?.app_url ?? '' } }),
     onSuccess: () => toast.success(t('app.settings.saved')),
@@ -26,11 +27,11 @@ function KeepLogsCard() {
     <Card>
       <CardHeader title={t('app.settings.backup.keepTitle')} subtitle={t('app.settings.backup.keepHint')} />
       <CardBody>
-        <form className={styles.row} onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate() }}>
+        <form className={styles.row} onSubmit={(e) => { e.preventDefault(); if (valid && ready && cfg.data) save.mutate() }}>
           <Field label={t('app.settings.backup.keepDays')} htmlFor="keep-days" error={valid ? undefined : t('app.settings.backup.keepInvalid')}>
             <Input id="keep-days" type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} style={{ width: 120 }} />
           </Field>
-          <Button type="submit" variant="primary" disabled={!valid || save.isPending}>{t('app.settings.action.save')}</Button>
+          <Button type="submit" variant="primary" disabled={!valid || !ready || save.isPending}>{t('app.settings.action.save')}</Button>
         </form>
       </CardBody>
     </Card>

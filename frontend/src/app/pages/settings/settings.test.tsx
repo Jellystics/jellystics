@@ -47,7 +47,8 @@ function renderSection(section: SettingsSection) {
 }
 
 beforeEach(() => { socketHandlers = {}; routes = {}; localStorage.setItem('jellystics-token', 'TOK'); stubFetch() })
-afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+const originalLocation = Object.getOwnPropertyDescriptor(window, 'location')!
+afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); Object.defineProperty(window, 'location', originalLocation) })
 
 it('config: validates the URL, tests the connection and saves', async () => {
   routes = {
@@ -170,6 +171,14 @@ it('backup: keeping logs preserves the current app_url', async () => {
   expect(hit('POST', '/api/setconfig')[0].body).toEqual({ KeepLogsForDays: 20, app_url: 'https://js.example.com' })
 })
 
+it('backup: keep-logs save is disabled until the config has loaded', async () => {
+  routes = { 'GET /backup/files': () => [], 'GET /api/getconfig': () => new Response('', { status: 500 }) }
+  renderSection('backup')
+  await screen.findByText('app.settings.backup.empty')
+  await waitFor(() => expect(screen.getByRole('button', { name: 'app.settings.action.save' })).toBeDisabled())
+  expect(hit('POST', '/api/setconfig')).toHaveLength(0)
+})
+
 it('backup: a failed download shows the dedicated error', async () => {
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
   routes = {
@@ -211,7 +220,6 @@ it('tasks: imports a Playback Reporting file', async () => {
 
 it('settings: 401 on upload/download clears the session', async () => {
   const assign = vi.fn()
-  const orig = Object.getOwnPropertyDescriptor(window, 'location')!
   Object.defineProperty(window, 'location', { value: { ...window.location, pathname: '/settings/backup', search: '', assign }, writable: true, configurable: true })
   vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })))
   const { uploadFile, downloadAuthed } = await import('./net')
@@ -222,7 +230,6 @@ it('settings: 401 on upload/download clears the session', async () => {
   await expect(downloadAuthed('/backup/files/x', 'x')).rejects.toMatchObject({ status: 401 })
   expect(localStorage.getItem('jellystics-token')).toBeNull()
   expect(assign).toHaveBeenCalledTimes(1)
-  Object.defineProperty(window, 'location', orig)
 })
 
 it('webhooks: hides the token and tolerates invalid dates', async () => {
