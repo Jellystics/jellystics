@@ -1180,6 +1180,96 @@
     "picker": {
       "search": "Rechercher…",
       "empty": "Aucun résultat"
+    },
+    "plugin": {
+      "playedToEnd": {
+        "label": "Vu jusqu’au bout",
+        "footMeasured_one": "mesuré par le plugin · {{count}} vue",
+        "footMeasured_other": "mesuré par le plugin · {{count}} vues",
+        "footMixed": "{{measured}} mesurées · {{estimated}} estimées",
+        "tip": "Fin de lecture signalée par Jellyfin (plugin Jellystics). Les vues sans cette information (historique, suivi des sessions) sont estimées : arrêt à 90 % de la durée ou plus. Les lectures en cours ne comptent pas."
+      },
+      "skips": {
+        "title": "Sauts en avant",
+        "plays_one": "{{count}} lecture mesurée par le plugin Jellystics",
+        "plays_other": "{{count}} lectures mesurées par le plugin Jellystics",
+        "intro": "Générique passé",
+        "introFoot_one": "{{count}} lecture",
+        "introFoot_other": "{{count}} lectures",
+        "skipRate": "Lectures avec un saut",
+        "skipFoot_one": "{{count}} lecture",
+        "skipFoot_other": "{{count}} lectures",
+        "avgSkipped": "Temps sauté moyen",
+        "avgSkippedFoot": "par lecture avec saut",
+        "estimate": "« Générique passé » : sauts totalisant au plus 15 % de la durée, dans une lecture commencée au début. Le plugin mesure le temps sauté, pas l’endroit du saut : c’est une estimation. Les lectures en cours ne comptent pas.",
+        "cellTip_one": "{{count}} lecture mesurée · temps sauté moyen {{avg}}",
+        "cellTip_other": "{{count}} lectures mesurées · temps sauté moyen {{avg}}"
+      },
+      "insights": {
+        "title": "Génériques les plus passés",
+        "subtitle_one": "séries · {{count}} lecture d’épisode mesurée par le plugin",
+        "subtitle_other": "séries · {{count}} lectures d’épisodes mesurées par le plugin",
+        "series": "Série",
+        "plays": "Lectures mesurées"
+      },
+      "marks": {
+        "title": "Marqué vu",
+        "subtitle": "état actuel par utilisateur, d’après le plugin Jellystics",
+        "manualLabel": "À la main",
+        "automaticLabel": "Fin de lecture",
+        "otherLabel": "Autre",
+        "manual_one": "Marqué vu manuellement par {{count}} utilisateur",
+        "manual_other": "Marqué vu manuellement par {{count}} utilisateurs",
+        "manualWithoutView_one": "dont {{count}} sans aucune vue enregistrée",
+        "manualWithoutView_other": "dont {{count}} sans aucune vue enregistrée",
+        "automatic_one": "Marqué vu en fin de lecture pour {{count}} utilisateur",
+        "automatic_other": "Marqué vu en fin de lecture pour {{count}} utilisateurs",
+        "other_one": "Marqué vu autrement (import, application tierce) pour {{count}} utilisateur",
+        "other_other": "Marqué vu autrement (import, application tierce) pour {{count}} utilisateurs",
+        "unplayed_one": "Remis à « non vu » par {{count}} utilisateur",
+        "unplayed_other": "Remis à « non vu » par {{count}} utilisateurs",
+        "watched_one": "{{count}} utilisateur a une vue enregistrée",
+        "watched_other": "{{count}} utilisateurs ont une vue enregistrée",
+        "since": "Marquages collectés à partir du {{date}}"
+      },
+      "logins": {
+        "title": "Connexions",
+        "subtitle": "collectées par le plugin Jellystics",
+        "count": "Connexions",
+        "lastLogin": "Dernière connexion",
+        "lastAt": "Dernière",
+        "never": "jamais",
+        "failed": "Échecs",
+        "failedFoot": "visible des admins",
+        "empty": "Aucune connexion sur la période"
+      },
+      "growth": {
+        "removed": "Retirés",
+        "source": "Source des ajouts",
+        "sourceEvents": "plugin (dates réelles)",
+        "sourceCatalog": "catalogue (approximation)",
+        "precise": "Ajouts et retraits réels enregistrés par le plugin Jellystics.",
+        "partial": "Ajouts réels (plugin Jellystics) à partir du {{date}} ; avant : dates d’ajout du catalogue, éléments encore présents (approximation).",
+        "catalog": "Dates d’ajout du catalogue, éléments encore présents (approximation). Le plugin Jellystics enregistre les ajouts réels."
+      },
+      "firstView": {
+        "title": "Délai ajout → premier visionnage",
+        "subtitle": "ajouts réels de la période (plugin Jellystics)",
+        "delay": "Délai",
+        "count": "Éléments",
+        "empty": "Aucun ajout sur la période",
+        "summary": "{{viewed}} vus sur {{added}} ajoutés",
+        "median": "médiane {{value}}",
+        "notViewed_one": "{{count}} pas encore vu",
+        "notViewed_other": "{{count}} pas encore vus",
+        "b": {
+          "<1h": "< 1 h",
+          "1-24h": "1–24 h",
+          "1-7d": "1–7 j",
+          "1-4w": "1–4 sem.",
+          ">4w": "> 4 sem."
+        }
+      }
     }
   }
 }

@@ -13,8 +13,18 @@ export interface SittingsBucket { sittings: 1 | 2 | 3 | 4; count: number }
 /** Views in the range vs catalog titles, per production decade (1990 = the 1990s). */
 export interface DecadeRow { decade: number; views: number; catalog: number }
 export type GrowthBucket = 'day' | 'week' | 'month' | 'year'
-/** Movies/episodes/tracks added vs viewed for the first time, per bucket start date. */
-export interface LibraryGrowth { bucket: GrowthBucket; points: { date: ISODate; added: number; firstViews: number }[] }
+/**
+ * Movies/episodes/tracks added vs viewed for the first time, per bucket start date.
+ * source "events": real additions / removals recorded by the Jellystics plugin
+ * from `preciseFrom` on (catalog creation dates of the items still present
+ * before it); `precise` marks the buckets fed by plugin events only.
+ */
+export interface LibraryGrowth {
+  bucket: GrowthBucket
+  source: 'events' | 'catalog'
+  preciseFrom: ISODate | null
+  points: { date: ISODate; added: number; removed: number; firstViews: number; precise: boolean }[]
+}
 /** Albums of the same artist with their full listens ((user, day) with every track viewed). */
 export interface FullListenAlbum { id: string; name: string; year: number | null; tracks: number; listens: number; fullListens: number }
 

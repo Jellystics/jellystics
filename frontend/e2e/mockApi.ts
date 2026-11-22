@@ -59,6 +59,14 @@ const OBJECTS: Record<string, unknown> = {
 }
 
 // --- phase 3 ---
+// Logins collected by the Jellystics plugin (user page).
+const loginsFixture = {
+  collectedSince: '2026-11-10', count: 14, lastLogin: '2026-11-22T20:41:00+01:00', failed: 2,
+  devices: [
+    { device: 'Shield', client: 'Android TV', version: '0.18.3', count: 9, lastAt: '2026-11-22T20:41:00+01:00' },
+    { device: 'Chrome', client: 'Jellyfin Web', version: '10.11.0', count: 5, lastAt: '2026-11-20T18:02:00+01:00' },
+  ],
+}
 // Realistic payloads for the core pages (/, /live, /history, /users, /users/:id).
 import { calendarFixture, concurrencyFixture, historyFixture, overviewFixture, retentionFixture, sessionsFixture, shareFixture, userFixture, usersFixture } from '../src/app/pages/overview/fixtures'
 const PHASE3: Record<string, () => unknown> = {
@@ -72,6 +80,8 @@ const PHASE3: Record<string, () => unknown> = {
   '/api/v2/users/u2': () => userFixture(),
   '/api/v2/users/u1/languages': () => ({ collectedSince: '2026-11-01', captured: 12, split: { originalSubtitled: 6, original: 2, dubbed: 3, unknown: 1 }, audio: [{ label: 'eng', views: 8 }, { label: 'fra', views: 4 }], subtitles: [{ label: 'fra', views: 6 }], subtitleOff: 6 }),
   '/api/v2/users/u2/languages': () => ({ collectedSince: '2026-11-01', captured: 12, split: { originalSubtitled: 6, original: 2, dubbed: 3, unknown: 1 }, audio: [{ label: 'eng', views: 8 }, { label: 'fra', views: 4 }], subtitles: [{ label: 'fra', views: 6 }], subtitleOff: 6 }),
+  '/api/v2/users/u1/logins': () => loginsFixture,
+  '/api/v2/users/u2/logins': () => loginsFixture,
   '/api/v2/concurrency': concurrencyFixture,
   '/sessions/current': sessionsFixture,
 }

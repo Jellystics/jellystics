@@ -5,3 +5,4 @@
 .barViews, .barCatalog { display: block; height: 8px; min-width: 2px; border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 .barViews { background: var(--accent); }
 .barCatalog { background: var(--seq-2); }
+.note { color: var(--ink-3); font-size: var(--fs-sm); margin: var(--s-3) 0 0; }

@@ -1180,6 +1180,96 @@
     "picker": {
       "search": "Buscar…",
       "empty": "Sin resultados"
+    },
+    "plugin": {
+      "playedToEnd": {
+        "label": "Visto hasta el final",
+        "footMeasured_one": "medido por el plugin · {{count}} vista",
+        "footMeasured_other": "medido por el plugin · {{count}} vistas",
+        "footMixed": "{{measured}} medidas · {{estimated}} estimadas",
+        "tip": "Fin de reproducción indicado por Jellyfin (plugin Jellystics). Las vistas sin esta información (historial, seguimiento de sesiones) se estiman: detenidas al 90 % de la duración o más. Las reproducciones en curso no cuentan."
+      },
+      "skips": {
+        "title": "Saltos hacia delante",
+        "plays_one": "{{count}} reproducción medida por el plugin Jellystics",
+        "plays_other": "{{count}} reproducciones medidas por el plugin Jellystics",
+        "intro": "Intro saltada",
+        "introFoot_one": "{{count}} reproducción",
+        "introFoot_other": "{{count}} reproducciones",
+        "skipRate": "Reproducciones con un salto",
+        "skipFoot_one": "{{count}} reproducción",
+        "skipFoot_other": "{{count}} reproducciones",
+        "avgSkipped": "Tiempo saltado medio",
+        "avgSkippedFoot": "por reproducción con salto",
+        "estimate": "«Intro saltada»: saltos que suman como máximo el 15 % de la duración, en una reproducción empezada desde el principio. El plugin mide cuánto se saltó, no dónde: es una estimación. Las reproducciones en curso no cuentan.",
+        "cellTip_one": "{{count}} reproducción medida · tiempo saltado medio {{avg}}",
+        "cellTip_other": "{{count}} reproducciones medidas · tiempo saltado medio {{avg}}"
+      },
+      "insights": {
+        "title": "Intros más saltadas",
+        "subtitle_one": "series · {{count}} reproducción de episodio medida por el plugin",
+        "subtitle_other": "series · {{count}} reproducciones de episodios medidas por el plugin",
+        "series": "Serie",
+        "plays": "Reproducciones medidas"
+      },
+      "marks": {
+        "title": "Marcado como visto",
+        "subtitle": "estado actual por usuario, según el plugin Jellystics",
+        "manualLabel": "A mano",
+        "automaticLabel": "Fin de reproducción",
+        "otherLabel": "Otro",
+        "manual_one": "Marcado como visto a mano por {{count}} usuario",
+        "manual_other": "Marcado como visto a mano por {{count}} usuarios",
+        "manualWithoutView_one": "de ellos {{count}} sin ninguna vista registrada",
+        "manualWithoutView_other": "de ellos {{count}} sin ninguna vista registrada",
+        "automatic_one": "Marcado como visto al terminar la reproducción para {{count}} usuario",
+        "automatic_other": "Marcado como visto al terminar la reproducción para {{count}} usuarios",
+        "other_one": "Marcado como visto de otra forma (importación, aplicación externa) para {{count}} usuario",
+        "other_other": "Marcado como visto de otra forma (importación, aplicación externa) para {{count}} usuarios",
+        "unplayed_one": "Vuelto a «no visto» por {{count}} usuario",
+        "unplayed_other": "Vuelto a «no visto» por {{count}} usuarios",
+        "watched_one": "{{count}} usuario tiene una vista registrada",
+        "watched_other": "{{count}} usuarios tienen una vista registrada",
+        "since": "Marcados recopilados desde el {{date}}"
+      },
+      "logins": {
+        "title": "Inicios de sesión",
+        "subtitle": "recopilados por el plugin Jellystics",
+        "count": "Inicios de sesión",
+        "lastLogin": "Último inicio de sesión",
+        "lastAt": "Último",
+        "never": "nunca",
+        "failed": "Fallidos",
+        "failedFoot": "visible para los administradores",
+        "empty": "Ningún inicio de sesión en el periodo"
+      },
+      "growth": {
+        "removed": "Retirados",
+        "source": "Origen de las incorporaciones",
+        "sourceEvents": "plugin (fechas reales)",
+        "sourceCatalog": "catálogo (aproximación)",
+        "precise": "Incorporaciones y retiradas reales registradas por el plugin Jellystics.",
+        "partial": "Incorporaciones reales (plugin Jellystics) desde el {{date}}; antes: fechas de alta en el catálogo de los elementos aún presentes (aproximación).",
+        "catalog": "Fechas de alta en el catálogo de los elementos aún presentes (aproximación). El plugin Jellystics registra las incorporaciones reales."
+      },
+      "firstView": {
+        "title": "Plazo incorporación → primera vista",
+        "subtitle": "incorporaciones reales del periodo (plugin Jellystics)",
+        "delay": "Plazo",
+        "count": "Elementos",
+        "empty": "Ninguna incorporación en el periodo",
+        "summary": "{{viewed}} vistos de {{added}} incorporados",
+        "median": "mediana {{value}}",
+        "notViewed_one": "{{count}} aún sin ver",
+        "notViewed_other": "{{count}} aún sin ver",
+        "b": {
+          "<1h": "< 1 h",
+          "1-24h": "1–24 h",
+          "1-7d": "1–7 d",
+          "1-4w": "1–4 sem.",
+          ">4w": "> 4 sem."
+        }
+      }
     }
   }
 }

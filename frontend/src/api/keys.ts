@@ -67,4 +67,8 @@ export const qk = {
   playback: (name: string, p: QueryParams) => ['v2', 'playback', name, p] as const,
   recap: (userId: string, period: string) => ['v2', 'recap', userId, period] as const,
   languages: (userId: string, p: QueryParams) => ['v2', 'user', userId, 'languages', p] as const,
+  // Jellystics plugin data (plugin.ts)
+  userLogins: (userId: string, p: QueryParams) => ['v2', 'user', userId, 'logins', p] as const,
+  itemMarks: (id: string, p: QueryParams) => ['v2', 'item', id, 'marks', p] as const,
+  libraryFirstViewDelay: (id: string, p: QueryParams) => ['v2', 'library', id, 'first-view-delay', p] as const,
 }

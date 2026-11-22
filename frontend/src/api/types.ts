@@ -110,9 +110,24 @@ export interface UserDetail {
   genres: ByType<NamedSeconds[]>
   devices: { device: string; client: string; version: string; views: number }[]
   streak: { current: number; best: number }
+  playedToEnd: PlayedToEnd
+  /** First Jellystics-plugin play (local date), null before the plugin sent any. */
+  pluginSince: ISODate | null
 }
 
 // ── Entities ─────────────────────────────────────────────────────────────────
+/**
+ * "Played to the end" over the closed views of the period: measured by the
+ * Jellystics plugin (PlayedToCompletion) or, for older / tracker rows,
+ * estimated from the completion ratio (>= 90 %). measured = 0: no plugin data.
+ */
+export interface PlayedToEnd { plays: number; finished: number; measured: number; measuredFinished: number; ratio: number | null }
+/**
+ * Forward skips of the closed Jellystics-plugin views (the only plays whose
+ * skips are measured). intro = short skip (<= 15 % of the runtime) in a play
+ * started from the beginning: an estimate, the skip position is not recorded.
+ */
+export interface SkipStats { plays: number; skipped: number; intro: number; skipRate: number | null; introRate: number | null; avgSkippedSeconds: number | null }
 export interface Funnel { clicks: number; views: number; half: number; completed: number }
 /** Library an entity belongs to (null when unknown). */
 export interface LibraryRef { id: string; name: string }
@@ -127,11 +142,17 @@ export interface MovieDetail {
   stopPositions: number[]
   viewers: { user: RefUser; views: number; lastWatched: ISOTime; bestCompletion: number | null }[]
   history: HistoryRow[]
+  playedToEnd: PlayedToEnd
+  pluginSince: ISODate | null
 }
 
 export type CadenceBucket = '<1min' | '1-15min' | '15-60min' | 'sameDay' | 'nextDay' | '2-7d' | '>7d'
 export type ReleaseLagBucket = '<24h' | '1-7d' | '1-4w' | '1-6m' | '6-12m' | '>1y'
-export interface SeriesEpisode { id: string; number: number | null; name: string; views: number; viewers: number; avgCompletion: number | null; abandons: number }
+export interface SeriesEpisode {
+  id: string; number: number | null; name: string; views: number; viewers: number; avgCompletion: number | null; abandons: number
+  /** Measured plays (closed plugin views); 0 = skips not measured, rates null. */
+  skipPlays: number; introRate: number | null; skipRate: number | null; avgSkippedSeconds: number | null
+}
 export interface SeriesDetail {
   item: { id: string; name: string; years: { from: number | null; to: number | null }; seasons: number; episodes: number; genres: string[]; library: LibraryRef | null }
   totals: { watchSeconds: number; views: number; clicks: number; viewers: number; retention: number | null; binges: number }
@@ -142,6 +163,8 @@ export interface SeriesDetail {
   viewers: { user: RefUser; episodesWatched: number; lastWatched: ISOTime }[]
   cadence: { bucket: CadenceBucket; count: number }[]
   releaseLag: { bucket: ReleaseLagBucket; count: number }[]
+  skips: SkipStats
+  pluginSince: ISODate | null
 }
 
 export interface EpisodeDetail {
@@ -155,6 +178,9 @@ export interface EpisodeDetail {
   /** 20 bins over the runtime. */
   stopPositions: number[]
   viewers: { user: RefUser; startedAt: ISOTime; watchSeconds: number; completion: number | null; device: string }[]
+  playedToEnd: PlayedToEnd
+  skips: SkipStats
+  pluginSince: ISODate | null
 }
 
 export interface TrackStat { id: string; name: string; albumId: string; albumName: string; views: number; clicks: number; skipRate: number | null; listeners: number }

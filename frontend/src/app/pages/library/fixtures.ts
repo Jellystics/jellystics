@@ -43,7 +43,14 @@ export const decadesFixture = [
 
 export const growthFixture = {
   bucket: 'week',
-  points: ['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16'].map((date, i) => ({ date, added: [12, 30, 18, 22][i], firstViews: [10, 14, 16, 15][i] })),
+  source: 'events',
+  preciseFrom: '2026-11-10',
+  points: ['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16'].map((date, i) => ({ date, added: [12, 30, 18, 22][i], removed: [0, 0, 0, 3][i], firstViews: [10, 14, 16, 15][i], precise: i === 3 })),
+}
+
+export const firstViewDelayFixture = {
+  collectedSince: '2026-11-10', added: 22, viewed: 17, notViewed: 5, medianSeconds: 151_200,
+  buckets: [{ bucket: '<1h', count: 2 }, { bucket: '1-24h', count: 6 }, { bucket: '1-7d', count: 7 }, { bucket: '1-4w', count: 2 }, { bucket: '>4w', count: 0 }],
 }
 
 const stops = (n: number, end: number) => Array.from({ length: n }, (_, i) => (i < 2 ? 20 - i * 4 : i === n - 1 ? end : i === n - 2 ? Math.round(end / 2) : (i * 5) % 9))
@@ -58,22 +65,29 @@ export const movieFixture = {
     row('h1', USERS[0], { id: 'm1', kind: 'movie', name: 'Les Rivages' }, 'Movie', '2026-11-20T21:00:00+01:00', 7600, 0.99),
     row('h2', USERS[1], { id: 'm1', kind: 'movie', name: 'Les Rivages' }, 'Movie', '2026-11-19T20:30:00+01:00', 1200, 0.16, 'Transcode'),
   ],
+  playedToEnd: { plays: 48, finished: 30, measured: 12, measuredFinished: 8, ratio: 0.625 },
+  pluginSince: '2026-11-10',
 }
+
+export const movieMarksFixture = { collectedSince: '2026-11-10', manual: 3, automatic: 4, other: 1, unplayed: 1, watched: 5, manualWithoutView: 1 }
 
 export const sittingsFixture = [{ sittings: 1, count: 18 }, { sittings: 2, count: 7 }, { sittings: 3, count: 3 }, { sittings: 4, count: 1 }]
 
-const ep = (id: string, number: number, name: string, views: number, viewers: number, avgCompletion: number, abandons: number) => ({ id, number, name, views, viewers, avgCompletion, abandons })
+const ep = (id: string, number: number, name: string, views: number, viewers: number, avgCompletion: number, abandons: number, skipPlays = 0, introRate: number | null = null) =>
+  ({ id, number, name, views, viewers, avgCompletion, abandons, skipPlays, introRate, skipRate: introRate, avgSkippedSeconds: skipPlays ? 72 : null })
 export const seriesFixture = {
   item: { id: 's1', name: 'Station Nord', years: { from: 2022, to: 2025 }, seasons: 2, episodes: 5, genres: ['Drame', 'Science-fiction'], library: LIB_S },
   totals: { watchSeconds: 1_036_800, views: 412, clicks: 497, viewers: 5, retention: 0.33, binges: 14 },
   retention: [[6, 6, 5], [4, 3]],
   seasons: [
     { number: 1, episodes: [ep('e1', 1, 'Le Signal', 6, 6, 0.94, 0), ep('e2', 2, 'Dérive', 6, 5, 0.88, 1), ep('e3', 3, 'Les Glaces', 5, 5, 0.91, 0)] },
-    { number: 2, episodes: [ep('e4', 1, 'Hivernage', 5, 4, 0.62, 2), ep('e5', 2, 'La Fracture', 5, 3, 0.86, 0)] },
+    { number: 2, episodes: [ep('e4', 1, 'Hivernage', 5, 4, 0.62, 2, 4, 0.5), ep('e5', 2, 'La Fracture', 5, 3, 0.86, 0, 3, 0.67)] },
   ],
   viewers: USERS.map((user, i) => ({ user, episodesWatched: 5 - i, lastWatched: `2026-11-${20 - i}T21:00:00+01:00` })),
   cadence: [{ bucket: '<1min', count: 420 }, { bucket: '1-15min', count: 130 }, { bucket: 'nextDay', count: 190 }, { bucket: '>7d', count: 70 }],
   releaseLag: [{ bucket: '<24h', count: 18 }, { bucket: '1-7d', count: 34 }, { bucket: '>1y', count: 65 }],
+  skips: { plays: 7, skipped: 4, intro: 4, skipRate: 0.571, introRate: 0.571, avgSkippedSeconds: 72 },
+  pluginSince: '2026-11-10',
 }
 
 export const seriesHistoryFixture = {
@@ -90,6 +104,19 @@ export const episodeFixture = {
   funnel: { clicks: 7, views: 5, half: 5, completed: 4 },
   stopPositions: stops(20, 6),
   viewers: USERS.map((user, i) => ({ user, startedAt: `2026-11-${20 - i}T21:${10 + i * 7}:00+01:00`, watchSeconds: [2810, 2790, 2400, 1500, 2850][i], completion: [0.98, 0.97, 0.83, 0.52, 0.99][i], device: 'Chrome' })),
+  playedToEnd: { plays: 5, finished: 4, measured: 3, measuredFinished: 3, ratio: 0.8 },
+  skips: { plays: 3, skipped: 2, intro: 2, skipRate: 0.667, introRate: 0.667, avgSkippedSeconds: 74 },
+  pluginSince: '2026-11-10',
+}
+
+export const episodeMarksFixture = { collectedSince: '2026-11-10', manual: 2, automatic: 3, other: 0, unplayed: 0, watched: 5, manualWithoutView: 1 }
+export const skipsInsightFixture = {
+  collectedSince: '2026-11-10',
+  totals: { plays: 41, skipped: 22, intro: 19, skipRate: 0.537, introRate: 0.463, avgSkippedSeconds: 68 },
+  series: [
+    { id: 's1', name: 'Station Nord', plays: 18, introRate: 0.72, skipRate: 0.78, avgSkippedSeconds: 74 },
+    { id: 's2', name: 'Brigade 9', plays: 9, introRate: 0.44, skipRate: 0.56, avgSkippedSeconds: 61 },
+  ],
 }
 
 export const artistFixture = {
@@ -131,6 +158,10 @@ export const entityApi: Record<string, unknown> = {
   '/api/v2/libraries/lib-s': libraryFixture,
   '/api/v2/libraries/lib-s/decades': decadesFixture,
   '/api/v2/libraries/lib-s/growth': growthFixture,
+  '/api/v2/libraries/lib-s/first-view-delay': firstViewDelayFixture,
+  '/api/v2/items/m1/marks': movieMarksFixture,
+  '/api/v2/items/e5/marks': episodeMarksFixture,
+  '/api/v2/insights/skips': skipsInsightFixture,
   '/api/v2/movies/m1': movieFixture,
   '/api/v2/movies/m1/sittings': sittingsFixture,
   '/api/v2/series/s1': seriesFixture,

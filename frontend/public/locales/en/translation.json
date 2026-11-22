@@ -1180,6 +1180,96 @@
     "picker": {
       "search": "Search…",
       "empty": "No results"
+    },
+    "plugin": {
+      "playedToEnd": {
+        "label": "Played to the end",
+        "footMeasured_one": "measured by the plugin · {{count}} view",
+        "footMeasured_other": "measured by the plugin · {{count}} views",
+        "footMixed": "{{measured}} measured · {{estimated}} estimated",
+        "tip": "End of playback reported by Jellyfin (Jellystics plugin). Views without that report (history, session tracking) are estimated: stopped at 90 % of the runtime or later. Plays in progress do not count."
+      },
+      "skips": {
+        "title": "Forward skips",
+        "plays_one": "{{count}} play measured by the Jellystics plugin",
+        "plays_other": "{{count}} plays measured by the Jellystics plugin",
+        "intro": "Intro skipped",
+        "introFoot_one": "{{count}} play",
+        "introFoot_other": "{{count}} plays",
+        "skipRate": "Plays with a skip",
+        "skipFoot_one": "{{count}} play",
+        "skipFoot_other": "{{count}} plays",
+        "avgSkipped": "Average time skipped",
+        "avgSkippedFoot": "per play with a skip",
+        "estimate": "“Intro skipped”: skips adding up to at most 15 % of the runtime, in a play started from the beginning. The plugin measures how much was skipped, not where: this is an estimate. Plays in progress do not count.",
+        "cellTip_one": "{{count}} measured play · average skipped {{avg}}",
+        "cellTip_other": "{{count}} measured plays · average skipped {{avg}}"
+      },
+      "insights": {
+        "title": "Most skipped intros",
+        "subtitle_one": "series · {{count}} episode play measured by the plugin",
+        "subtitle_other": "series · {{count}} episode plays measured by the plugin",
+        "series": "Series",
+        "plays": "Measured plays"
+      },
+      "marks": {
+        "title": "Marked as played",
+        "subtitle": "current state per user, from the Jellystics plugin",
+        "manualLabel": "By hand",
+        "automaticLabel": "End of playback",
+        "otherLabel": "Other",
+        "manual_one": "Marked as played by hand by {{count}} user",
+        "manual_other": "Marked as played by hand by {{count}} users",
+        "manualWithoutView_one": "including {{count}} without any recorded view",
+        "manualWithoutView_other": "including {{count}} without any recorded view",
+        "automatic_one": "Marked as played at the end of playback for {{count}} user",
+        "automatic_other": "Marked as played at the end of playback for {{count}} users",
+        "other_one": "Marked as played otherwise (import, third-party app) for {{count}} user",
+        "other_other": "Marked as played otherwise (import, third-party app) for {{count}} users",
+        "unplayed_one": "Set back to “unplayed” by {{count}} user",
+        "unplayed_other": "Set back to “unplayed” by {{count}} users",
+        "watched_one": "{{count}} user has a recorded view",
+        "watched_other": "{{count}} users have a recorded view",
+        "since": "Marks collected from {{date}}"
+      },
+      "logins": {
+        "title": "Logins",
+        "subtitle": "collected by the Jellystics plugin",
+        "count": "Logins",
+        "lastLogin": "Last login",
+        "lastAt": "Last",
+        "never": "never",
+        "failed": "Failed",
+        "failedFoot": "visible to admins",
+        "empty": "No login in the period"
+      },
+      "growth": {
+        "removed": "Removed",
+        "source": "Additions source",
+        "sourceEvents": "plugin (real dates)",
+        "sourceCatalog": "catalog (approximation)",
+        "precise": "Real additions and removals recorded by the Jellystics plugin.",
+        "partial": "Real additions (Jellystics plugin) from {{date}}; before: catalog creation dates of the items still present (approximation).",
+        "catalog": "Catalog creation dates of the items still present (approximation). The Jellystics plugin records the real additions."
+      },
+      "firstView": {
+        "title": "Delay from addition to first view",
+        "subtitle": "real additions in the period (Jellystics plugin)",
+        "delay": "Delay",
+        "count": "Items",
+        "empty": "No addition in the period",
+        "summary": "{{viewed}} viewed out of {{added}} added",
+        "median": "median {{value}}",
+        "notViewed_one": "{{count}} not viewed yet",
+        "notViewed_other": "{{count}} not viewed yet",
+        "b": {
+          "<1h": "< 1 h",
+          "1-24h": "1–24 h",
+          "1-7d": "1–7 d",
+          "1-4w": "1–4 wk",
+          ">4w": "> 4 wk"
+        }
+      }
     }
   }
 }

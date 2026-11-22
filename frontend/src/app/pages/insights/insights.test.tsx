@@ -16,6 +16,8 @@ const FULL = {
   '/api/v2/insights/pauses': [{ id: 'm1', kind: 'movie', name: 'Orbital', ratio: 0.18, pausedSeconds: 600, pauseCount: 4, watchSeconds: 3333 }],
   '/api/v2/insights/binges': [{ id: 's1', name: 'Station Nord', binges: 14, users: 2 }],
   '/api/v2/insights/rhythm': { weekHour: week().map((r, i) => (i === 0 ? r.map((_, h) => (h === 20 ? 3 : 0)) : r)) },
+  // No Jellystics plugin: the plugin-only card stays hidden.
+  '/api/v2/insights/skips': { collectedSince: null, totals: { plays: 0, skipped: 0, intro: 0, skipRate: null, introRate: null, avgSkippedSeconds: null }, series: [] },
 }
 
 beforeEach(() => { vi.restoreAllMocks() })
@@ -46,7 +48,7 @@ it('sends the URL period to every insight endpoint', async () => {
   await screen.findByRole('link', { name: /Station Nord/ })
   const urls = spy.mock.calls.map(([u]) => new URL(String(u), 'http://x'))
   const insights = urls.filter((u) => u.pathname.startsWith('/api/v2/insights/'))
-  expect(insights).toHaveLength(9)
+  expect(insights).toHaveLength(10)
   insights.forEach((u) => {
     expect(u.searchParams.get('from')).toBe('2026-09-01')
     expect(u.searchParams.get('to')).toBe('2026-10-01')
@@ -64,6 +66,30 @@ it('shows empty states without data and an error state with retry', async () => 
   expect(await screen.findByRole('alert')).toBeInTheDocument()
   expect(within(screen.getByRole('alert')).getByRole('button', { name: 'app.action.retry' })).toBeInTheDocument()
   expect((await screen.findAllByText('app.analytics.noData')).length).toBeGreaterThanOrEqual(3)
+})
+
+it('ranks the most skipped intros from plugin data, hidden without the plugin', async () => {
+  mockApi({
+    ...FULL,
+    '/api/v2/insights/skips': {
+      collectedSince: '2026-11-10',
+      totals: { plays: 12, skipped: 7, intro: 6, skipRate: 0.58, introRate: 0.5, avgSkippedSeconds: 70 },
+      series: [{ id: 's9', name: 'Brigade 9', plays: 9, introRate: 0.72, skipRate: 0.8, avgSkippedSeconds: 74 }],
+    },
+  })
+  renderPage(<InsightsPage />, { path: '/insights', url: '/insights?from=2026-11-01&to=2026-11-23' })
+  expect(await screen.findByRole('heading', { name: 'app.plugin.insights.title' })).toBeInTheDocument()
+  expect(await screen.findByRole('link', { name: /Brigade 9/ })).toHaveAttribute('href', '/series/s9?from=2026-11-01&to=2026-11-23')
+  expect(screen.getByText(/^72\s%$/)).toBeInTheDocument()
+  // The plugin started inside the period: "collected from" note.
+  expect(screen.getByText('app.analytics.collectedSince')).toBeInTheDocument()
+})
+
+it('hides the skips card when the plugin has no data', async () => {
+  mockApi(FULL)
+  renderPage(<InsightsPage />, { path: '/insights', url: '/insights' })
+  await screen.findByRole('link', { name: /Station Nord/ })
+  expect(screen.queryByText('app.plugin.insights.title')).toBeNull()
 })
 
 it('formats helpers', () => {
