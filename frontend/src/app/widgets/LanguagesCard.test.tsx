@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import { LanguagesCard } from './LanguagesCard'
-import { mockApi, renderPage } from '@/app/pages/insights/testUtils'
+import { mockApi, renderPage } from '@/app/pages/_shared/testUtils'
 
 beforeEach(() => { vi.restoreAllMocks() })
 
@@ -29,4 +29,11 @@ it('shows the collection empty state without captured data', async () => {
   renderPage(<LanguagesCard userId="u1" />, { path: '/users/:id', url: '/users/u1' })
   expect(await screen.findByText('app.analytics.notCollected')).toBeInTheDocument()
   expect(screen.getByText('app.analytics.collectedNext')).toBeInTheDocument()
+})
+
+it('shows the usual empty state when the capture started before the period', async () => {
+  mockApi({ '/api/v2/users/u1/languages': { ...DATA, collectedSince: '2026-10-01', captured: 0, audio: [], subtitles: [], subtitleOff: 0 } })
+  renderPage(<LanguagesCard userId="u1" />, { path: '/users/:id', url: '/users/u1?from=2026-11-01&to=2026-11-22' })
+  expect(await screen.findByText('app.analytics.noData')).toBeInTheDocument()
+  expect(screen.queryByText('app.analytics.notCollected')).not.toBeInTheDocument()
 })

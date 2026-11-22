@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { toast } from '@/ui'
 import socket, { useSocketEvent } from '@/lib/socket'
-import { CrumbLabelContext } from './crumbs'
+import { CrumbLabelContext, type CrumbLabels } from './crumbs'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { CommandPalette } from './CommandPalette'
@@ -25,7 +25,7 @@ function TaskToast({ event }: { event: string }) {
 export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [liveCount, setLiveCount] = useState(0)
-  const [label, setLabel] = useState<string | null>(null)
+  const [label, setLabel] = useState<CrumbLabels>(null)
   const crumbCtx = useMemo(() => ({ label, set: setLabel }), [label])
 
   useEffect(() => {

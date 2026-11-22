@@ -63,6 +63,10 @@ type qualityJSON struct {
 		VideoFrom, VideoTo, AudioFrom, AudioTo string
 		Views                                  int
 	}
+	CodecPairs []struct {
+		VideoFrom, VideoTo string
+		Views              int
+	}
 	Streams struct{ AudioOnly, VideoOnly, Both int }
 	HwAccel []struct {
 		Label string
@@ -114,6 +118,9 @@ func TestV2PlaybackQualityNetworkLanguages(t *testing.T) {
 		q.Conversions[0].AudioFrom != "TRUEHD" || q.Conversions[0].AudioTo != "AAC" || q.Conversions[0].Views != 1 {
 		t.Errorf("conversions = %+v", q.Conversions)
 	}
+	if len(q.CodecPairs) != 1 || q.CodecPairs[0].VideoFrom != "HEVC" || q.CodecPairs[0].VideoTo != "H264" || q.CodecPairs[0].Views != 1 {
+		t.Errorf("codec pairs = %+v", q.CodecPairs)
+	}
 	if q.Streams.Both != 1 || q.Streams.AudioOnly != 0 || len(q.HwAccel) != 1 || q.HwAccel[0].Label != "vaapi" {
 		t.Errorf("streams = %+v, hw = %+v", q.Streams, q.HwAccel)
 	}
@@ -163,19 +170,49 @@ func TestV2PlaybackQualityNetworkLanguages(t *testing.T) {
 		SubtitleOff int
 	}
 	v5JSON(t, db, "/api/v2/users/u1/languages", &lang)
-	if lang.Captured != 3 || lang.Split.OriginalSubtitled != 1 || lang.Split.Dubbed != 1 || lang.Split.Unknown != 1 || lang.Split.Original != 0 {
+	// r1 (captured movie, no audio track reported) and r6 count as unknown.
+	if lang.Captured != 4 || lang.Split.OriginalSubtitled != 1 || lang.Split.Dubbed != 1 || lang.Split.Unknown != 2 || lang.Split.Original != 0 {
 		t.Errorf("languages = %+v", lang)
 	}
-	if len(lang.Audio) != 2 || lang.Audio[0].Label != "eng" || lang.Audio[0].Views != 2 || len(lang.Subtitles) != 1 ||
-		lang.Subtitles[0].Label != "fre" || lang.SubtitleOff != 2 || lang.CollectedSince == nil {
+	if len(lang.Audio) != 3 || lang.Audio[0].Label != "eng" || lang.Audio[0].Views != 2 || len(lang.Subtitles) != 1 ||
+		lang.Subtitles[0].Label != "fre" || lang.SubtitleOff != 3 || lang.CollectedSince == nil {
 		t.Errorf("languages lists = %+v", lang)
 	}
 	v5JSON(t, db, "/api/v2/users/u2/languages", &lang)
-	if lang.Captured != 0 || len(lang.Audio) != 0 {
+	if lang.Captured != 1 || lang.Split.Unknown != 1 || lang.Split.Dubbed+lang.Split.Original != 0 { // r2: captured, no audio track
 		t.Errorf("languages u2 = %+v", lang)
 	}
 	// The user detail route is still served next to /languages.
 	if w := v5Get(t, db, "/api/v2/users/u1"); w.Code != 200 {
 		t.Errorf("/users/u1 status %d", w.Code)
+	}
+}
+
+// VO / VF heuristic: a single-language file or an "und" first track stays
+// unknown, commentaries never count as the original track.
+func TestV2UserLanguagesHeuristic(t *testing.T) {
+	db := v2Seeded(t)
+	set := func(id, streams string, idx int, lang string) {
+		t.Helper()
+		mustExec(t, db, `UPDATE jf_playback_activity SET "MediaStreams" = ?, "AudioStreamIndex" = ?, "AudioLanguage" = NULLIF(?, '') WHERE "Id" = ?`,
+			streams, idx, lang, id)
+	}
+	// r1: only English tracks (main + commentary) → unknown.
+	set("r1", `[{"Type":"Audio","Index":1,"Language":"eng"},{"Type":"Audio","Index":2,"Language":"eng","Title":"Director's commentary"}]`, 1, "eng")
+	// r4: first track "und" → unknown even though French is played.
+	set("r4", `[{"Type":"Audio","Index":1,"Language":"und"},{"Type":"Audio","Index":2,"Language":"fre"}]`, 2, "fre")
+	// r5: a French commentary listed first is skipped: the original is
+	// English, the French dub is detected.
+	set("r5", `[{"Type":"Audio","Index":1,"Language":"fre","Title":"Commentaire / Commentary"},{"Type":"Audio","Index":2,"Language":"eng"},`+
+		`{"Type":"Audio","Index":3,"Language":"fre"},{"Type":"Audio","Index":4,"Language":"spa","IsHearingImpaired":true}]`, 3, "fre")
+	// r6: English original played, language resolved from the stream index.
+	set("r6", `[{"Type":"Audio","Index":1,"Language":"eng"},{"Type":"Audio","Index":2,"Language":"fre"}]`, 1, "")
+	var lang struct {
+		Captured int
+		Split    struct{ OriginalSubtitled, Original, Dubbed, Unknown int }
+	}
+	v5JSON(t, db, "/api/v2/users/u1/languages", &lang)
+	if lang.Captured != 4 || lang.Split.Unknown != 2 || lang.Split.Dubbed != 1 || lang.Split.Original != 1 || lang.Split.OriginalSubtitled != 0 {
+		t.Errorf("languages = %+v", lang)
 	}
 }

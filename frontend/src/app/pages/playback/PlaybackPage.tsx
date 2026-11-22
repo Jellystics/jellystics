@@ -6,9 +6,9 @@ import { ChartFrame, Columns, Matrix, StackedColumns } from '@/charts'
 import { Badge, BarList, Card, CardBody, CardHeader, ErrorState, PageHeader, SegBar, Skeleton, StatStrip, StatTile, type StatDelta } from '@/ui'
 import { useFormat } from '@/lib/format'
 import { usePeriod } from '@/lib/useUrlState'
-import { CollectedEmpty, QueryCard } from '../insights/shared'
-import { formatBitrate } from '../insights/analyticsFormat'
-import styles from '../insights/analytics.module.css'
+import { CaptureEmpty, QueryCard } from '../_shared/shared'
+import { formatMbps } from '../_shared/analyticsFormat'
+import styles from '../_shared/analytics.module.css'
 
 /** Jellyfin TranscodeReason values with a translated label (others show raw). */
 const KNOWN_REASONS = new Set([
@@ -25,6 +25,8 @@ const RESOLUTIONS = [
   { key: 'SD', color: 'var(--seq-2)', ink: 'var(--ink)' },
 ] as const
 const BITRATE_LABELS = ['< 2', '2–5', '5–10', '10–20', '20–40', '≥ 40']
+/** Minimum views for the "most transcoded client" tile. */
+const MIN_CLIENT_VIEWS = 5
 
 const total = (m: MethodSplit) => m.direct + m.stream + m.transcode
 const share = (n: number, d: number) => (d > 0 ? n / d : 0)
@@ -39,7 +41,11 @@ export default function PlaybackPage() {
   const network = usePlaybackNetwork()
 
   const reasonLabel = (r: string) => (KNOWN_REASONS.has(r) ? t(`app.playback.reasons.${r}`) : r)
-  const codec = (c: string) => (c === 'copy' ? t('app.playback.copy') : c || '—')
+  const codec = (c: string) => (c === 'copy' ? t('app.playback.copy') : c || t('app.playback.unknownCodec'))
+  const none = t('app.playback.noValue')
+  const mbps = (label: string) => t('app.playback.bitrate.value', { value: label })
+  const bitrate = (bps: number) => mbps(formatMbps(bps, f.locale))
+  const captureEmpty = (since: string | null) => <CaptureEmpty since={since} from={period.from} />
   /** Note shown when the capture started inside the selected period. */
   const partial = (since: string | null) => (since && since > period.from
     ? <p className={styles.note}>{t('app.analytics.collectedSince', { date: f.day(new Date(`${since}T12:00:00`)) })}</p>
@@ -62,16 +68,17 @@ export default function PlaybackPage() {
     const prevN = m.previous ? total(m.previous) : 0
     const directShare = share(m.totals.direct, n), transcodeShare = share(m.totals.transcode, n)
     const topReason = q.reasons[0]
-    const worst = [...cl].filter((c) => c.views > 0 && (c.transcodeRatio ?? 0) > 0).sort((a, b) => (b.transcodeRatio ?? 0) - (a.transcodeRatio ?? 0))[0]
+    // A client needs a few views before its transcode ratio means anything.
+    const worst = [...cl].filter((c) => c.views >= MIN_CLIENT_VIEWS && (c.transcodeRatio ?? 0) > 0).sort((a, b) => (b.transcodeRatio ?? 0) - (a.transcodeRatio ?? 0))[0]
     return (
       <StatStrip columns={4}>
-        <StatTile label={t('app.playback.tiles.direct')} value={n ? f.percent(directShare) : '—'}
+        <StatTile label={t('app.playback.tiles.direct')} value={n ? f.percent(directShare) : none}
           delta={m.previous && prevN ? pts(directShare, share(m.previous.direct, prevN), true) : undefined} />
-        <StatTile label={t('app.playback.tiles.transcode')} value={n ? f.percent(transcodeShare) : '—'}
+        <StatTile label={t('app.playback.tiles.transcode')} value={n ? f.percent(transcodeShare) : none}
           delta={m.previous && prevN ? pts(transcodeShare, share(m.previous.transcode, prevN), false) : undefined} />
-        <StatTile label={t('app.playback.tiles.reason')} value={topReason ? reasonLabel(topReason.label) : '—'}
+        <StatTile label={t('app.playback.tiles.reason')} value={topReason ? reasonLabel(topReason.label) : none}
           foot={topReason && q.transcodes ? t('app.playback.tiles.reasonFoot', { value: f.percent(share(topReason.views, q.transcodes)) }) : undefined} />
-        <StatTile label={t('app.playback.tiles.client')} value={worst ? worst.client : '—'}
+        <StatTile label={t('app.playback.tiles.client')} value={worst ? worst.client : none}
           foot={worst ? t('app.playback.tiles.clientFoot', { value: f.percent(worst.transcodeRatio ?? 0) }) : undefined} />
       </StatStrip>
     )
@@ -98,13 +105,18 @@ export default function PlaybackPage() {
               { name: t('app.method.stream'), color: 'var(--m-stream)', values: d.daily.map((x) => x.stream) },
               { name: t('app.method.transcode'), color: 'var(--m-transcode)', values: d.daily.map((x) => x.transcode) },
             ]
+            const weekly = d.bucket === 'week'
+            const label = (date: string) => {
+              const day = f.day(new Date(`${date}T12:00:00`))
+              return weekly ? t('app.playback.weekOf', { date: day }) : day
+            }
             return (
               <ChartFrame
                 title={t('app.playback.methods.title')} subtitle={t('app.chart.views')} csvName="play-methods"
                 legend={series.map((s) => ({ label: s.name, color: s.color }))}
-                table={{ columns: [t('app.playback.date'), ...series.map((s) => s.name)], rows: d.daily.map((x) => [x.date, x.direct, x.stream, x.transcode]) }}
+                table={{ columns: [weekly ? t('app.playback.week') : t('app.playback.date'), ...series.map((s) => s.name)], rows: d.daily.map((x) => [x.date, x.direct, x.stream, x.transcode]) }}
               >
-                <StackedColumns labels={d.daily.map((x) => f.day(new Date(`${x.date}T12:00:00`)))} series={series} xEvery={Math.max(1, Math.ceil(d.daily.length / 6))} />
+                <StackedColumns labels={d.daily.map((x) => label(x.date))} series={series} xEvery={Math.max(1, Math.ceil(d.daily.length / 6))} />
               </ChartFrame>
             )
           }}
@@ -170,7 +182,7 @@ export default function PlaybackPage() {
         </QueryCard>
 
         <QueryCard title={t('app.playback.reasons.title')} query={quality} isEmpty={(d) => d.reasons.length === 0}
-          empty={quality.data && quality.data.captured === 0 ? <CollectedEmpty since={quality.data.collectedSince} /> : undefined}>
+          empty={quality.data && quality.data.captured === 0 ? captureEmpty(quality.data.collectedSince) : undefined}>
           {(d) => (
             <Card>
               <CardHeader title={t('app.playback.reasons.title')} subtitle={t('app.playback.reasons.subtitle')} />
@@ -223,12 +235,13 @@ export default function PlaybackPage() {
           )}
         </QueryCard>
 
-        <QueryCard title={t('app.playback.matrix.title')} query={quality} isEmpty={(d) => d.conversions.length === 0}>
+        <QueryCard title={t('app.playback.matrix.title')} query={quality} isEmpty={(d) => d.codecPairs.length === 0}>
           {(d) => {
-            const rows = [...new Set(d.conversions.map((c) => codec(c.videoFrom)))]
-            const cols = [...new Set(d.conversions.map((c) => codec(c.videoTo)))]
+            const pairs = d.codecPairs
+            const rows = [...new Set(pairs.map((c) => codec(c.videoFrom)))]
+            const cols = [...new Set(pairs.map((c) => codec(c.videoTo)))]
             const values = rows.map((r) => cols.map((col) => {
-              const n = d.conversions.filter((c) => codec(c.videoFrom) === r && codec(c.videoTo) === col).reduce((a, c) => a + c.views, 0)
+              const n = pairs.filter((c) => codec(c.videoFrom) === r && codec(c.videoTo) === col).reduce((a, c) => a + c.views, 0)
               return n || null
             }))
             return (
@@ -243,7 +256,7 @@ export default function PlaybackPage() {
         </QueryCard>
 
         <QueryCard title={t('app.playback.network.title')} query={network} isEmpty={(d) => d.captured === 0}
-          empty={network.data ? <CollectedEmpty since={network.data.collectedSince} /> : undefined}>
+          empty={network.data ? captureEmpty(network.data.collectedSince) : undefined}>
           {(d) => (
             <Card>
               <CardHeader title={t('app.playback.network.title')} subtitle={t('app.playback.network.subtitle')} />
@@ -266,17 +279,17 @@ export default function PlaybackPage() {
         </QueryCard>
 
         <QueryCard title={t('app.playback.bitrate.title')} query={quality} isEmpty={(d) => d.bitrate.samples === 0}
-          empty={quality.data ? <CollectedEmpty since={quality.data.collectedSince} /> : undefined}>
+          empty={quality.data ? captureEmpty(quality.data.collectedSince) : undefined}>
           {(d) => (
             <ChartFrame
               title={t('app.playback.bitrate.title')}
               subtitle={d.bitrate.avg !== null && d.bitrate.p95 !== null
-                ? t('app.playback.bitrate.subtitle', { avg: formatBitrate(d.bitrate.avg, f.locale), p95: formatBitrate(d.bitrate.p95, f.locale) })
+                ? t('app.playback.bitrate.subtitle', { avg: bitrate(d.bitrate.avg), p95: bitrate(d.bitrate.p95) })
                 : undefined}
               csvName="bitrate"
-              table={{ columns: [t('app.playback.bitrate.bucket'), t('app.chart.views')], rows: BITRATE_LABELS.map((l, i) => [`${l} Mb/s`, d.bitrate.buckets[i] ?? 0]) }}
+              table={{ columns: [t('app.playback.bitrate.bucket'), t('app.chart.views')], rows: BITRATE_LABELS.map((l, i) => [mbps(l), d.bitrate.buckets[i] ?? 0]) }}
             >
-              <Columns labels={BITRATE_LABELS.map((l) => `${l} Mb/s`)} values={d.bitrate.buckets} name={t('app.chart.views')}
+              <Columns labels={BITRATE_LABELS.map(mbps)} values={d.bitrate.buckets} name={t('app.chart.views')}
                 emphasis={d.bitrate.buckets.indexOf(Math.max(...d.bitrate.buckets))} />
               {partial(d.collectedSince)}
             </ChartFrame>

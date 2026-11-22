@@ -1,7 +1,8 @@
 import { screen } from '@testing-library/react'
 import RecapPage from './RecapPage'
 import { recapOptions } from './recapOptions'
-import { mockApi, renderPage } from '../insights/testUtils'
+import { CrumbLabelContext } from '@/app/shell/crumbs'
+import { mockApi, renderPage } from '../_shared/testUtils'
 
 const months = Array.from({ length: 12 }, (_, i) => `2025-${String(i + 1).padStart(2, '0')}`)
 const RECAP = {
@@ -24,7 +25,7 @@ beforeEach(() => { vi.restoreAllMocks() })
 it('renders the hero, tops, records and the ranking with deltas', async () => {
   const spy = mockApi({ '/api/v2/recap/u3/2025': RECAP })
   renderPage(<RecapPage />, { path: '/users/:id/recap/:period', url: '/users/u3/recap/2025?range=30d' })
-  expect(await screen.findByText(/^1\s812 h$/)).toBeInTheDocument()
+  expect(await screen.findByText('app.recap.hoursValue')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Léa' })).toHaveAttribute('href', '/users/u3?range=30d')
   expect(screen.getAllByRole('link', { name: /Station Nord/ })[0]).toHaveAttribute('href', '/series/s1?range=30d')
   expect(screen.getByRole('link', { name: /Lune Pâle/ })).toHaveAttribute('href', '/artists/ar1?range=30d')
@@ -62,4 +63,27 @@ it('lists the year and its latest months, never in the future', () => {
   expect(recapOptions('2026', now)).toEqual(['2026', '2026-11', '2026-10', '2026-09'])
   expect(recapOptions('2025-03', now)).toEqual(['2025', '2025-12', '2025-11', '2025-10', '2025-03'])
   expect(recapOptions('2027', now)).toEqual(['2027'])
+})
+
+it('uses the server time zone for the current month', () => {
+  const now = new Date(Date.UTC(2026, 10, 30, 23, 30)) // 30 Nov 23:30 UTC = 1 Dec in Kiritimati (UTC+14)
+  expect(recapOptions('2026', now, 'UTC')).toEqual(['2026', '2026-11', '2026-10', '2026-09'])
+  expect(recapOptions('2026', now, 'Pacific/Kiritimati')).toEqual(['2026', '2026-12', '2026-11', '2026-10'])
+})
+
+it('shows the user name and the period in the breadcrumb', async () => {
+  mockApi({ '/api/v2/recap/u3/2025': RECAP })
+  const set = vi.fn()
+  renderPage(
+    <CrumbLabelContext.Provider value={{ label: null, set }}><RecapPage /></CrumbLabelContext.Provider>,
+    { path: '/users/:id/recap/:period', url: '/users/u3/recap/2025' },
+  )
+  await screen.findByText('app.recap.hoursValue')
+  expect(set).toHaveBeenLastCalledWith(['Léa', 'app.recap.crumb'])
+})
+
+it('labels the ranking columns for screen readers', async () => {
+  mockApi({ '/api/v2/recap/u3/2025': RECAP })
+  renderPage(<RecapPage />, { path: '/users/:id/recap/:period', url: '/users/u3/recap/2025' })
+  expect(await screen.findByRole('columnheader', { name: 'app.recap.ranking.rank' })).toBeInTheDocument()
 })

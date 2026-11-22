@@ -9,7 +9,10 @@ export type RouteHandle = { /** Static trail (i18n keys as labels, translated by
   /** false hides the global period picker (legacy pages with their own date controls). */
   period?: boolean }
 
-export const CrumbLabelContext = createContext<{ label: string | null; set: (l: string | null) => void }>({ label: null, set: () => {} })
+/** Override of the last crumb label, or of the last crumbs (aligned on the end; null keeps a crumb). */
+export type CrumbLabels = string | readonly (string | null)[] | null
+
+export const CrumbLabelContext = createContext<{ label: CrumbLabels; set: (l: CrumbLabels) => void }>({ label: null, set: () => {} })
 
 export function useCrumbs(): Crumb[] {
   const { t } = useTranslation()
@@ -21,8 +24,22 @@ export function useCrumbs(): Crumb[] {
       return Array.isArray(c) ? c : [c]
     })
     .map((c) => ({ ...c, label: t(c.label) }))
-  if (label && crumbs.length) crumbs[crumbs.length - 1] = { ...crumbs[crumbs.length - 1], label }
+  const labels = label === null ? [] : typeof label === 'string' ? [label] : label
+  labels.forEach((l, i) => {
+    const at = crumbs.length - labels.length + i
+    if (l && at >= 0) crumbs[at] = { ...crumbs[at], label: l }
+  })
   return crumbs
+}
+
+/** Override the labels of the last crumbs, e.g. [user name, "Recap 2026"]. */
+export function useSetCrumbLabels(labels: readonly (string | null | undefined)[] | null) {
+  const { set } = useContext(CrumbLabelContext)
+  const key = labels ? JSON.stringify(labels.map((l) => l || null)) : null
+  useEffect(() => {
+    set(key ? (JSON.parse(key) as (string | null)[]) : null)
+    return () => set(null)
+  }, [key, set])
 }
 
 /** Override the last crumb label (entity names loaded asynchronously). */

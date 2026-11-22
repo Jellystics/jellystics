@@ -6,9 +6,9 @@ import {
 import { ChartFrame, Columns, SmallMultiples, StackedArea, WeekHeatmap } from '@/charts'
 import { AppLink, Art, BarList, Card, CardBody, CardHeader, PageHeader, SegBar } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { QueryCard } from './shared'
-import { entityPath, formatHours, formatMonth } from './analyticsFormat'
-import styles from './analytics.module.css'
+import { QueryCard } from '../_shared/shared'
+import { entityPath, formatHours, formatMonth } from '../_shared/analyticsFormat'
+import styles from '../_shared/analytics.module.css'
 
 const TYPES = ['movie', 'series', 'music'] as const
 const typeFill = (t: string) => `color-mix(in srgb, var(--t-${t}) 18%, transparent)`
@@ -28,10 +28,12 @@ export default function InsightsPage() {
   const rhythm = useInsightsRhythm()
 
   const decimal = (n: number) => new Intl.NumberFormat(f.locale).format(n)
-  const completionLabels = Array.from({ length: 10 }, (_, i) => `${i * 10}–${i * 10 + 10} %`)
+  const completionLabels = Array.from({ length: 10 }, (_, i) => t('app.insights.completion.range', { from: i * 10, to: i * 10 + 10 }))
+  const minutes = (from: number, to: number) => t('app.insights.sessions.minutes', { from, to })
   const sessionLabels = [
-    '< 1 min', '1–5 min', '5–15 min', '15–30 min', '30–45 min', '45–60 min',
-    `1–${decimal(1.5)} h`, `${decimal(1.5)}–2 h`, '> 2 h',
+    t('app.insights.sessions.under', { value: 1 }), minutes(1, 5), minutes(5, 15), minutes(15, 30), minutes(30, 45), minutes(45, 60),
+    t('app.insights.sessions.hours', { from: 1, to: decimal(1.5) }), t('app.insights.sessions.hours', { from: decimal(1.5), to: 2 }),
+    t('app.insights.sessions.over', { value: 2 }),
   ]
   const typeLabel = (k: (typeof TYPES)[number]) => t(`app.type.${k}`)
   const hours = Array.from({ length: 24 }, (_, h) => f.hour(h))
@@ -88,7 +90,11 @@ export default function InsightsPage() {
                   labelHeader={t('app.insights.content')} valueLabel={t('app.insights.pauses.value')} format={f.percent}
                   rows={d.map((p) => ({
                     key: `${p.kind}/${p.id}`, label: p.name, value: p.ratio, to: entityPath(p.kind, p.id),
-                    tooltip: [[t('app.insights.pauses.paused'), f.duration(p.pausedSeconds)], [t('app.insights.pauses.watched'), f.duration(p.watchSeconds)]],
+                    tooltip: [
+                      [t('app.insights.pauses.paused'), f.duration(p.pausedSeconds)],
+                      [t('app.insights.pauses.count'), f.number(p.pauseCount ?? 0)],
+                      [t('app.insights.pauses.watched'), f.duration(p.watchSeconds)],
+                    ],
                   }))}
                 />
               </CardBody>

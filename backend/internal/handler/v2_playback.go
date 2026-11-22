@@ -6,23 +6,41 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/netutil"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // capturedCond is true for playback rows recorded with the migration-011
 // capture (audio/subtitle choice, bitrate, local/remote, video range…).
+// Keep it identical to the predicate of idx_playback_captured_started_at
+// (migration 012) so collectedSince can use that partial index.
 func capturedCond(alias string) string {
 	return `(` + alias + `."AudioStreamIndex" IS NOT NULL OR ` + alias + `."AudioLanguage" IS NOT NULL OR ` +
 		alias + `."Bitrate" IS NOT NULL OR ` + alias + `."IsRemote" IS NOT NULL OR ` + alias + `."VideoRange" IS NOT NULL OR ` +
 		alias + `."TranscodeReasons" IS NOT NULL OR ` + alias + `."PauseCount" > 0)`
 }
 
+// collectedSinceCache keeps, per database, the first capture date once it is
+// known: it can only move if captured rows are deleted, which never happens
+// in normal operation. "Nothing captured yet" is not cached.
+var collectedSinceCache = struct {
+	sync.Mutex
+	m map[*gorm.DB]string
+}{m: map[*gorm.DB]string{}}
+
 // collectedSince is the local date of the first captured playback row (all
 // users, all time), or nil when nothing has been captured yet.
 func (h *V2Handler) collectedSince(c *gin.Context) (*string, error) {
+	collectedSinceCache.Lock()
+	cached, ok := collectedSinceCache.m[h.db]
+	collectedSinceCache.Unlock()
+	if ok {
+		return &cached, nil
+	}
 	var row struct{ First *time.Time }
 	if err := h.raw(c, &row, `SELECT MIN("StartedAt") AS first FROM jf_playback_activity a WHERE `+capturedCond("a")); err != nil {
 		return nil, err
@@ -31,6 +49,9 @@ func (h *V2Handler) collectedSince(c *gin.Context) (*string, error) {
 		return nil, nil
 	}
 	d := localDate(*row.First)
+	collectedSinceCache.Lock()
+	collectedSinceCache.m[h.db] = d
+	collectedSinceCache.Unlock()
 	return &d, nil
 }
 
@@ -58,14 +79,17 @@ func (h *V2Handler) PlaybackMethods(c *gin.Context) {
 	if !ok {
 		return
 	}
-	f := p.analyticsFilter(p.Range)
+	f := p.filter(p.Range)
 	var totals methodSplit
 	q, args := f.sql(`SELECT ` + methodCounts + ` FROM acts WHERE is_view`)
 	if v2Fail(c, h.raw(c, &totals, q, args...)) {
 		return
 	}
+	// Bucketed like the overview: by day, by ISO week (labelled by its Monday)
+	// on ranges over 400 days, where leading empty weeks are trimmed.
+	week := useWeeks(p.Range)
 	var rows []methodDay
-	q, args = f.sql(`SELECT ` + localDay + ` AS date, ` + methodCounts + ` FROM acts WHERE is_view GROUP BY 1`)
+	q, args = f.sql(`SELECT ` + bucketExpr(week) + ` AS date, ` + methodCounts + ` FROM acts WHERE is_view GROUP BY 1`)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return
 	}
@@ -74,15 +98,20 @@ func (h *V2Handler) PlaybackMethods(c *gin.Context) {
 		by[r.Date] = r
 	}
 	daily := []methodDay{}
-	eachDay(p.Range, func(d string) {
+	eachBucket(p.Range, week, func(d string) {
 		r := by[d]
 		r.Date = d
 		daily = append(daily, r)
 	})
-	out := gin.H{"totals": totals, "daily": daily}
+	bucket := "day"
+	if week {
+		bucket = "week"
+		daily = daily[leadingEmpty(len(daily), func(i int) bool { return daily[i].Direct+daily[i].Stream+daily[i].Transcode == 0 }):]
+	}
+	out := gin.H{"bucket": bucket, "totals": totals, "daily": daily}
 	if p.Prev != nil {
 		var prev methodSplit
-		q, args = p.analyticsFilter(*p.Prev).sql(`SELECT ` + methodCounts + ` FROM acts WHERE is_view`)
+		q, args = p.filter(*p.Prev).sql(`SELECT ` + methodCounts + ` FROM acts WHERE is_view`)
 		if v2Fail(c, h.raw(c, &prev, q, args...)) {
 			return
 		}
@@ -120,7 +149,7 @@ func (h *V2Handler) PlaybackClients(c *gin.Context) {
 		return
 	}
 	var rows []clientRow
-	q, args := p.analyticsFilter(p.Range).sql(`
+	q, args := p.filter(p.Range).sql(`
 		SELECT COALESCE(NULLIF(client, ''), 'Unknown') AS client, ` + aggClicks + ` AS clicks, ` + aggPlays + ` AS views,
 		       COUNT(*) FILTER (WHERE is_view AND play_method = 'Transcode')::int AS transcodes,
 		       COUNT(*) FILTER (WHERE NOT is_view)::int AS false_starts
@@ -154,6 +183,12 @@ type conversionRow struct {
 	Views     int    `json:"views"`
 }
 
+type codecPair struct {
+	VideoFrom string `json:"videoFrom"`
+	VideoTo   string `json:"videoTo"`
+	Views     int    `json:"views"`
+}
+
 type qualityResponse struct {
 	CollectedSince *string `json:"collectedSince"`
 	Captured       int     `json:"captured"` // views of the range with captured fields
@@ -170,9 +205,11 @@ type qualityResponse struct {
 		ToneMapped int `json:"toneMapped"` // HDR source transcoded (tone mapping)
 		Sdr        int `json:"sdr"`
 	} `json:"hdr"`
-	Reasons     []labelCount    `json:"reasons"` // of transcoded views
-	Conversions []conversionRow `json:"conversions"`
-	Streams     struct {
+	Reasons     []labelCount    `json:"reasons"`     // of transcoded views
+	Conversions []conversionRow `json:"conversions"` // top 12 (video + audio) conversions
+	// CodecPairs is every video source → output codec pair (not truncated).
+	CodecPairs []codecPair `json:"codecPairs"`
+	Streams    struct {
 		AudioOnly int `json:"audioOnly"`
 		VideoOnly int `json:"videoOnly"`
 		Both      int `json:"both"`
@@ -254,7 +291,7 @@ func (h *V2Handler) PlaybackQuality(c *gin.Context) {
 	if out.CollectedSince, err = h.collectedSince(c); v2Fail(c, err) {
 		return
 	}
-	f := p.analyticsFilter(p.Range)
+	f := p.filter(p.Range)
 	var rows []struct {
 		MediaType, PlayMethod        string
 		SrcVideo, SrcRange, SrcAudio *string
@@ -390,6 +427,25 @@ func (h *V2Handler) PlaybackQuality(c *gin.Context) {
 		}
 		return fmt.Sprint(a) < fmt.Sprint(b)
 	})
+	pairs := map[codecPair]int{}
+	for _, cv := range out.Conversions {
+		pairs[codecPair{VideoFrom: cv.VideoFrom, VideoTo: cv.VideoTo}] += cv.Views
+	}
+	out.CodecPairs = make([]codecPair, 0, len(pairs))
+	for k, n := range pairs {
+		k.Views = n
+		out.CodecPairs = append(out.CodecPairs, k)
+	}
+	sort.Slice(out.CodecPairs, func(i, j int) bool {
+		a, b := out.CodecPairs[i], out.CodecPairs[j]
+		if a.Views != b.Views {
+			return a.Views > b.Views
+		}
+		if a.VideoFrom != b.VideoFrom {
+			return a.VideoFrom < b.VideoFrom
+		}
+		return a.VideoTo < b.VideoTo
+	})
 	if len(out.Conversions) > 12 {
 		out.Conversions = out.Conversions[:12]
 	}
@@ -450,7 +506,7 @@ func (h *V2Handler) PlaybackNetwork(c *gin.Context) {
 		Endpoint *string
 		N        int
 	}
-	q, args := p.analyticsFilter(p.Range).sql(`
+	q, args := p.filter(p.Range).sql(`
 		SELECT pa."IsRemote" AS remote, CASE WHEN pa."IsRemote" THEN pa."RemoteEndPoint" END AS endpoint, COUNT(*)::int AS n
 		FROM acts JOIN jf_playback_activity pa ON pa."Id" = acts.id
 		WHERE acts.is_view GROUP BY 1, 2`)
@@ -530,7 +586,7 @@ func (h *V2Handler) PlaybackNetwork(c *gin.Context) {
 
 type languagesResponse struct {
 	CollectedSince *string `json:"collectedSince"`
-	Captured       int     `json:"captured"` // movie / episode views with a known audio track
+	Captured       int     `json:"captured"` // captured movie / episode views (migration 011)
 	Split          struct {
 		OriginalSubtitled int `json:"originalSubtitled"`
 		Original          int `json:"original"`
@@ -542,10 +598,23 @@ type languagesResponse struct {
 	SubtitleOff int          `json:"subtitleOff"`
 }
 
-// UserLanguages: "original" means the audio track played is the first audio
-// track of the file (same language as it when both are known, else same
-// index) — Jellyfin has no original-language field, and files usually list
-// the original track first.
+// mainAudio is true for an audio stream s that can be the original track:
+// commentaries, audio descriptions and hearing-impaired mixes are skipped.
+const mainAudio = `s->>'Type' = 'Audio'
+		  AND NOT COALESCE(CASE WHEN jsonb_typeof(s->'IsHearingImpaired') = 'boolean' THEN (s->>'IsHearingImpaired')::boolean END, false)
+		  AND lower(COALESCE(s->>'Title', '') || ' ' || COALESCE(s->>'DisplayTitle', '')) !~ '(comment|description|descriptive)'`
+
+// knownLang is the lower-cased language expression e, NULL when empty or "und".
+func knownLang(e string) string {
+	return `NULLIF(NULLIF(lower(` + e + `), ''), 'und')`
+}
+
+// UserLanguages: "original" means the language played is the language of
+// the first main audio track of the file — Jellyfin has no original-language
+// field, and files usually list the original track first. Views stay
+// unknown when the file has a single audio language (nothing to choose),
+// when the first track or the played track has no language, and when the
+// client did not report its audio track.
 func (h *V2Handler) UserLanguages(c *gin.Context) {
 	p, ok := v2Params(c)
 	if !ok {
@@ -563,19 +632,25 @@ func (h *V2Handler) UserLanguages(c *gin.Context) {
 		Original      *bool
 		N             int
 	}
-	q, args := p.analyticsFilter(p.Range).sql(`
+	q, args := p.filter(p.Range).sql(`
 		SELECT lower(NULLIF(pa."AudioLanguage", '')) AS lang, lower(NULLIF(pa."SubtitleLanguage", '')) AS sub_lang,
 		       (pa."SubtitleStreamIndex" IS NOT NULL) AS subtitled,
-		       CASE WHEN NULLIF(pa."AudioLanguage", '') IS NOT NULL AND NULLIF(fl.lang, '') IS NOT NULL THEN lower(pa."AudioLanguage") = lower(fl.lang)
-		            WHEN pa."AudioStreamIndex" IS NOT NULL AND fa.idx IS NOT NULL THEN pa."AudioStreamIndex" = fa.idx END AS original,
+		       CASE WHEN fs.langs >= 2 AND fs.first_lang IS NOT NULL
+		                 AND COALESCE(` + knownLang(`pa."AudioLanguage"`) + `, ps.lang) IS NOT NULL
+		            THEN COALESCE(` + knownLang(`pa."AudioLanguage"`) + `, ps.lang) = fs.first_lang END AS original,
 		       COUNT(*)::int AS n
 		FROM acts
 		JOIN jf_playback_activity pa ON pa."Id" = acts.id
-		LEFT JOIN LATERAL (SELECT MIN(NULLIF(s->>'Index', '')::numeric)::int AS idx FROM ` + streamsOf + ` s WHERE s->>'Type' = 'Audio') fa ON true
-		LEFT JOIN LATERAL (SELECT s->>'Language' AS lang FROM ` + streamsOf + ` s
-		                   WHERE s->>'Type' = 'Audio' AND NULLIF(s->>'Index', '')::numeric = fa.idx LIMIT 1) fl ON true
-		WHERE acts.is_view AND acts.media_type IN ('Movie', 'Episode')
-		  AND (pa."AudioStreamIndex" IS NOT NULL OR NULLIF(pa."AudioLanguage", '') IS NOT NULL)
+		LEFT JOIN LATERAL (
+		  SELECT (array_agg(` + knownLang(`s->>'Language'`) + ` ORDER BY NULLIF(s->>'Index', '')::numeric NULLS LAST))[1] AS first_lang,
+		         COUNT(DISTINCT ` + knownLang(`s->>'Language'`) + `)::int AS langs
+		  FROM ` + streamsOf + ` s WHERE ` + mainAudio + `
+		) fs ON true
+		LEFT JOIN LATERAL (
+		  SELECT ` + knownLang(`s->>'Language'`) + ` AS lang FROM ` + streamsOf + ` s
+		  WHERE s->>'Type' = 'Audio' AND pa."AudioStreamIndex" IS NOT NULL AND NULLIF(s->>'Index', '')::numeric = pa."AudioStreamIndex" LIMIT 1
+		) ps ON true
+		WHERE acts.is_view AND acts.media_type IN ('Movie', 'Episode') AND ` + capturedCond("pa") + `
 		GROUP BY 1, 2, 3, 4`)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return

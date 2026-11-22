@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import DiscoverPage from './DiscoverPage'
-import { mockApi, renderPage } from '../insights/testUtils'
+import { mockApi, renderPage } from '../_shared/testUtils'
 
 const FULL = {
   '/api/v2/discover/unwatched': {
@@ -35,6 +35,9 @@ it('renders tiles, lists and the storage scatter with period-keeping links', asy
   expect(screen.getByRole('link', { name: 'Marc' })).toHaveAttribute('href', '/users/u4?range=90d')
   expect(screen.getAllByRole('progressbar')).toHaveLength(2)
   expect(screen.getByRole('img', { name: /app.chart.views/ })).toBeInTheDocument()
+  // Both lists are real tables with (visually hidden) column headers.
+  expect(screen.getByRole('columnheader', { name: 'app.discover.unwatched.kind' })).toBeInTheDocument()
+  expect(screen.getByRole('columnheader', { name: 'app.discover.abandoned.progressCol' })).toBeInTheDocument()
 })
 
 it('shows empty lists and an error state for the tiles', async () => {

@@ -38,6 +38,15 @@ export function NoData() {
   return <EmptyState icon={<Inbox size={20} strokeWidth={1.6} />} title={t('app.analytics.noData')} description={t('app.analytics.noDataHint')} />
 }
 
+/**
+ * Empty state of a capture-fed widget over a period starting at `from`
+ * (YYYY-MM-DD): the "collected from" message only when the capture had not
+ * started yet at the beginning of the period, else the usual "no data".
+ */
+export function CaptureEmpty({ since, from }: { since: string | null; from: string }) {
+  return since !== null && since <= from ? <NoData /> : <CollectedEmpty since={since} />
+}
+
 /** Empty state of the widgets fed by the playback capture (migration 011). */
 export function CollectedEmpty({ since }: { since: string | null }) {
   const { t, i18n } = useTranslation()

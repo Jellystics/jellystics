@@ -33,13 +33,42 @@ func catalogTypes(p V2Params) []interface{} {
 
 // catalogCTE (append after the acts CTE) defines `cat`: one row per title
 // with kind, name, add date, production year and size on disk (movie file,
-// or the sum of the episode / track files). Args: catalogArgs(p).
+// or the sum of the episode / track files, pre-aggregated once per series /
+// album). Args: catalogArgs(p).
 func catalogCTE(p V2Params) string {
 	lib := ""
 	if p.LibraryID != "" {
 		lib = ` AND i."ParentId" = ?`
 	}
-	return `,
+	var series, albums bool
+	for _, t := range catalogTypes(p) {
+		series = series || t == "Series"
+		albums = albums || t == "MusicAlbum"
+	}
+	pre, joins, seriesSize, albumSize := "", "", "0", "0"
+	if series {
+		pre += `,
+	ep_size AS (
+	  SELECT e."SeriesId" AS id, SUM(ei."Size") AS size
+	  FROM jf_library_episodes e JOIN jf_item_info ei ON ei."Id" = e."Id"
+	  WHERE NOT e.archived GROUP BY e."SeriesId"
+	)`
+		joins += `
+	  LEFT JOIN ep_size es ON es.id = i."Id"`
+		seriesSize = `COALESCE(es.size, 0)`
+	}
+	if albums {
+		pre += `,
+	trk_size AS (
+	  SELECT t."AlbumId" AS id, SUM(ti."Size") AS size
+	  FROM jf_music_tracks t JOIN jf_item_info ti ON ti."Id" = t."Id"
+	  GROUP BY t."AlbumId"
+	)`
+		joins += `
+	  LEFT JOIN trk_size ts ON ts.id = i."Id"`
+		albumSize = `COALESCE(ts.size, 0)`
+	}
+	return pre + `,
 	cat AS (
 	  SELECT i."Id" AS id,
 	         CASE i."Type" WHEN 'Movie' THEN 'movie' WHEN 'Series' THEN 'series' ELSE 'album' END AS kind,
@@ -48,13 +77,11 @@ func catalogCTE(p V2Params) string {
 	         i."ProductionYear" AS year,
 	         (CASE i."Type"
 	            WHEN 'Movie' THEN COALESCE(ii."Size", 0)
-	            WHEN 'Series' THEN COALESCE((SELECT SUM(ei."Size") FROM jf_library_episodes e JOIN jf_item_info ei ON ei."Id" = e."Id"
-	                                         WHERE e."SeriesId" = i."Id" AND NOT e.archived), 0)
-	            ELSE COALESCE((SELECT SUM(ti."Size") FROM jf_music_tracks t JOIN jf_item_info ti ON ti."Id" = t."Id"
-	                           WHERE t."AlbumId" = i."Id"), 0)
+	            WHEN 'Series' THEN ` + seriesSize + `
+	            ELSE ` + albumSize + `
 	          END)::bigint AS size_bytes
 	  FROM jf_library_items i
-	  LEFT JOIN jf_item_info ii ON ii."Id" = i."Id"
+	  LEFT JOIN jf_item_info ii ON ii."Id" = i."Id"` + joins + `
 	  WHERE i."Type" IN (` + inPlaceholders(len(catalogTypes(p))) + `) AND NOT i.archived` + lib + `
 	)`
 }
@@ -95,24 +122,44 @@ func (h *V2Handler) DiscoverUnwatched(c *gin.Context) {
 	cte := catalogCTE(p) + `,
 	seen AS (SELECT DISTINCT group_id FROM acts WHERE is_view AND group_id IS NOT NULL),
 	un AS (SELECT * FROM cat WHERE id NOT IN (SELECT group_id FROM seen))`
-	var sum struct {
+	// One query (the all-time acts scan behind `seen` runs once): the summary
+	// row, joined to the 20 oldest additions (no item row when none).
+	var rows []struct {
 		Count, Catalog int
-		SizeBytes      int64
+		TotalSize      int64
+		ID, Kind, Name *string
+		DateAdded      *string
+		SizeBytes      *int64
 	}
-	q, args := f.sql(cte+`
-		SELECT (SELECT COUNT(*) FROM un)::int AS count, (SELECT COUNT(*) FROM cat)::int AS catalog,
-		       (SELECT COALESCE(SUM(size_bytes), 0) FROM un)::bigint AS size_bytes`, catalogArgs(p)...)
-	if v2Fail(c, h.raw(c, &sum, q, args...)) {
+	q, args := f.sql(cte+`,
+	sm AS (SELECT (SELECT COUNT(*) FROM un)::int AS count, (SELECT COUNT(*) FROM cat)::int AS catalog,
+	              (SELECT COALESCE(SUM(size_bytes), 0) FROM un)::bigint AS total_size)
+	SELECT sm.count, sm.catalog, sm.total_size, top.id, top.kind, top.name, top.date_added, top.size_bytes
+	FROM sm LEFT JOIN LATERAL (
+	  SELECT id, kind, name, added, to_char(added AT TIME ZONE '`+tzName()+`', 'YYYY-MM-DD') AS date_added, size_bytes
+	  FROM un ORDER BY added ASC NULLS LAST, name, id LIMIT 20
+	) top ON true
+	ORDER BY top.added ASC NULLS LAST, top.name, top.id`, catalogArgs(p)...)
+	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return
 	}
 	items := []catalogItem{}
-	q, args = f.sql(cte+`
-		SELECT id, kind, name, to_char(added AT TIME ZONE '`+tzName()+`', 'YYYY-MM-DD') AS date_added, size_bytes
-		FROM un ORDER BY added ASC NULLS LAST, name, id LIMIT 20`, catalogArgs(p)...)
-	if v2Fail(c, h.raw(c, &items, q, args...)) {
-		return
+	var count, catalog int
+	var total int64
+	for _, r := range rows {
+		count, catalog, total = r.Count, r.Catalog, r.TotalSize
+		if r.ID != nil {
+			items = append(items, catalogItem{ID: *r.ID, Kind: deref(r.Kind), Name: deref(r.Name), DateAdded: r.DateAdded, SizeBytes: derefInt64(r.SizeBytes)})
+		}
 	}
-	c.JSON(http.StatusOK, gin.H{"count": sum.Count, "catalog": sum.Catalog, "sizeBytes": sum.SizeBytes, "items": items})
+	c.JSON(http.StatusOK, gin.H{"count": count, "catalog": catalog, "sizeBytes": total, "items": items})
+}
+
+func derefInt64(n *int64) int64 {
+	if n == nil {
+		return 0
+	}
+	return *n
 }
 
 // abandonDays: a title is abandoned when its last play is older than this.
@@ -132,7 +179,7 @@ type abandonedRow struct {
 
 // GET /api/v2/discover/abandoned → (user, title) pairs left unfinished whose
 // last play is older than 60 days (all time; userId / libraryId apply):
-// movies whose best completion is in [10 %, 80 %), series with < 80 % of the
+// movies whose best completion is in [10 %, 80 %), series with 10–80 % of the
 // catalog episodes viewed. Most recently played first, 20 max.
 func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 	p, ok := v2Params(c)
@@ -142,7 +189,7 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 	cutoff := time.Now().AddDate(0, 0, -abandonDays)
 	pp := p
 	pp.Type, pp.MediaType = "", ""
-	f := pp.analyticsFilter(TimeRange{AllTime: true}).where(`a."IsView"`)
+	f := pp.filter(TimeRange{AllTime: true}).where(`a."IsView"`)
 	switch p.Type {
 	case "movie":
 		f.where(`a."MediaType" = 'Movie'`)
@@ -171,23 +218,20 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 	  FROM acts JOIN eps ON eps.series_id = acts.group_id
 	  WHERE media_type = 'Episode' AND user_id IS NOT NULL AND eps.total > 0
 	  GROUP BY group_id, user_id
-	  HAVING COUNT(DISTINCT item_id)::float8 / MAX(eps.total) < 0.8 AND MAX(started_at) < ?
+	  HAVING COUNT(DISTINCT item_id)::float8 / MAX(eps.total) >= 0.1 AND COUNT(DISTINCT item_id)::float8 / MAX(eps.total) < 0.8
+	     AND MAX(started_at) < ?
 	),
 	ab AS (SELECT * FROM mv UNION ALL SELECT * FROM sr)`
-	var count int
-	q, args := f.sql(cte+` SELECT COUNT(*)::int FROM ab`, cutoff, cutoff)
-	if v2Fail(c, h.raw(c, &count, q, args...)) {
-		return
-	}
 	var rows []struct {
+		Count                            int
 		Kind, ID, Name, UserID, UserName string
 		Progress                         float64
 		LastPlayed                       time.Time
 		PositionSeconds                  *int64
 		EpisodesViewed, EpisodesTotal    *int
 	}
-	q, args = f.sql(cte+`
-		SELECT kind, id, COALESCE(name, '') AS name, user_id, COALESCE(user_name, user_id) AS user_name, progress,
+	q, args := f.sql(cte+`
+		SELECT COUNT(*) OVER ()::int AS count, kind, id, COALESCE(name, '') AS name, user_id, COALESCE(user_name, user_id) AS user_name, progress,
 		       last_played, position_seconds, episodes_viewed, episodes_total
 		FROM ab ORDER BY last_played DESC, id, user_id LIMIT 20`, cutoff, cutoff)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
@@ -198,6 +242,10 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 		items[i] = abandonedRow{ID: r.ID, Kind: r.Kind, Name: r.Name, User: RefUserJSON{ID: r.UserID, Name: r.UserName},
 			Progress: r.Progress, LastPlayed: localTime(r.LastPlayed), PositionSeconds: r.PositionSeconds,
 			EpisodesViewed: r.EpisodesViewed, EpisodesTotal: r.EpisodesTotal}
+	}
+	count := 0
+	if len(rows) > 0 {
+		count = rows[0].Count
 	}
 	c.JSON(http.StatusOK, gin.H{"count": count, "items": items})
 }
@@ -214,32 +262,34 @@ func (h *V2Handler) DiscoverAdded(c *gin.Context) {
 	seen AS (SELECT DISTINCT group_id FROM acts WHERE is_view AND group_id IS NOT NULL),
 	ad AS (SELECT cat.*, (cat.id IN (SELECT group_id FROM seen)) AS seen FROM cat WHERE added >= ? AND added < ?)`
 	cargs := withArgs(catalogArgs(p), []interface{}{p.Range.From, p.Range.To})
-	var sum struct{ Count, Seen int }
-	q, args := f.sql(cte+` SELECT COUNT(*)::int AS count, COUNT(*) FILTER (WHERE seen)::int AS seen FROM ad`, cargs...)
-	if v2Fail(c, h.raw(c, &sum, q, args...)) {
-		return
-	}
 	type addedItem struct {
 		catalogItem
 		Seen bool `json:"seen"`
 	}
+	// One query: the window aggregates carry the totals on every listed row.
 	var rows []struct {
-		ID, Kind, Name string
-		DateAdded      *string
-		SizeBytes      int64
-		Seen           bool
+		Count, SeenCount int
+		ID, Kind, Name   string
+		DateAdded        *string
+		SizeBytes        int64
+		Seen             bool
 	}
-	q, args = f.sql(cte+`
-		SELECT id, kind, name, to_char(added AT TIME ZONE '`+tzName()+`', 'YYYY-MM-DD') AS date_added, size_bytes, seen
-		FROM ad ORDER BY added DESC, name, id LIMIT 20`, cargs...)
+	q, args := f.sql(cte+`
+		SELECT count, seen_count, id, kind, name, date_added, size_bytes, seen FROM (
+		  SELECT COUNT(*) OVER ()::int AS count, (COUNT(*) FILTER (WHERE seen) OVER ())::int AS seen_count,
+		         id, kind, name, added, to_char(added AT TIME ZONE '`+tzName()+`', 'YYYY-MM-DD') AS date_added, size_bytes, seen
+		  FROM ad
+		) x ORDER BY added DESC, name, id LIMIT 20`, cargs...)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return
 	}
 	items := make([]addedItem, len(rows))
+	count, seen := 0, 0
 	for i, r := range rows {
+		count, seen = r.Count, r.SeenCount
 		items[i] = addedItem{catalogItem{r.ID, r.Kind, r.Name, r.DateAdded, r.SizeBytes}, r.Seen}
 	}
-	c.JSON(http.StatusOK, gin.H{"count": sum.Count, "seen": sum.Seen, "items": items})
+	c.JSON(http.StatusOK, gin.H{"count": count, "seen": seen, "items": items})
 }
 
 type storagePoint struct {
@@ -258,7 +308,7 @@ func (h *V2Handler) DiscoverStorage(c *gin.Context) {
 		return
 	}
 	out := []storagePoint{}
-	q, args := p.analyticsFilter(p.Range).sql(catalogCTE(p)+`,
+	q, args := p.filter(p.Range).sql(catalogCTE(p)+`,
 		v AS (SELECT group_id, `+aggPlays+` AS views FROM acts GROUP BY group_id)
 		SELECT cat.id, cat.kind, cat.name, cat.size_bytes, COALESCE(v.views, 0) AS views
 		FROM cat LEFT JOIN v ON v.group_id = cat.id
@@ -266,79 +316,6 @@ func (h *V2Handler) DiscoverStorage(c *gin.Context) {
 		ORDER BY cat.size_bytes DESC, cat.id LIMIT 300`, catalogArgs(p)...)
 	if v2Fail(c, h.raw(c, &out, q, args...)) {
 		return
-	}
-	c.JSON(http.StatusOK, out)
-}
-
-type decadeRow struct {
-	Decade int `json:"decade"`
-	Items  int `json:"items"`
-	Views  int `json:"views"`
-}
-
-// GET /api/v2/discover/decades → catalog titles and views in the range per
-// production decade (titles without a year are skipped).
-func (h *V2Handler) DiscoverDecades(c *gin.Context) {
-	p, ok := v2Params(c)
-	if !ok {
-		return
-	}
-	out := []decadeRow{}
-	q, args := p.analyticsFilter(p.Range).sql(catalogCTE(p)+`,
-		v AS (SELECT group_id, `+aggPlays+` AS views FROM acts GROUP BY group_id)
-		SELECT (cat.year / 10 * 10)::int AS decade, COUNT(*)::int AS items, COALESCE(SUM(v.views), 0)::int AS views
-		FROM cat LEFT JOIN v ON v.group_id = cat.id
-		WHERE cat.year IS NOT NULL AND cat.year > 0
-		GROUP BY 1 ORDER BY 1`, catalogArgs(p)...)
-	if v2Fail(c, h.raw(c, &out, q, args...)) {
-		return
-	}
-	c.JSON(http.StatusOK, out)
-}
-
-type growthPoint struct {
-	Month      string `json:"month"`
-	Added      int    `json:"added"`
-	FirstViews int    `json:"firstViews"`
-}
-
-// GET /api/v2/discover/growth → per local month of the range: titles added
-// to the catalog, and titles viewed for the first time ever (by anyone, or by
-// userId).
-func (h *V2Handler) DiscoverGrowth(c *gin.Context) {
-	p, ok := v2Params(c)
-	if !ok {
-		return
-	}
-	var rows []struct {
-		Month             string
-		Added, FirstViews int
-	}
-	f := acts().forUser(p.UserID).where(`a."IsView"`)
-	q, args := f.sql(catalogCTE(p)+`,
-		fv AS (
-		  SELECT group_id, MIN(started_at) AS first FROM acts
-		  WHERE group_id IN (SELECT id FROM cat) GROUP BY group_id
-		),
-		ev AS (
-		  SELECT to_char(added AT TIME ZONE '`+tzName()+`', 'YYYY-MM') AS month, 1 AS a, 0 AS v FROM cat WHERE added >= ? AND added < ?
-		  UNION ALL
-		  SELECT to_char(first AT TIME ZONE '`+tzName()+`', 'YYYY-MM'), 0, 1 FROM fv WHERE first >= ? AND first < ?
-		)
-		SELECT month, SUM(a)::int AS added, SUM(v)::int AS first_views FROM ev GROUP BY month`,
-		withArgs(catalogArgs(p), []interface{}{p.Range.From, p.Range.To, p.Range.From, p.Range.To})...)
-	if v2Fail(c, h.raw(c, &rows, q, args...)) {
-		return
-	}
-	by := map[string]growthPoint{}
-	for _, r := range rows {
-		by[r.Month] = growthPoint{Month: r.Month, Added: r.Added, FirstViews: r.FirstViews}
-	}
-	out := []growthPoint{}
-	for _, m := range monthsOf(p.Range) {
-		g := by[m]
-		g.Month = m
-		out = append(out, g)
 	}
 	c.JSON(http.StatusOK, out)
 }

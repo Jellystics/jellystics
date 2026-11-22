@@ -59,26 +59,22 @@ func TestV2DiscoverCatalog(t *testing.T) {
 		t.Errorf("storage = %+v", storage)
 	}
 
-	var decades []struct{ Decade, Items, Views int }
-	v5JSON(t, db, "/api/v2/discover/decades", &decades)
-	if len(decades) != 3 || decades[0] != (struct{ Decade, Items, Views int }{2000, 1, 0}) ||
-		decades[1] != (struct{ Decade, Items, Views int }{2010, 1, 2}) || decades[2] != (struct{ Decade, Items, Views int }{2020, 1, 3}) {
-		t.Errorf("decades = %+v", decades)
+	// Episode and track sizes are pre-aggregated per series / album.
+	mustExec(t, db, `INSERT INTO jf_item_info ("Id", "Size", "Type") VALUES ('e1', 1000, 'Episode'), ('e2', 2000, 'Episode'), ('t1', 300, 'Audio')`)
+	v5JSON(t, db, "/api/v2/discover/storage", &storage)
+	if len(storage) != 2 || storage[1].ID != "s1" || storage[1].SizeBytes != 3000 {
+		t.Errorf("storage with episodes = %+v", storage)
 	}
-
-	var growth []struct {
-		Month             string
-		Added, FirstViews int
+	v5JSON(t, db, "/api/v2/discover/storage?type=music", &storage)
+	if len(storage) != 1 || storage[0].ID != "al1" || storage[0].SizeBytes != 300 {
+		t.Errorf("storage music = %+v", storage)
 	}
-	v5JSON(t, db, "/api/v2/discover/growth", &growth)
-	addedSum, firstSum := 0, 0
-	for _, g := range growth {
-		addedSum += g.Added
-		firstSum += g.FirstViews
+	v5JSON(t, db, "/api/v2/discover/added?from=2000-01-01&to=2000-01-02", &added)
+	if added.Count != 0 || added.Seen != 0 || len(added.Items) != 0 {
+		t.Errorf("added empty = %+v", added)
 	}
-	// m1 added in range (its first view is a year ago), s1 first viewed in range.
-	if len(growth) < 2 || addedSum != 1 || firstSum != 1 {
-		t.Errorf("growth = %+v", growth)
+	if w := v5Get(t, db, "/api/v2/discover/decades"); w.Code != 404 {
+		t.Errorf("/discover/decades should be gone, status %d", w.Code)
 	}
 }
 
@@ -129,5 +125,19 @@ func TestV2DiscoverAbandoned(t *testing.T) {
 	v5JSON(t, db, "/api/v2/discover/abandoned?userId=u1", &ab)
 	if ab.Count != 0 {
 		t.Errorf("abandoned u1 = %+v", ab)
+	}
+
+	// Under 10 % of the episodes (1 of 11) is a sampling, not an abandon.
+	eps := make([]models.JFLibraryEpisode, 8)
+	for i := range eps {
+		id := "ex" + string(rune('a'+i))
+		eps[i] = models.JFLibraryEpisode{Id: id, EpisodeId: sp(id), Name: sp(id), SeriesId: sp("s1"), SeasonId: sp("se2"), SeriesName: sp("Les Rivages")}
+	}
+	if err := db.Create(&eps).Error; err != nil {
+		t.Fatal(err)
+	}
+	v5JSON(t, db, "/api/v2/discover/abandoned?type=series", &ab)
+	if ab.Count != 0 || len(ab.Items) != 0 {
+		t.Errorf("abandoned series under 10 %% = %+v", ab)
 	}
 }

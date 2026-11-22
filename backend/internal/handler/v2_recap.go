@@ -116,7 +116,7 @@ func (h *V2Handler) Recap(c *gin.Context) {
 		return
 	}
 	p := V2Params{UserID: userID}
-	f := p.analyticsFilter(cur)
+	f := p.filter(cur)
 	out := recapResponse{
 		User: RefUserJSON{ID: userID, Name: userID}, Period: period, Granularity: gran,
 		From: cur.From.Format(v2DateLayout), To: cur.To.Format(v2DateLayout),
@@ -130,7 +130,7 @@ func (h *V2Handler) Recap(c *gin.Context) {
 			COUNT(DISTINCT local_ts::date) FILTER (WHERE is_view)::int AS active_days FROM acts`)
 		return h.raw(c, dst, q, args...)
 	}
-	if v2Fail(c, totals(f, &out.Totals)) || v2Fail(c, totals(p.analyticsFilter(prev), &out.Previous)) {
+	if v2Fail(c, totals(f, &out.Totals)) || v2Fail(c, totals(p.filter(prev), &out.Previous)) {
 		return
 	}
 
@@ -268,7 +268,7 @@ func (h *V2Handler) Recap(c *gin.Context) {
 	if v2Fail(c, err) {
 		return
 	}
-	before, err := rank(p.analyticsFilter(prev), 1000)
+	before, err := rank(p.filter(prev), 1000)
 	if v2Fail(c, err) {
 		return
 	}

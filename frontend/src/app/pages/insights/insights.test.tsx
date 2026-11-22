@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import InsightsPage from './InsightsPage'
-import { mockApi, renderPage } from './testUtils'
-import { entityPath, formatBitrate, formatBytes } from './analyticsFormat'
+import { mockApi, renderPage } from '../_shared/testUtils'
+import { entityPath, formatBitrate, formatBytes } from '../_shared/analyticsFormat'
 
 const zeros = (n: number) => Array.from({ length: n }, () => 0)
 const week = () => Array.from({ length: 7 }, () => zeros(24))
@@ -11,9 +11,9 @@ const FULL = {
   '/api/v2/insights/sessions': { buckets: [4, 4, 0, 0, 0, 0, 0, 0, 0], sessions: 8, medianSeconds: 70 },
   '/api/v2/insights/resumes': { fromStart: 71, resumed: 29, byType: { movie: 0.41, series: 0.22, music: null } },
   '/api/v2/insights/rewatches': [{ id: 'e1', kind: 'episode', name: 'Pilot', parentId: 's1', parentName: 'Station Nord', views: 3, user: { id: 'u1', name: 'Léa' } }],
-  '/api/v2/insights/genres': { months: ['2026-10', '2026-11'], series: [{ name: 'Drame', values: [3600, 7200] }], other: [0, 1800] },
+  '/api/v2/insights/genres': { bucket: 'month', months: ['2026-10', '2026-11'], series: [{ name: 'Drame', values: [3600, 7200] }], other: [0, 1800] },
   '/api/v2/insights/moments': { movie: zeros(24).map((_, h) => (h === 21 ? 5 : 0)), series: zeros(24), music: zeros(24) },
-  '/api/v2/insights/pauses': [{ id: 'm1', kind: 'movie', name: 'Orbital', ratio: 0.18, pausedSeconds: 600, watchSeconds: 3333 }],
+  '/api/v2/insights/pauses': [{ id: 'm1', kind: 'movie', name: 'Orbital', ratio: 0.18, pausedSeconds: 600, pauseCount: 4, watchSeconds: 3333 }],
   '/api/v2/insights/binges': [{ id: 's1', name: 'Station Nord', binges: 14, users: 2 }],
   '/api/v2/insights/rhythm': { weekHour: week().map((r, i) => (i === 0 ? r.map((_, h) => (h === 20 ? 3 : 0)) : r)) },
 }

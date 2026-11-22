@@ -36,6 +36,23 @@ it('useRecap ignores the URL period and stays idle without params', async () => 
   expect(idle.result.current.fetchStatus).toBe('idle')
 })
 
+it('useRecap keeps the previous recap across periods of one user, not across users', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+    const u = new URL(String(input), 'http://x')
+    // The second user never answers: only the placeholder could show data.
+    if (u.pathname.startsWith('/api/v2/recap/u2/')) return new Promise<Response>(() => {})
+    if (u.pathname === '/api/v2/recap/u1/2025') return new Promise<Response>(() => {})
+    return Promise.resolve(new Response(JSON.stringify({ period: u.pathname }), { status: 200 }))
+  })
+  const { result, rerender } = renderHook(({ id, p }) => useRecap(id, p), { wrapper: wrap('/'), initialProps: { id: 'u1', p: '2026' } })
+  await waitFor(() => expect(result.current.isSuccess).toBe(true))
+  rerender({ id: 'u1', p: '2025' })
+  expect(result.current.data).toEqual({ period: '/api/v2/recap/u1/2026' })
+  expect(result.current.isPlaceholderData).toBe(true)
+  rerender({ id: 'u2', p: '2025' })
+  expect(result.current.data).toBeUndefined()
+})
+
 it('useUserLanguages targets the user and carries the period', async () => {
   const spy = ok({ captured: 0 })
   const { result } = renderHook(() => useUserLanguages('u1'), { wrapper: wrap('/users/u1?from=2026-10-01&to=2026-11-01') })

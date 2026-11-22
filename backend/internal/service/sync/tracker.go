@@ -172,15 +172,14 @@ func captureFrom(sess jellyfin.SessionInfo) capture {
 			}
 		}
 	}
-	if c.audioIdx == nil {
-		// Client did not report its audio track: assume the default one, else the first.
-		if audio = defaultAudio(streams); audio != nil {
-			idx := audio.Index
-			c.audioIdx = &idx
-		}
-	}
-	if audio != nil {
+	if c.audioIdx != nil && audio != nil {
 		c.audioLang = langPtr(audio)
+	}
+	if c.audioIdx == nil {
+		// Client did not report its audio track: it stays unknown (NULL) so the
+		// VO / VF analyses never guess. The default (else first) stream only
+		// feeds the bitrate estimate below.
+		audio = defaultAudio(streams)
 	}
 	video := pickVideo(streams)
 	if video != nil {

@@ -1346,7 +1346,8 @@
       "completion": {
         "title": "Completion distribution",
         "subtitle": "views by % reached · the 100 % peak = finished",
-        "bucket": "Completion"
+        "bucket": "Completion",
+        "range": "{{from}}–{{to}}%"
       },
       "byType": {
         "title": "Completion by type",
@@ -1364,7 +1365,8 @@
         "subtitle": "paused time / watched time",
         "value": "Ratio",
         "paused": "Paused",
-        "watched": "Watched"
+        "watched": "Watched",
+        "count": "Pauses"
       },
       "rhythm": {
         "title": "Weekly rhythm",
@@ -1374,7 +1376,11 @@
         "title": "Session length",
         "median": "median {{value}}",
         "length": "Length",
-        "value": "Sessions"
+        "value": "Sessions",
+        "under": "< {{value}} min",
+        "minutes": "{{from}}–{{to}} min",
+        "hours": "{{from}}–{{to}} h",
+        "over": "> {{value}} h"
       },
       "resumes": {
         "title": "Resumed vs from the start",
@@ -1409,7 +1415,8 @@
         "subtitle": "oldest additions first",
         "foot": "{{share}} of the catalog · {{size}}",
         "added": "added {{when}}",
-        "addedUnknown": "unknown add date"
+        "addedUnknown": "unknown add date",
+        "kind": "Type"
       },
       "abandoned": {
         "title": "Abandoned",
@@ -1417,7 +1424,8 @@
         "foot": "stopped between 10 and 80 %, > 60 d",
         "episodes": "{{viewed}} of {{total}} ep.",
         "stoppedAt": "stopped at {{position}}",
-        "progress": "Progress {{value}}"
+        "progress": "Progress {{value}}",
+        "progressCol": "Progress"
       },
       "added": {
         "title": "Added in the period",
@@ -1431,7 +1439,8 @@
         "sizeGb": "Size",
         "neverViewed": "Never watched",
         "viewed": "Watched",
-        "quadrant": "large and never watched ↘"
+        "quadrant": "large and never watched ↘",
+        "sizeGbColumn": "Size (GB)"
       }
     },
     "playback": {
@@ -1526,8 +1535,13 @@
       "bitrate": {
         "title": "Bitrate",
         "subtitle": "average {{avg}} · 95th percentile {{p95}}",
-        "bucket": "Bitrate"
-      }
+        "bucket": "Bitrate",
+        "value": "{{value}} Mb/s"
+      },
+      "week": "Week",
+      "weekOf": "wk of {{date}}",
+      "noValue": "—",
+      "unknownCodec": "—"
     },
     "recap": {
       "crumb": "Recap {{period}}",
@@ -1562,11 +1576,16 @@
         "new": "new",
         "up": "up",
         "down": "down",
-        "same": "same"
+        "same": "same",
+        "rank": "Rank",
+        "content": "Title",
+        "evolution": "Change"
       },
       "notFound": "User not found",
       "badPeriod": "Invalid period",
-      "badPeriodHint": "Use a year (2026) or a month (2026-11)."
+      "badPeriodHint": "Use a year (2026) or a month (2026-11).",
+      "hoursValue": "{{value}} h",
+      "noValue": "—"
     },
     "languages": {
       "title": "Original or dubbed",
