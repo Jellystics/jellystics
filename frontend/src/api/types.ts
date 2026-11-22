@@ -32,6 +32,8 @@ export interface TopUser { id: string; name: string; watchSeconds: number; views
 export interface PeakPoint { date: ISODate; peak: number }
 export interface OnThisDayRow { itemId: string; kind: GroupKind; name: string; users: string[]; date: ISODate }
 export interface Overview {
+  /** Granularity of daily / previousDaily / concurrencyPeak: ISO weeks (labelled by Monday) when the range exceeds 400 days. */
+  bucket: 'day' | 'week'
   totals: Totals
   previous?: Totals
   daily: DailyPoint[]
@@ -117,7 +119,7 @@ export interface MovieDetail {
   item: { id: string; name: string; year: number | null; runtimeSeconds: number; genres: string[]; sizeBytes: number | null; resolution: string | null }
   totals: { views: number; clicks: number; viewers: number; completedRatio: number | null; transcodeRatio: number | null; watchSeconds: number }
   funnel: Funnel
-  /** 24 bins over the runtime. */
+  /** 24 bins over the runtime: furthest stop of each (user, item, day) view unit. */
   stopPositions: number[]
   viewers: { user: RefUser; views: number; lastWatched: ISOTime; bestCompletion: number | null }[]
   history: HistoryRow[]
@@ -131,7 +133,8 @@ export interface SeriesDetail {
   totals: { watchSeconds: number; views: number; clicks: number; viewers: number; retention: number | null; binges: number }
   /** Viewers per episode, one array per season (catalog order). */
   retention: number[][]
-  seasons: { number: number; episodes: SeriesEpisode[] }[]
+  /** Regular seasons in order, then specials (season 0, `special: true`). */
+  seasons: { number: number; special?: boolean; episodes: SeriesEpisode[] }[]
   viewers: { user: RefUser; episodesWatched: number; lastWatched: ISOTime }[]
   cadence: { bucket: CadenceBucket; count: number }[]
   releaseLag: { bucket: ReleaseLagBucket; count: number }[]

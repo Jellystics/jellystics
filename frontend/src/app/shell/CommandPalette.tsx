@@ -54,7 +54,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   const results = useMemo<Entry[]>(() => {
     // Only show results that match what is typed (not a stale previous term).
-    if (!term || term !== query.trim() || !found.data) return []
+    if (!term || term !== query.trim() || !found.data || found.isPlaceholderData) return []
     const items = found.data.items.flatMap((it): Entry[] => {
       const to = searchItemPath(it)
       if (!to) return []
@@ -65,7 +65,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
       id: `user-${u.id}`, label: u.name, sub: t('app.command.kind.user'), icon: User, to: `/users/${encodeURIComponent(u.id)}`,
     }))
     return [...items, ...users]
-  }, [found.data, term, query, t])
+  }, [found.data, found.isPlaceholderData, term, query, t])
 
   const q = query.trim().toLowerCase()
   const shown = [...results, ...(q ? commands.filter((c) => c.label.toLowerCase().includes(q)) : commands)]

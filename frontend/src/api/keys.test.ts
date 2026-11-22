@@ -1,9 +1,15 @@
 import { cleanParams, qk } from './keys'
 
 it('normalises params: drops empty values and false, booleans as 1, sorted keys', () => {
-  const p = cleanParams({ to: '2026-11-23', from: '2026-10-24', compare: true, userId: undefined, q: '', desc: false, page: 2, libraryId: null })
+  const p = cleanParams({ to: '2026-11-23', from: '2026-10-24', compare: true, userId: undefined, q: '', views: false, page: 2, libraryId: null })
   expect(p).toEqual({ compare: 1, from: '2026-10-24', page: 2, to: '2026-11-23' })
   expect(Object.keys(p)).toEqual(['compare', 'from', 'page', 'to'])
+})
+
+it('sends desc explicitly as 0/1 so ascending sorts are reachable', () => {
+  expect(cleanParams({ sort: 'views', desc: false })).toEqual({ desc: 0, sort: 'views' })
+  expect(cleanParams({ sort: 'views', desc: true })).toEqual({ desc: 1, sort: 'views' })
+  expect(cleanParams({ sort: 'views' })).toEqual({ sort: 'views' })
 })
 
 it('builds keys that carry period, compare and filters', () => {

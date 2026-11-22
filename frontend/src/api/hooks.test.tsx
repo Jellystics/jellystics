@@ -58,3 +58,12 @@ it('useSearch does not fetch for a blank query', async () => {
   await waitFor(() => expect(result.current.isSuccess).toBe(true))
   expect(calledUrl(spy).search).toBe('?q=inc')
 })
+
+it('useHistory sends desc=0 for an ascending sort', async () => {
+  const spy = mockFetch({ rows: [], total: 0, page: 1, pageSize: 25 })
+  const { result } = renderHook(() => useHistory({ sort: 'startedAt', desc: false }), { wrapper: wrap('/history') })
+  await waitFor(() => expect(result.current.isSuccess).toBe(true))
+  const params = calledUrl(spy).searchParams
+  expect(params.get('sort')).toBe('startedAt')
+  expect(params.get('desc')).toBe('0')
+})

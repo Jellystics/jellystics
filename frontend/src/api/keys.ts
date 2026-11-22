@@ -15,15 +15,20 @@ export interface Filters {
 export interface HistoryFilters extends Filters { client?: string; device?: string; method?: string; views?: boolean }
 export type QueryParams = Record<string, string | number | boolean>
 
+/** Booleans sent as 0/1 whenever defined (the backend distinguishes absent from false). */
+const EXPLICIT_BOOLEANS = new Set(['desc'])
+
 /**
- * Normalises request params: drops empty values and false booleans, and sends
- * booleans as 1, so equal requests always share one cache key and one URL.
+ * Normalises request params: drops empty values and false booleans (except
+ * `desc`, sent as 0), sends true as 1, so equal requests always share one
+ * cache key and one URL.
  */
 export function cleanParams(p: Record<string, string | number | boolean | undefined | null>): QueryParams {
   const out: QueryParams = {}
   Object.keys(p).sort().forEach((k) => {
     const v = p[k]
-    if (v === undefined || v === null || v === '' || v === false) return
+    if (v === undefined || v === null || v === '') return
+    if (v === false) { if (EXPLICIT_BOOLEANS.has(k)) out[k] = 0; return }
     out[k] = v === true ? 1 : v
   })
   return out
