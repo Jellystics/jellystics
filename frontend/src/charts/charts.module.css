@@ -28,12 +28,6 @@
 .multiplesH span { display: inline-flex; align-items: center; gap: 6px; }
 .multiplesH i { width: 10px; height: 10px; border-radius: var(--r-sm); display: inline-block; }
 /* Matrix cell text: contrast follows the theme (from design .mx-t rules) */
-.chart text:global(.mx-t):global(.lo) { fill: var(--ink-2); }
-.chart text:global(.mx-t):global(.hi) { fill: #fff; }
-:global(:root[data-theme="dark"]) .chart text:global(.mx-t):global(.lo) { fill: #fff; }
-:global(:root[data-theme="dark"]) .chart text:global(.mx-t):global(.hi) { fill: #0b0b0b; }
-@media (prefers-color-scheme: dark) {
-  :global(:root:where(:not([data-theme="light"]))) .chart text:global(.mx-t):global(.lo) { fill: #fff; }
-  :global(:root:where(:not([data-theme="light"]))) .chart text:global(.mx-t):global(.hi) { fill: #0b0b0b; }
-}
+.chart text:global(.mx-t):global(.lo) { fill: var(--matrix-ink-lo); }
+.chart text:global(.mx-t):global(.hi) { fill: var(--matrix-ink-hi); }
 .chart tspan.light { fill: var(--ink-3); font-weight: 400; }

@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { isJellyfinId, userImage } from '@/lib/images'
 import styles from './Avatar.module.css'
 
-const SLOTS = ['#6250d6', '#2a78d6', '#d55181', '#1baf7a', '#eb6834', '#52514e', '#eda100', '#e34948']
-export const avatarColor = (id: string) => SLOTS[[...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 8]
+/** Stable identity colour of a user: one of the 8 --avatar-* tokens. */
+export const avatarColor = (id: string) => `var(--avatar-${([...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 8) + 1})`
 
 const PX = { sm: 20, md: 28, lg: 56 } as const
 
