@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -25,6 +26,10 @@ type Hub struct {
 
 	sessionMu sync.Mutex
 	sessions  map[string]*pollSession
+
+	// authorize validates the token sent in the Socket.IO namespace connect
+	// packet. nil means every client is accepted (tests).
+	authorize func(token string) bool
 }
 
 type wsClient struct {
@@ -38,6 +43,7 @@ type pollSession struct {
 	createdAt time.Time
 	mu        sync.Mutex
 	pending   []string
+	authed    bool
 }
 
 func NewHub() *Hub {
@@ -118,10 +124,17 @@ func (h *Hub) handlePolling(w http.ResponseWriter, r *http.Request, sid string) 
 	switch r.Method {
 	case http.MethodPost:
 		// Client sends namespace connect packet (e.g. "40" or "40{"token":"..."}").
+		// Queue the namespace connect ack back, or a connect error if the
+		// token is rejected.
 		// Queue the namespace connect ack back.
 		if sess != nil {
 			sess.mu.Lock()
-			sess.pending = append(sess.pending, "40")
+			if h.checkConnectPacket(r) {
+				sess.authed = true
+				sess.pending = append(sess.pending, "40")
+			} else {
+				sess.pending = append(sess.pending, `44{"message":"unauthorized"}`)
+			}
 			sess.mu.Unlock()
 		}
 		fmt.Fprint(w, "ok")
@@ -180,6 +193,16 @@ func (h *Hub) handleWebSocket(w http.ResponseWriter, r *http.Request, sid string
 		cancel()
 		conn.CloseNow()
 		return
+	}
+
+	// The token was presented during the polling phase (namespace connect).
+	if h.authorize != nil {
+		if ps := h.getSession(sid); ps == nil || !ps.isAuthed() {
+			_ = conn.Write(ctx, websocket.MessageText, []byte(`44{"message":"unauthorized"}`))
+			cancel()
+			conn.Close(websocket.StatusPolicyViolation, "unauthorized")
+			return
+		}
 	}
 
 	// Remove the polling session now that WS took over
@@ -269,4 +292,39 @@ func (h *Hub) cleanupLoop() {
 		}
 		h.sessionMu.Unlock()
 	}
+}
+
+// SetAuthorizer installs the token validator used for Socket.IO connections.
+func (h *Hub) SetAuthorizer(fn func(token string) bool) { h.authorize = fn }
+
+func (s *pollSession) isAuthed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.authed
+}
+
+// checkConnectPacket parses a Socket.IO namespace connect packet
+// (`40{"token":"..."}`, possibly batched with \x1e) from a polling POST body
+// and validates its token.
+func (h *Hub) checkConnectPacket(r *http.Request) bool {
+	if h.authorize == nil {
+		return true
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	if err != nil {
+		return false
+	}
+	for _, pkt := range strings.Split(string(body), "\x1e") {
+		if !strings.HasPrefix(pkt, "40") {
+			continue
+		}
+		var payload struct {
+			Token string `json:"token"`
+		}
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(pkt, "40")), &payload); err != nil || payload.Token == "" {
+			return false
+		}
+		return h.authorize(payload.Token)
+	}
+	return false
 }

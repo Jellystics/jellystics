@@ -34,7 +34,7 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 	})
 
 	// ── Handlers ──────────────────────────────────────────────────────────────
-	frontAuthH := handler.NewFrontendAuthHandler(repos, cfg)
+	frontAuthH := handler.NewFrontendAuthHandler(repos, cfg, svcs.Auth)
 	configH    := handler.NewConfigApiHandler(repos, svcs)
 	configH.SetScheduler(sched)
 	sessionsH  := handler.NewSessionsApiHandler(repos)
@@ -51,6 +51,11 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 
 	// ── Socket.IO (public) ────────────────────────────────────────────────────
 	// Must be registered before NoRoute SPA fallback.
+	// Only clients presenting a valid session token receive events.
+	hub.SetAuthorizer(func(token string) bool {
+		_, err := svcs.Auth.Authenticate(context.Background(), token)
+		return err == nil
+	})
 	r.Any("/socket.io/*path", func(c *gin.Context) {
 		hub.ServeHTTP(c.Writer, c.Request)
 	})
@@ -64,22 +69,21 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 	r.GET("/metrics", metricsAuth(repos), metricsHandler)
 
 	// ── Image proxy (public, no auth) ─────────────────────────────────────────
-	// getSessions/getAdminUsers/getRecentlyAdded are dispatched inside Proxy().
-	r.GET("/proxy/*path", proxyH.Proxy)
-	// POST proxy route (validateSettings) — must be separate since wildcard is GET-only.
-	r.POST("/proxy/validateSettings", proxyH.ValidateSettings)
-
-	// ── Backup download (public – browser download link, no XHR auth header) ──
-	r.GET("/backup/files/:name", backupH.Download)
+	// Image paths are public (used by <img> tags) and strictly whitelisted;
+	// getSessions/getAdminUsers/getRecentlyAdded require a valid session.
+	r.GET("/proxy/*path", proxyH.Proxy(middleware.Auth(svcs.Auth)))
+	r.POST("/proxy/validateSettings", middleware.SetupOrAdmin(svcs.Auth), proxyH.ValidateSettings)
 
 	// ── Auth routes (public) ─────────────────────────────────────────────────
 	auth := r.Group("/auth")
 	{
 		auth.GET("/isConfigured", frontAuthH.IsConfigured)
-		auth.POST("/configSetup", frontAuthH.ConfigSetup)
+		auth.POST("/configSetup", middleware.SetupOrAdmin(svcs.Auth), frontAuthH.ConfigSetup)
 		auth.POST("/check-server", frontAuthH.CheckServer)
 		auth.POST("/jellyfin-login", frontAuthH.JellyfinLogin)
 	}
+	r.POST("/auth/logout", middleware.Auth(svcs.Auth), frontAuthH.Logout)
+	r.GET("/auth/me", middleware.Auth(svcs.Auth), frontAuthH.Me)
 
 	// ── Authenticated routes ──────────────────────────────────────────────────
 	authed := r.Group("", middleware.Auth(svcs.Auth))
@@ -171,10 +175,11 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 		sync.POST("/fetchItem", syncH.FetchItem)
 	}
 
-	// Backup (list + create + delete + restore; download is public above)
+	// Backup (all routes require a session: backups contain the Jellyfin API key)
 	backup := authed.Group("/backup")
 	{
 		backup.GET("/files", backupH.List)
+		backup.GET("/files/:name", backupH.Download)
 		backup.GET("/beginBackup", backupH.Create)
 		backup.DELETE("/files/:name", backupH.Delete)
 		backup.GET("/restore/:filename", backupH.Restore)

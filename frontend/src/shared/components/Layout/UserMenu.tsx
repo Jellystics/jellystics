@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { useCurrentUser } from './useCurrentUser'
 import { usePalette } from '@/lib/PaletteContext'
 import { getAllPalettes } from '@/lib/palette'
+import api from '@/lib/axios'
 
 export default function UserMenu() {
   const { t } = useTranslation()
@@ -21,8 +22,13 @@ export default function UserMenu() {
   const palettes = getAllPalettes()
   const isDark = theme.palette.mode === 'dark'
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setAnchorEl(null)
+    try {
+      await api.post('/auth/logout')
+    } catch {
+      // session already gone — clear locally anyway
+    }
     localStorage.removeItem('jellystics-token')
     localStorage.removeItem('jellystics-username')
     window.location.href = '/login'

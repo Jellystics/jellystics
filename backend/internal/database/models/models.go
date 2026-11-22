@@ -307,3 +307,18 @@ type Webhook struct {
 }
 
 func (Webhook) TableName() string { return "webhooks" }
+
+// AuthSession is a Jellystics login session backed by a Jellyfin access token.
+type AuthSession struct {
+	Id              string    `gorm:"column:id;primaryKey"`
+	UserId          string    `gorm:"column:user_id"`
+	UserName        string    `gorm:"column:user_name"`
+	JFToken         string    `gorm:"column:jf_token"`
+	DeviceId        string    `gorm:"column:device_id"`
+	DeviceName      string    `gorm:"column:device_name"`
+	CreatedAt       time.Time `gorm:"column:created_at"`
+	LastValidatedAt time.Time `gorm:"column:last_validated_at"`
+	LastSeenAt      time.Time `gorm:"column:last_seen_at"`
+}
+
+func (AuthSession) TableName() string { return "auth_sessions" }

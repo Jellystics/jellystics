@@ -204,3 +204,11 @@ type ActivityEntry struct {
 	DeviceName           *string `json:"deviceName"`
 	ActivityDateInserted *string `json:"activityDateInserted"`
 }
+
+// AuthSessionRepository manages auth_sessions.
+type AuthSessionRepository interface {
+	Create(ctx context.Context, s *models.AuthSession) error
+	Get(ctx context.Context, id string) (*models.AuthSession, error)
+	Touch(ctx context.Context, id string, validated bool) error
+	Delete(ctx context.Context, id string) error
+}

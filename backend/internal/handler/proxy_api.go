@@ -3,6 +3,8 @@ package handler
 import (
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,94 +25,92 @@ func NewProxyApiHandler(repos *repository.Container) *ProxyApiHandler {
 	}
 }
 
-// GET /proxy/*path
-func (h *ProxyApiHandler) Proxy(c *gin.Context) {
-	rawPath := c.Param("path") // e.g., "/Items/Images/Primary/"
-
-	// Dispatch non-image API routes that share the /proxy/* wildcard.
-	switch rawPath {
-	case "/getSessions":
-		h.GetSessions(c)
-		return
-	case "/getAdminUsers":
-		h.GetAdminUsers(c)
-		return
-	case "/getRecentlyAdded":
-		h.GetRecentlyAdded(c)
-		return
+var (
+	proxyImagePath = regexp.MustCompile(`^/(Items|Users)/Images/(Primary|Backdrop|Thumb|Logo|Banner|Art)/?$`)
+	proxyItemID    = regexp.MustCompile(`^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	proxyImageArgs = map[string]bool{
+		"fillWidth": true, "fillHeight": true, "maxWidth": true, "maxHeight": true,
+		"width": true, "height": true, "quality": true, "tag": true, "format": true,
 	}
+	proxyRespHeaders = []string{"Content-Type", "Content-Length", "Cache-Control", "ETag", "Last-Modified", "Expires"}
+)
 
-	// Get id from query
-	id := c.Query("id")
+// Proxy returns the GET /proxy/*path handler.
+//
+// Only Jellyfin *image* endpoints are proxied, and only for a well-formed item
+// id: the request is made with the admin API key, so forwarding arbitrary paths
+// would hand full Jellyfin admin access to anyone. The JSON helpers
+// (getSessions, getAdminUsers, getRecentlyAdded) are gated by authMW.
+func (h *ProxyApiHandler) Proxy(authMW gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rawPath := c.Param("path")
 
-	// Build Jellyfin path by inserting id
-	// Input: "/Items/Images/Primary/" + id="XYZ" → "/Items/XYZ/Images/Primary"
-	// Input: "/Users/Images/Primary/" + id="XYZ" → "/Users/XYZ/Images/Primary"
-	cleanPath := strings.Trim(rawPath, "/")
-	parts := strings.SplitN(cleanPath, "/", 2)
-
-	var jfPath string
-	if len(parts) == 2 {
-		suffix := strings.TrimSuffix(parts[1], "/")
-		if id != "" {
-			jfPath = "/" + parts[0] + "/" + id + "/" + suffix
-		} else {
-			jfPath = "/" + cleanPath
+		switch rawPath {
+		case "/getSessions", "/getAdminUsers", "/getRecentlyAdded":
+			authMW(c)
+			if c.IsAborted() {
+				return
+			}
+			switch rawPath {
+			case "/getSessions":
+				h.GetSessions(c)
+			case "/getAdminUsers":
+				h.GetAdminUsers(c)
+			default:
+				h.GetRecentlyAdded(c)
+			}
+			return
 		}
-	} else {
-		jfPath = "/" + cleanPath
-	}
 
-	// Get JF config from DB
-	cfg, err := h.repos.Config.Get(c.Request.Context())
-	if err != nil || cfg.JFHost == nil || *cfg.JFHost == "" {
-		c.Status(http.StatusServiceUnavailable)
-		return
-	}
-
-	// Build query params (everything except 'id')
-	q := c.Request.URL.Query()
-	q.Del("id")
-
-	apiKey := ""
-	if cfg.JFApiKey != nil {
-		apiKey = *cfg.JFApiKey
-	}
-	if apiKey != "" {
-		q.Set("ApiKey", apiKey)
-	}
-
-	jfURL := strings.TrimRight(*cfg.JFHost, "/") + jfPath
-	if len(q) > 0 {
-		jfURL += "?" + q.Encode()
-	}
-
-	// Make request to Jellyfin
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, jfURL, nil)
-	if err != nil {
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-
-	if apiKey != "" {
-		req.Header.Set("Authorization", jellyfin.AuthorizationHeader(apiKey))
-	}
-
-	resp, err := h.httpClient.Do(req)
-	if err != nil {
-		c.Status(http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Copy headers
-	for key, values := range resp.Header {
-		for _, value := range values {
-			c.Header(key, value)
+		m := proxyImagePath.FindStringSubmatch(rawPath)
+		id := c.Query("id")
+		if m == nil || !proxyItemID.MatchString(id) {
+			c.Status(http.StatusNotFound)
+			return
 		}
+		jfPath := "/" + m[1] + "/" + id + "/Images/" + m[2]
+
+		cfg, err := h.repos.Config.Get(c.Request.Context())
+		if err != nil || cfg.JFHost == nil || *cfg.JFHost == "" {
+			c.Status(http.StatusServiceUnavailable)
+			return
+		}
+
+		q := url.Values{}
+		for k, v := range c.Request.URL.Query() {
+			if proxyImageArgs[k] && len(v) > 0 {
+				q.Set(k, v[0])
+			}
+		}
+		jfURL := strings.TrimRight(*cfg.JFHost, "/") + jfPath
+		if len(q) > 0 {
+			jfURL += "?" + q.Encode()
+		}
+
+		req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, jfURL, nil)
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		if cfg.JFApiKey != nil && *cfg.JFApiKey != "" {
+			req.Header.Set("Authorization", jellyfin.AuthorizationHeader(*cfg.JFApiKey))
+		}
+
+		resp, err := h.httpClient.Do(req)
+		if err != nil {
+			c.Status(http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		for _, k := range proxyRespHeaders {
+			if v := resp.Header.Get(k); v != "" {
+				c.Header(k, v)
+			}
+		}
+		c.Status(resp.StatusCode)
+		_, _ = io.Copy(c.Writer, resp.Body)
 	}
-	c.Status(resp.StatusCode)
-	io.Copy(c.Writer, resp.Body)
 }
 
 // GET /proxy/getSessions — returns live Jellyfin sessions.

@@ -2,24 +2,26 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/config"
-	"github.com/Jellystics/Jellystics/internal/jellyfin"
+	"github.com/Jellystics/Jellystics/internal/middleware"
 	"github.com/Jellystics/Jellystics/internal/repository"
+	"github.com/Jellystics/Jellystics/internal/service/auth"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type FrontendAuthHandler struct {
 	repos *repository.Container
 	cfg   *config.Config
+	auth  *auth.Service
 }
 
-func NewFrontendAuthHandler(repos *repository.Container, cfg *config.Config) *FrontendAuthHandler {
-	return &FrontendAuthHandler{repos: repos, cfg: cfg}
+func NewFrontendAuthHandler(repos *repository.Container, cfg *config.Config, authSvc *auth.Service) *FrontendAuthHandler {
+	return &FrontendAuthHandler{repos: repos, cfg: cfg, auth: authSvc}
 }
 
 // GET /auth/isConfigured
@@ -32,7 +34,7 @@ func (h *FrontendAuthHandler) IsConfigured(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"state": 1, "jellyfinUrl": *cfg.JFHost})
 }
 
-// POST /auth/configSetup
+// POST /auth/configSetup — protected by middleware.SetupOrAdmin.
 func (h *FrontendAuthHandler) ConfigSetup(c *gin.Context) {
 	var body struct {
 		JFHost   string `json:"JF_HOST"`
@@ -67,17 +69,24 @@ func (h *FrontendAuthHandler) ConfigSetup(c *gin.Context) {
 }
 
 // POST /auth/check-server
+// Before setup it pings the URL given in the body; once configured it only
+// ever pings the configured Jellyfin host (no arbitrary outbound requests).
 func (h *FrontendAuthHandler) CheckServer(c *gin.Context) {
 	var body struct {
 		URL string `json:"url"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil || body.URL == "" {
+	_ = c.ShouldBindJSON(&body)
+
+	target := body.URL
+	if cfg, err := h.repos.Config.Get(c.Request.Context()); err == nil && cfg.JFHost != nil && *cfg.JFHost != "" {
+		target = *cfg.JFHost
+	}
+	if target == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "url is required"})
 		return
 	}
 
-	// Ping Jellyfin /System/Info/Public
-	reqURL := strings.TrimRight(body.URL, "/") + "/System/Info/Public"
+	reqURL := strings.TrimRight(target, "/") + "/System/Info/Public"
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Get(reqURL)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Cannot reach Jellyfin server"})
@@ -89,73 +98,50 @@ func (h *FrontendAuthHandler) CheckServer(c *gin.Context) {
 		ServerName string `json:"ServerName"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil || info.ServerName == "" {
-		info.ServerName = body.URL
+		info.ServerName = target
 	}
-
-	c.JSON(http.StatusOK, gin.H{"serverName": info.ServerName, "url": body.URL})
+	c.JSON(http.StatusOK, gin.H{"serverName": info.ServerName, "url": target})
 }
 
 // POST /auth/jellyfin-login
+// Body: {username, password, deviceId?, deviceName?}. deviceId should be a
+// random id persisted by the browser so each browser gets its own Jellyfin
+// token (Jellyfin revokes the previous token of the same user+device).
 func (h *FrontendAuthHandler) JellyfinLogin(c *gin.Context) {
 	var body struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username   string `json:"username"`
+		Password   string `json:"password"`
+		DeviceId   string `json:"deviceId"`
+		DeviceName string `json:"deviceName"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := c.ShouldBindJSON(&body); err != nil || body.Username == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 
-	// Get JF config from DB
-	cfg, err := h.repos.Config.Get(c.Request.Context())
-	if err != nil || cfg.JFHost == nil || *cfg.JFHost == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Jellyfin not configured"})
-		return
-	}
-
-	apiKey := ""
-	if cfg.JFApiKey != nil {
-		apiKey = *cfg.JFApiKey
-	}
-
-	jfClient := jellyfin.NewClient(*cfg.JFHost, apiKey)
-	auth, err := jfClient.AuthenticateUser(c.Request.Context(), body.Username, body.Password)
-	if err != nil {
-		if strings.Contains(err.Error(), "invalid credentials") || strings.Contains(err.Error(), "401") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		} else {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Jellyfin unreachable"})
-		}
-		return
-	}
-
-	if !auth.User.Policy.IsAdministrator {
+	token, err := h.auth.Login(c.Request.Context(), body.Username, body.Password, body.DeviceId, body.DeviceName)
+	switch {
+	case errors.Is(err, auth.ErrInvalidCredentials):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+	case errors.Is(err, auth.ErrNotAdmin):
 		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
-		return
+	case errors.Is(err, auth.ErrNotConfigured):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Jellyfin not configured"})
+	case err != nil:
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Jellyfin unreachable"})
+	default:
+		c.JSON(http.StatusOK, gin.H{"token": token})
 	}
+}
 
-	type Claims struct {
-		UserId   string `json:"userId"`
-		UserName string `json:"userName"`
-		IsAdmin  bool   `json:"isAdmin"`
-		jwt.RegisteredClaims
-	}
+// POST /auth/logout — revokes the Jellyfin token and deletes the session.
+func (h *FrontendAuthHandler) Logout(c *gin.Context) {
+	_ = h.auth.Logout(c.Request.Context(), middleware.GetClaims(c))
+	c.Status(http.StatusNoContent)
+}
 
-	claims := Claims{
-		UserId:   auth.User.Id,
-		UserName: auth.User.Name,
-		IsAdmin:  auth.User.Policy.IsAdministrator,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(h.cfg.JWTSecret))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"token": signed})
+// GET /auth/me — returns the current user (also used to check the session).
+func (h *FrontendAuthHandler) Me(c *gin.Context) {
+	cl := middleware.GetClaims(c)
+	c.JSON(http.StatusOK, gin.H{"userId": cl.UserId, "userName": cl.UserName, "isAdmin": cl.IsAdmin})
 }
