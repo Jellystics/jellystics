@@ -36,20 +36,20 @@ export default tseslint.config(
   },
   {
     // New code must stay free of the legacy UI stack.
-    files: ['src/{styles,lib,ui,charts,app}/**/*.{ts,tsx}'],
+    files: ['src/{styles,lib,ui,charts,app,api}/**/*.{ts,tsx}'],
     ignores: ['src/app/legacy/**', 'src/lib/{theme.ts,ThemeModeContext.tsx,PaletteContext.tsx,FaviconContext.tsx,dateRange.tsx,palette.ts,favicon.ts,chartColors.ts,dateLocale.ts,axios.ts,publicApi.ts}'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [{ group: BANNED, message: 'Legacy UI stack is not allowed in new code.' }] }],
     },
   },
   {
-    // Layering: the ui kit, charts and lib never depend on the app layer.
-    files: ['src/{ui,charts,lib}/**/*.{ts,tsx}'],
+    // Layering: the ui kit, charts, lib and api client never depend on the app layer.
+    files: ['src/{ui,charts,lib,api}/**/*.{ts,tsx}'],
     ignores: ['src/lib/{theme.ts,ThemeModeContext.tsx,PaletteContext.tsx,FaviconContext.tsx,dateRange.tsx,palette.ts,favicon.ts,chartColors.ts,dateLocale.ts,axios.ts,publicApi.ts}'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [
         { group: BANNED, message: 'Legacy UI stack is not allowed in new code.' },
-        { group: ['@/app', '@/app/*'], message: 'ui/charts/lib must not import from the app layer.' },
+        { group: ['@/app', '@/app/*'], message: 'ui/charts/lib/api must not import from the app layer.' },
       ] }],
     },
   },
