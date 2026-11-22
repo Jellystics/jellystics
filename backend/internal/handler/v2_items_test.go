@@ -2,14 +2,10 @@ package handler_test
 
 import (
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
-	"github.com/Jellystics/Jellystics/internal/handler"
 	"github.com/Jellystics/Jellystics/internal/testutil"
-	"github.com/gin-gonic/gin"
 	"gorm.io/datatypes"
 )
 
@@ -29,12 +25,10 @@ func TestItemRoute(t *testing.T) {
 	}).Error)
 	must(db.Create(&models.JFLibraryEpisode{Id: "e1", SeriesId: sp("s1")}).Error)
 	must(db.Create(&models.JFLibraryEpisode{Id: "e2", EpisodeId: sp("jf-e2"), SeriesId: sp("s1")}).Error)
+	must(db.Create(&models.JFLibraryEpisode{Id: "e3"}).Error)
 	must(db.Create(&models.JFMusicTrack{Id: "t1", AlbumId: sp("a1"), Genres: datatypes.JSON([]byte("[]"))}).Error)
-
-	gin.SetMode(gin.TestMode)
-	h := handler.NewItemRouteHandler(db)
-	r := gin.New()
-	r.GET("/api/v2/items/:id/route", h.Route)
+	must(db.Create(&models.JFMusicTrack{Id: "t2", Genres: datatypes.JSON([]byte("[]"))}).Error)
+	must(db.Create(&models.JFMusicArtist{Id: "ar1", Name: sp("The Band"), Genres: datatypes.JSON([]byte("[]"))}).Error)
 
 	cases := []struct {
 		id, typ, series, album string
@@ -43,15 +37,17 @@ func TestItemRoute(t *testing.T) {
 		{"m1", "movie", "", "", 200},
 		{"s1", "series", "", "", 200},
 		{"a1", "album", "", "", 200},
-		{"x1", "other", "", "", 200},
+		{"ar1", "artist", "", "", 200},
 		{"e1", "episode", "s1", "", 200},
 		{"jf-e2", "episode", "s1", "", 200},
 		{"t1", "track", "", "a1", 200},
+		{"x1", "", "", "", 404}, // unsupported library item type
+		{"e3", "", "", "", 404}, // episode without series
+		{"t2", "", "", "", 404}, // track without album
 		{"nope", "", "", "", 404},
 	}
 	for _, tc := range cases {
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v2/items/"+tc.id+"/route", nil))
+		w := v2Get(t, db, "/api/v2/items/"+tc.id+"/route")
 		if w.Code != tc.code {
 			t.Fatalf("%s: status %d, body %s", tc.id, w.Code, w.Body.String())
 		}

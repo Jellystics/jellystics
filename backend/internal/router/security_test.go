@@ -50,6 +50,25 @@ func do(r *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
 	return w
 }
 
+// Every /api/v2 route sits behind the session middleware.
+func TestV2Routes_RequireAuth(t *testing.T) {
+	r, _ := fullRouter(t, true)
+	n := 0
+	for _, rt := range r.Routes() {
+		if !strings.HasPrefix(rt.Path, "/api/v2/") {
+			continue
+		}
+		n++
+		path := strings.NewReplacer(":id", "x", ":userId", "x", ":period", "month").Replace(rt.Path)
+		if w := do(r, rt.Method, path, ""); w.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s: status %d, want 401", rt.Method, rt.Path, w.Code)
+		}
+	}
+	if n < 40 {
+		t.Errorf("only %d /api/v2 routes registered", n)
+	}
+}
+
 func TestConfigSetup_OpenOnlyBeforeSetup(t *testing.T) {
 	r, _ := fullRouter(t, false)
 	if w := do(r, "POST", "/auth/configSetup", `{"JF_HOST":"http://jf"}`); w.Code != http.StatusOK {

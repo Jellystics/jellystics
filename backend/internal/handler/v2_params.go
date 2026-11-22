@@ -120,15 +120,20 @@ func parseV2With(c *gin.Context, now time.Time, ignoreRange bool) (V2Params, err
 	} else {
 		from = to.AddDate(0, 0, -30)
 	}
+	// Clamp to sane bounds: nothing before the epoch, nothing past a year ahead.
+	if minFrom := time.Date(1970, 1, 1, 0, 0, 0, 0, loc); from.Before(minFrom) {
+		from = minFrom
+	}
+	if maxTo := tomorrow.AddDate(1, 0, 0); to.After(maxTo) {
+		to = maxTo
+	}
 	if !from.Before(to) {
 		return p, badParam("from must be before to")
 	}
 	p.Range = TimeRange{From: from, To: to}
 
 	if !ignoreRange && parseBool(c.Query("compare")) {
-		days := calendarDays(from, to)
-		prev := TimeRange{From: from.AddDate(0, 0, -days), To: from}
-		p.Prev = &prev
+		p.setPrev()
 	}
 
 	p.UserID = strings.TrimSpace(c.Query("userId"))
@@ -160,6 +165,43 @@ func parseV2With(c *gin.Context, now time.Time, ignoreRange bool) (V2Params, err
 	p.Desc = parseBool(c.Query("desc"))
 	p.Q = strings.TrimSpace(c.Query("q"))
 	return p, nil
+}
+
+// setPrev sets Prev to the period of the same number of calendar days ending
+// at Range.From.
+func (p *V2Params) setPrev() {
+	days := calendarDays(p.Range.From, p.Range.To)
+	prev := TimeRange{From: p.Range.From.AddDate(0, 0, -days), To: p.Range.From}
+	p.Prev = &prev
+}
+
+// clampMinDays: ranges longer than this start no earlier than the local day
+// of the first recorded play (the "all" preset asks for 2000-01-01). Shorter
+// ranges keep their leading empty days.
+const clampMinDays = 366
+
+// clampToFirstPlay moves Range.From up to the local midnight of the first
+// recorded play when a long range starts before it (MIN on the indexed
+// "StartedAt" column), and recomputes Prev from the clamped range.
+func (h *V2Handler) clampToFirstPlay(c *gin.Context, p *V2Params) error {
+	if calendarDays(p.Range.From, p.Range.To) <= clampMinDays {
+		return nil
+	}
+	var row struct{ First *time.Time }
+	if err := h.raw(c, &row, `SELECT MIN("StartedAt") AS first FROM jf_playback_activity`); err != nil {
+		return err
+	}
+	if row.First == nil || row.First.IsZero() {
+		return nil
+	}
+	first := statsql.StartOfDay(*row.First, statsql.Location())
+	if first.After(p.Range.From) && first.Before(p.Range.To) {
+		p.Range.From = first
+		if p.Prev != nil {
+			p.setPrev()
+		}
+	}
+	return nil
 }
 
 // calendarDays is the number of local calendar days in [from, to) (both local
@@ -203,11 +245,18 @@ func (h *V2Handler) raw(c *gin.Context, dest interface{}, q string, args ...inte
 	return h.db.WithContext(c.Request.Context()).Raw(q, args...).Scan(dest).Error
 }
 
-// v2Params parses the common contract; on error it writes a 400 and returns false.
-func v2Params(c *gin.Context) (V2Params, bool) { return v2ParamsWith(c, false) }
+// params parses the common contract (long ranges clamped to the first
+// recorded play); on error it writes a 400/500 and returns false.
+func (h *V2Handler) params(c *gin.Context) (V2Params, bool) {
+	p, ok := v2ParamsWith(c, false)
+	if ok && v2Fail(c, h.clampToFirstPlay(c, &p)) {
+		return p, false
+	}
+	return p, ok
+}
 
-// v2ParamsNoRange is v2Params for endpoints that ignore from/to/compare.
-func v2ParamsNoRange(c *gin.Context) (V2Params, bool) { return v2ParamsWith(c, true) }
+// paramsNoRange is params for endpoints that ignore from/to/compare.
+func (h *V2Handler) paramsNoRange(c *gin.Context) (V2Params, bool) { return v2ParamsWith(c, true) }
 
 func v2ParamsWith(c *gin.Context, ignoreRange bool) (V2Params, bool) {
 	p, err := parseV2With(c, time.Now(), ignoreRange)
@@ -268,6 +317,40 @@ func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2.GET("/users/:id", h.User)
 	v2.GET("/libraries", h.Libraries)
 	v2.GET("/libraries/:id", h.Library)
-	h.registerMediaExtra(v2)
-	h.registerUsersExtra(v2)
+	v2.GET("/items/:id/route", h.ItemRoute)
+
+	// Entity-page widgets.
+	v2.GET("/movies/:id/sittings", h.MovieSittings)
+	v2.GET("/libraries/:id/decades", h.LibraryDecades)
+	v2.GET("/libraries/:id/growth", h.LibraryGrowth)
+	v2.GET("/albums/:id/full-listens", h.AlbumFullListens)
+
+	// Users.
+	v2.GET("/users/retention", h.UsersRetention)
+	v2.GET("/users/share", h.UsersShare)
+	v2.GET("/users/:id/languages", h.UserLanguages)
+	v2.GET("/concurrency", h.Concurrency)
+
+	// Analyses.
+	v2.GET("/insights/completion", h.InsightsCompletion)
+	v2.GET("/insights/sessions", h.InsightsSessions)
+	v2.GET("/insights/resumes", h.InsightsResumes)
+	v2.GET("/insights/rewatches", h.InsightsRewatches)
+	v2.GET("/insights/genres", h.InsightsGenres)
+	v2.GET("/insights/moments", h.InsightsMoments)
+	v2.GET("/insights/pauses", h.InsightsPauses)
+	v2.GET("/insights/binges", h.InsightsBinges)
+	v2.GET("/insights/rhythm", h.InsightsRhythm)
+
+	v2.GET("/discover/unwatched", h.DiscoverUnwatched)
+	v2.GET("/discover/abandoned", h.DiscoverAbandoned)
+	v2.GET("/discover/added", h.DiscoverAdded)
+	v2.GET("/discover/storage", h.DiscoverStorage)
+
+	v2.GET("/playback/methods", h.PlaybackMethods)
+	v2.GET("/playback/clients", h.PlaybackClients)
+	v2.GET("/playback/quality", h.PlaybackQuality)
+	v2.GET("/playback/network", h.PlaybackNetwork)
+
+	v2.GET("/recap/:userId/:period", h.Recap)
 }

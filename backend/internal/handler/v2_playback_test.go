@@ -15,7 +15,7 @@ func TestV2PlaybackMethodsClients(t *testing.T) {
 			Direct, Stream, Transcode int
 		}
 	}
-	v5JSON(t, db, "/api/v2/playback/methods?compare=1", &m)
+	v2JSON(t, db, "/api/v2/playback/methods?compare=1", &m)
 	if m.Totals.Direct != 2 || m.Totals.Stream != 3 || m.Totals.Transcode != 1 || m.Previous == nil || m.Previous.Direct != 0 || len(m.Daily) != 30 {
 		t.Fatalf("methods = %+v", m)
 	}
@@ -31,7 +31,7 @@ func TestV2PlaybackMethodsClients(t *testing.T) {
 		Clicks, Views, Transcodes, FalseStarts int
 		TranscodeRatio, FalseStartRatio        *float64
 	}
-	v5JSON(t, db, "/api/v2/playback/clients", &clients)
+	v2JSON(t, db, "/api/v2/playback/clients", &clients)
 	if len(clients) != 2 {
 		t.Fatalf("clients = %+v", clients)
 	}
@@ -83,7 +83,7 @@ func TestV2PlaybackQualityNetworkLanguages(t *testing.T) {
 	db := v2Seeded(t)
 
 	var q qualityJSON
-	v5JSON(t, db, "/api/v2/playback/quality", &q)
+	v2JSON(t, db, "/api/v2/playback/quality", &q)
 	if q.CollectedSince != nil || q.Captured != 0 || q.Views != 6 || q.Transcodes != 1 || q.Bitrate.Samples != 0 || q.Bitrate.Avg != nil {
 		t.Errorf("quality before capture = %+v", q)
 	}
@@ -100,7 +100,7 @@ func TestV2PlaybackQualityNetworkLanguages(t *testing.T) {
 		"Bitrate" = 8000000, "HwAccel" = 'vaapi', "IsRemote" = true, "RemoteEndPoint" = '203.0.113.5:8096', "VideoRange" = 'HDR10'
 		WHERE "Id" = 'r2'`)
 
-	v5JSON(t, db, "/api/v2/playback/quality", &q)
+	v2JSON(t, db, "/api/v2/playback/quality", &q)
 	if q.CollectedSince == nil || *q.CollectedSince != v2Day3.Format("2006-01-02") || q.Captured != 2 || q.Views != 6 || q.Transcodes != 1 {
 		t.Errorf("quality header = %+v", q)
 	}
@@ -138,12 +138,12 @@ func TestV2PlaybackQualityNetworkLanguages(t *testing.T) {
 			Views   int
 		}
 	}
-	v5JSON(t, db, "/api/v2/playback/network", &net)
+	v2JSON(t, db, "/api/v2/playback/network", &net)
 	if net.Local != 1 || net.Remote != 1 || net.Unknown != 4 || net.Captured != 2 || len(net.Places) != 0 {
 		t.Errorf("network before geo = %+v", net)
 	}
 	mustExec(t, db, `INSERT INTO ip_geo_cache (ip, country, city) VALUES ('203.0.113.5', 'FR', 'Lyon')`)
-	v5JSON(t, db, "/api/v2/playback/network", &net)
+	v2JSON(t, db, "/api/v2/playback/network", &net)
 	if len(net.Places) != 1 || net.Places[0].Country != "FR" || net.Places[0].City == nil || *net.Places[0].City != "Lyon" || net.Places[0].Views != 1 {
 		t.Errorf("places = %+v", net.Places)
 	}
@@ -169,7 +169,7 @@ func TestV2PlaybackQualityNetworkLanguages(t *testing.T) {
 		}
 		SubtitleOff int
 	}
-	v5JSON(t, db, "/api/v2/users/u1/languages", &lang)
+	v2JSON(t, db, "/api/v2/users/u1/languages", &lang)
 	// r1 (captured movie, no audio track reported) and r6 count as unknown.
 	if lang.Captured != 4 || lang.Split.OriginalSubtitled != 1 || lang.Split.Dubbed != 1 || lang.Split.Unknown != 2 || lang.Split.Original != 0 {
 		t.Errorf("languages = %+v", lang)
@@ -178,12 +178,12 @@ func TestV2PlaybackQualityNetworkLanguages(t *testing.T) {
 		lang.Subtitles[0].Label != "fre" || lang.SubtitleOff != 3 || lang.CollectedSince == nil {
 		t.Errorf("languages lists = %+v", lang)
 	}
-	v5JSON(t, db, "/api/v2/users/u2/languages", &lang)
+	v2JSON(t, db, "/api/v2/users/u2/languages", &lang)
 	if lang.Captured != 1 || lang.Split.Unknown != 1 || lang.Split.Dubbed+lang.Split.Original != 0 { // r2: captured, no audio track
 		t.Errorf("languages u2 = %+v", lang)
 	}
 	// The user detail route is still served next to /languages.
-	if w := v5Get(t, db, "/api/v2/users/u1"); w.Code != 200 {
+	if w := v2Get(t, db, "/api/v2/users/u1"); w.Code != 200 {
 		t.Errorf("/users/u1 status %d", w.Code)
 	}
 }
@@ -211,7 +211,7 @@ func TestV2UserLanguagesHeuristic(t *testing.T) {
 		Captured int
 		Split    struct{ OriginalSubtitled, Original, Dubbed, Unknown int }
 	}
-	v5JSON(t, db, "/api/v2/users/u1/languages", &lang)
+	v2JSON(t, db, "/api/v2/users/u1/languages", &lang)
 	if lang.Captured != 4 || lang.Split.Unknown != 2 || lang.Split.Dubbed != 1 || lang.Split.Original != 1 || lang.Split.OriginalSubtitled != 0 {
 		t.Errorf("languages = %+v", lang)
 	}

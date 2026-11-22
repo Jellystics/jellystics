@@ -90,7 +90,7 @@ func seedRecap(t *testing.T) func(string, interface{}) {
 	}
 	return func(target string, out interface{}) {
 		t.Helper()
-		v5JSON(t, db, target, out)
+		v2JSON(t, db, target, out)
 	}
 }
 
@@ -165,7 +165,7 @@ func TestV2RecapErrors(t *testing.T) {
 		"/api/v2/recap/nobody/2024": http.StatusNotFound,
 		"/api/v2/recap/u2/2024":     http.StatusOK,
 	} {
-		if w := v5Get(t, db, target); w.Code != want {
+		if w := v2Get(t, db, target); w.Code != want {
 			t.Errorf("%s: status %d, want %d", target, w.Code, want)
 		}
 	}

@@ -27,7 +27,7 @@ type trackStat struct {
 // ---------------------------------------------------------------------------
 
 func (h *V2Handler) Artist(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -133,7 +133,7 @@ func (h *V2Handler) Artist(c *gin.Context) {
 // ---------------------------------------------------------------------------
 
 func (h *V2Handler) Album(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -232,7 +232,7 @@ func (h *V2Handler) Album(c *gin.Context) {
 // ---------------------------------------------------------------------------
 
 func (h *V2Handler) Track(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

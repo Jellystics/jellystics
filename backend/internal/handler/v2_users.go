@@ -45,7 +45,7 @@ type userListRow struct {
 // watch seconds per family, trend = watch seconds per day over the last 14
 // days of the range, lastActivity = latest playback ever.
 func (h *V2Handler) Users(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -74,8 +74,9 @@ func (h *V2Handler) Users(c *gin.Context) {
 		       COALESCE(st.movie, 0) AS movie, COALESCE(st.series, 0) AS series, COALESCE(st.music, 0) AS music, l.last_activity
 		FROM known k LEFT JOIN st ON st.user_id = k.id
 		LEFT JOIN LATERAL (
-		  SELECT MAX(p."StartedAt") AS last_activity FROM jf_playback_activity p
-		  WHERE p."UserId" = k.id AND ` + statsql.MediaFilter("p") + `
+		  SELECT p."StartedAt" AS last_activity FROM jf_playback_activity p
+		  WHERE p."UserId" = k.id AND p."StartedAt" IS NOT NULL AND ` + statsql.MediaFilter("p") + `
+		  ORDER BY p."StartedAt" DESC LIMIT 1
 		) l ON true
 		ORDER BY watch_seconds DESC, views DESC, name`)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
@@ -115,7 +116,7 @@ type namedSeconds struct {
 
 // GET /api/v2/users/:id
 func (h *V2Handler) User(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -202,7 +203,7 @@ func (h *V2Handler) User(c *gin.Context) {
 		Progress    float64   `json:"progress"`
 	}
 	inProg := []inProgress{}
-	q, args = acts().forUser(id).where(`a."MediaType" = 'Episode' AND a."IsView"`).sql(`,
+	q, args = acts().forUser(id).where(`a."MediaType" = 'Episode' AND a."IsView"`).where(notSpecialPlay).sql(`,
 		ord AS (
 		  SELECT e."Id", e."SeriesId", e."ParentIndexNumber", e."IndexNumber",
 		         LEAD(e."Id") OVER w AS next_id, LEAD(e."ParentIndexNumber") OVER w AS next_season,

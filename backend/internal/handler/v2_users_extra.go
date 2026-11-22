@@ -20,13 +20,6 @@ const (
 	shareWeekMaxDays  = 120 // up to this many days the share is bucketed by week, else by month
 )
 
-// registerUsersExtra mounts the phase 3 routes on the /api/v2 group.
-func (h *V2Handler) registerUsersExtra(v2 *gin.RouterGroup) {
-	v2.GET("/users/retention", h.UsersRetention)
-	v2.GET("/users/share", h.UsersShare)
-	v2.GET("/concurrency", h.Concurrency)
-}
-
 // mondayOf returns the local midnight of the Monday of t's local week.
 func mondayOf(t time.Time) time.Time {
 	loc := statsql.Location()
@@ -65,7 +58,7 @@ type retentionResponse struct {
 // again k weeks later (retained[0] = cohort). Offsets that fall after the
 // range are null.
 func (h *V2Handler) UsersRetention(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -137,7 +130,7 @@ type shareResponse struct {
 // bucket (week up to 120 days, month beyond). Users without watch time in the
 // range are omitted; sorted by share.
 func (h *V2Handler) UsersShare(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -292,7 +285,7 @@ func concurrencySlots(sessions []concurrencySession, from, to time.Time, slot ti
 // user / type / library filters apply, the range does not), clipped to the
 // day, with the simultaneous-session count per 15-minute slot.
 func (h *V2Handler) Concurrency(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

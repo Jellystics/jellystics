@@ -10,34 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterAnalytics mounts the phase-5 analysis routes (insights, discover,
-// playback, recap, user languages) on g (the authed group).
-func (h *V2Handler) RegisterAnalytics(g *gin.RouterGroup) {
-	v2 := g.Group("/api/v2")
-	v2.GET("/insights/completion", h.InsightsCompletion)
-	v2.GET("/insights/sessions", h.InsightsSessions)
-	v2.GET("/insights/resumes", h.InsightsResumes)
-	v2.GET("/insights/rewatches", h.InsightsRewatches)
-	v2.GET("/insights/genres", h.InsightsGenres)
-	v2.GET("/insights/moments", h.InsightsMoments)
-	v2.GET("/insights/pauses", h.InsightsPauses)
-	v2.GET("/insights/binges", h.InsightsBinges)
-	v2.GET("/insights/rhythm", h.InsightsRhythm)
-
-	v2.GET("/discover/unwatched", h.DiscoverUnwatched)
-	v2.GET("/discover/abandoned", h.DiscoverAbandoned)
-	v2.GET("/discover/added", h.DiscoverAdded)
-	v2.GET("/discover/storage", h.DiscoverStorage)
-
-	v2.GET("/playback/methods", h.PlaybackMethods)
-	v2.GET("/playback/clients", h.PlaybackClients)
-	v2.GET("/playback/quality", h.PlaybackQuality)
-	v2.GET("/playback/network", h.PlaybackNetwork)
-
-	v2.GET("/recap/:userId/:period", h.Recap)
-	v2.GET("/users/:id/languages", h.UserLanguages)
-}
-
 // resumeTicks: a view starting at or after 30 s into the item is a resume.
 const resumeTicks = 30 * 10_000_000
 
@@ -67,7 +39,7 @@ type completionInsight struct {
 }
 
 func (h *V2Handler) InsightsCompletion(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -111,7 +83,7 @@ type sessionsInsight struct {
 }
 
 func (h *V2Handler) InsightsSessions(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -152,7 +124,7 @@ type resumesInsight struct {
 }
 
 func (h *V2Handler) InsightsResumes(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -202,7 +174,7 @@ type RefUserJSON struct {
 // local days with a view, tracks count views. Items reaching ≥ 2 for one user
 // are listed with their best user (top 10).
 func (h *V2Handler) InsightsRewatches(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -261,7 +233,7 @@ type genresInsight struct {
 // (catalog), so the stacked series sum to the watch time of the rows with a
 // genre, without double counting.
 func (h *V2Handler) InsightsGenres(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -361,7 +333,7 @@ func monthsOf(tr TimeRange) []string {
 // ---------------------------------------------------------------------------
 
 func (h *V2Handler) InsightsMoments(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -407,7 +379,7 @@ type pauseRow struct {
 }
 
 func (h *V2Handler) InsightsPauses(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -440,7 +412,7 @@ type bingeRow struct {
 }
 
 func (h *V2Handler) InsightsBinges(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -458,7 +430,7 @@ func (h *V2Handler) InsightsBinges(c *gin.Context) {
 
 // GET /api/v2/insights/rhythm → {weekHour: views[7][24]} (Monday first).
 func (h *V2Handler) InsightsRhythm(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

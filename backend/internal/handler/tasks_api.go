@@ -238,6 +238,7 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to backfill imported rows: " + err.Error()})
 			return
 		}
+		ResetStatsCaches()
 	}
 
 	c.JSON(http.StatusOK, gin.H{"imported": imported, "total": lineNum})

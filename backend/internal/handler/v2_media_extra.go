@@ -2,7 +2,7 @@ package handler
 
 // Extra entity-page widgets (phase 4): sittings to finish a movie, decades
 // watched vs catalog and growth vs consumption of a library, albums listened
-// to in full, paged history of a series. Mounted by registerMediaExtra on the /api/v2 group.
+// to in full. (A series' history is /history?seriesId=.)
 
 import (
 	"net/http"
@@ -12,14 +12,6 @@ import (
 	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/gin-gonic/gin"
 )
-
-func (h *V2Handler) registerMediaExtra(v2 *gin.RouterGroup) {
-	v2.GET("/movies/:id/sittings", h.MovieSittings)
-	v2.GET("/libraries/:id/decades", h.LibraryDecades)
-	v2.GET("/libraries/:id/growth", h.LibraryGrowth)
-	v2.GET("/albums/:id/full-listens", h.AlbumFullListens)
-	v2.GET("/series/:id/history", h.SeriesHistory)
-}
 
 // ---------------------------------------------------------------------------
 // GET /api/v2/movies/:id/sittings
@@ -35,7 +27,7 @@ type sittingsBucket struct {
 // previous completion: 1 = watched in one go. Earlier sittings may fall
 // before the range; only the completing sitting must be inside it.
 func (h *V2Handler) MovieSittings(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -105,7 +97,7 @@ type libDecadeRow struct {
 // (movies, series or albums), the views in the range with the catalog size.
 // Titles without a production year are left out.
 func (h *V2Handler) LibraryDecades(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -219,7 +211,7 @@ const libraryLeavesSQL = `
 // time; by the userId user when given). `type` restricts both series to that
 // media type. Returns {bucket, points}.
 func (h *V2Handler) LibraryGrowth(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -294,7 +286,7 @@ type fullListenAlbum struct {
 // day) pairs on which every catalog track of the album was viewed. Sorted by
 // full listens, then listens, then name.
 func (h *V2Handler) AlbumFullListens(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -369,38 +361,4 @@ func (h *V2Handler) AlbumFullListens(c *gin.Context) {
 		return a.Name < b.Name
 	})
 	c.JSON(http.StatusOK, albums)
-}
-
-// ---------------------------------------------------------------------------
-// GET /api/v2/series/:id/history
-// ---------------------------------------------------------------------------
-
-// SeriesHistory pages the playback rows of the series' episodes (range and
-// userId apply; sort/desc like /history). Rows carry the episode name, season
-// and number. Returns {rows, total, page, pageSize}.
-func (h *V2Handler) SeriesHistory(c *gin.Context) {
-	p, ok := v2Params(c)
-	if !ok {
-		return
-	}
-	id := c.Param("id")
-	var exists int64
-	if v2Fail(c, h.raw(c, &exists, `SELECT COUNT(*) FROM jf_library_items WHERE "Id" = ? AND "Type" = 'Series'`, id)) {
-		return
-	}
-	if exists == 0 {
-		v2NotFound(c)
-		return
-	}
-	f := p.entityFilter().where(`a."MediaType" = 'Episode' AND COALESCE(ce."SeriesId", a."NowPlayingItemId") = ?`, id)
-	var total int64
-	q, args := f.sql(`SELECT COUNT(*) FROM acts`)
-	if v2Fail(c, h.raw(c, &total, q, args...)) {
-		return
-	}
-	rows, err := h.queryHistory(c, f, historyOrder(c, p), p.PageSize, p.Offset())
-	if v2Fail(c, err) {
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"rows": rows, "total": total, "page": p.Page, "pageSize": p.PageSize})
 }

@@ -92,10 +92,13 @@ var historySelect = `
 	FROM acts
 	LEFT JOIN jf_library_episodes he ON acts.media_type = 'Episode' AND he."Id" = acts.item_id`
 
-// v2HistoryFilter applies the history filters (client, device, method, views, q)
-// on top of the common contract.
+// v2HistoryFilter applies the history filters (seriesId, client, device,
+// method, views, q) on top of the common contract.
 func v2HistoryFilter(c *gin.Context, p V2Params, tr TimeRange) *actFilter {
 	f := p.filter(tr)
+	if v := strings.TrimSpace(c.Query("seriesId")); v != "" {
+		f.where(`a."MediaType" = 'Episode' AND COALESCE(ce."SeriesId", a."NowPlayingItemId") = ?`, v)
+	}
 	if v := strings.TrimSpace(c.Query("client")); v != "" {
 		f.where(`a."Client" = ?`, v)
 	}
@@ -159,7 +162,7 @@ func (h *V2Handler) queryHistory(c *gin.Context, f *actFilter, order string, lim
 
 // GET /api/v2/history
 func (h *V2Handler) History(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -178,7 +181,7 @@ func (h *V2Handler) History(c *gin.Context) {
 
 // GET /api/v2/history.csv — same filters as /history, every row, CSV.
 func (h *V2Handler) HistoryCSV(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -243,7 +246,7 @@ type calendarDay struct {
 // Every day of the month is returned; items = up to 6 distinct titles viewed
 // that day (latest first).
 func (h *V2Handler) HistoryCalendar(c *gin.Context) {
-	p, ok := v2ParamsNoRange(c)
+	p, ok := h.paramsNoRange(c)
 	if !ok {
 		return
 	}
@@ -310,9 +313,9 @@ func (h *V2Handler) HistoryCalendar(c *gin.Context) {
 }
 
 // csvSafe neutralises spreadsheet formula injection: cells starting with
-// = + - @ get a leading apostrophe.
+// = + - @ (or a tab / carriage return) get a leading apostrophe.
 func csvSafe(s string) string {
-	if s != "" && strings.ContainsRune("=+-@", rune(s[0])) {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
 		return "'" + s
 	}
 	return s

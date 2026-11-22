@@ -114,7 +114,7 @@ type catalogItem struct {
 // GET /api/v2/discover/unwatched → titles never viewed (all time; by the
 // user when userId is given). Oldest additions first.
 func (h *V2Handler) DiscoverUnwatched(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -182,14 +182,14 @@ type abandonedRow struct {
 // movies whose best completion is in [10 %, 80 %), series with 10–80 % of the
 // catalog episodes viewed. Most recently played first, 20 max.
 func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
 	cutoff := time.Now().AddDate(0, 0, -abandonDays)
 	pp := p
 	pp.Type, pp.MediaType = "", ""
-	f := pp.filter(TimeRange{AllTime: true}).where(`a."IsView"`)
+	f := pp.filter(TimeRange{AllTime: true}).where(`a."IsView"`).where(notSpecialPlay)
 	switch p.Type {
 	case "movie":
 		f.where(`a."MediaType" = 'Movie'`)
@@ -210,7 +210,7 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 	  GROUP BY group_id, user_id
 	  HAVING MAX(` + ratioExpr + `) >= 0.1 AND MAX(` + ratioExpr + `) < 0.8 AND MAX(started_at) < ?
 	),
-	eps AS (SELECT "SeriesId" AS series_id, COUNT(*)::int AS total FROM jf_library_episodes WHERE NOT archived GROUP BY 1),
+	eps AS (SELECT e."SeriesId" AS series_id, COUNT(*)::int AS total FROM jf_library_episodes e WHERE NOT e.archived AND ` + notSpecial + ` GROUP BY 1),
 	sr AS (
 	  SELECT 'series' AS kind, group_id AS id, MAX(group_name) AS name, user_id, MAX(user_name) AS user_name,
 	         COUNT(DISTINCT item_id)::float8 / MAX(eps.total) AS progress, MAX(started_at) AS last_played,
@@ -253,7 +253,7 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 // GET /api/v2/discover/added → titles added to the catalog within the range,
 // and how many of them have been viewed since (all users / userId).
 func (h *V2Handler) DiscoverAdded(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -303,7 +303,7 @@ type storagePoint struct {
 // GET /api/v2/discover/storage → size on disk vs views in the range of the
 // 300 largest titles with a known size.
 func (h *V2Handler) DiscoverStorage(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

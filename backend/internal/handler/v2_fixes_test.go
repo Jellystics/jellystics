@@ -96,7 +96,12 @@ func TestV2LocalDaysParisDST(t *testing.T) {
 		t.Errorf("calendar 27..29 = %+v", cal[26:29])
 	}
 
-	// Ranges over 400 days are bucketed by ISO week (labelled by Monday).
+	// Ranges over 400 days are bucketed by ISO week (labelled by Monday). A play
+	// on 2024-01-01 keeps the long range from being clamped to the first play.
+	old := trackedRow("p0", "u1", "m1", "Movie", mustUTC(t, "2024-01-01T12:00:00Z"), 60, 100, nil)
+	if err := db.Create(&old).Error; err != nil {
+		t.Fatal(err)
+	}
 	v2JSON(t, db, "/api/v2/overview?from=2024-01-01&to=2026-03-31", &got)
 	if got.Bucket != "week" || got.Daily[0].Date != "2024-01-01" || got.Daily[len(got.Daily)-1].Date != "2026-03-30" {
 		t.Fatalf("weekly bucket %s first %v last %v", got.Bucket, got.Daily[0], got.Daily[len(got.Daily)-1])
@@ -113,6 +118,130 @@ func TestV2LocalDaysParisDST(t *testing.T) {
 	}
 	if !found {
 		t.Error("week 2026-03-23 missing")
+	}
+}
+
+// Back-to-back plays (autoplay: the old end equals the new start) and
+// zero-length rows count once in the overview peak, like /concurrency.
+func TestV2OverviewPeakBackToBack(t *testing.T) {
+	t.Setenv("TZ", "Europe/Paris")
+	db := testutil.NewDB(t)
+	start := mustUTC(t, "2026-03-10T10:00:00Z")
+	rows := []models.JFPlaybackActivity{
+		trackedRow("b1", "u1", "m1", "Movie", start, 600, 600, nil),
+		trackedRow("b2", "u1", "m2", "Movie", start.Add(600*time.Second), 600, 600, nil),
+		trackedRow("b3", "u2", "m2", "Movie", start.Add(300*time.Second), 0, 600, nil),
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		ConcurrencyPeak []struct {
+			Date string
+			Peak int
+		}
+	}
+	v2JSON(t, db, "/api/v2/overview?from=2026-03-10&to=2026-03-11", &got)
+	if len(got.ConcurrencyPeak) != 1 || got.ConcurrencyPeak[0].Peak != 1 {
+		t.Errorf("peak = %+v, want 1", got.ConcurrencyPeak)
+	}
+	var live struct{ Peak int }
+	v2JSON(t, db, "/api/v2/concurrency?date=2026-03-10", &live)
+	if live.Peak != 1 {
+		t.Errorf("concurrency peak = %d, want 1", live.Peak)
+	}
+}
+
+// The "all" preset (from=2000-01-01) starts at the first recorded play.
+func TestV2AllRangeClampedToFirstPlay(t *testing.T) {
+	t.Setenv("TZ", "Europe/Paris")
+	paris, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		t.Skip("no tzdata")
+	}
+	db := testutil.NewDB(t)
+	now := time.Now().In(paris)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, paris)
+	var rows []models.JFPlaybackActivity
+	for i := 0; i < 10; i++ {
+		rows = append(rows, trackedRow("d"+string(rune('a'+i)), "u1", "m1", "Movie", today.AddDate(0, 0, -i).Add(time.Minute), 60, 100, nil))
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	first := today.AddDate(0, 0, -9).Format("2006-01-02")
+	to := today.AddDate(0, 0, 1).Format("2006-01-02")
+
+	var ov struct {
+		Bucket          string
+		Daily           []struct{ Date string }
+		PreviousDaily   []struct{ Date string }
+		ConcurrencyPeak []struct{ Date string }
+	}
+	v2JSON(t, db, "/api/v2/overview?from=2000-01-01&compare=1&to="+to, &ov)
+	if ov.Bucket != "day" || len(ov.Daily) != 10 || ov.Daily[0].Date != first || len(ov.ConcurrencyPeak) != 10 {
+		t.Errorf("all-range overview: bucket %s, %d days from %v", ov.Bucket, len(ov.Daily), ov.Daily[0])
+	}
+	if len(ov.PreviousDaily) != 10 || ov.PreviousDaily[9].Date != today.AddDate(0, 0, -10).Format("2006-01-02") {
+		t.Errorf("previous period not computed from the clamped range: %v", ov.PreviousDaily)
+	}
+	var user struct {
+		Profile struct{ Regularity *float64 }
+	}
+	v2JSON(t, db, "/api/v2/users/u1?from=2000-01-01&to="+to, &user)
+	if !approx(user.Profile.Regularity, 1) {
+		t.Errorf("regularity = %v, want 1", user.Profile.Regularity)
+	}
+	// Short ranges keep their leading empty days.
+	v2JSON(t, db, "/api/v2/overview?from="+today.AddDate(0, 0, -29).Format("2006-01-02")+"&to="+to, &ov)
+	if len(ov.Daily) != 30 {
+		t.Errorf("30-day overview = %d days", len(ov.Daily))
+	}
+}
+
+// Viewed specials (season 0) break neither "in progress" nor abandon counts.
+func TestV2SpecialsInProgressAndAbandoned(t *testing.T) {
+	db := v2Seeded(t)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(db.Create(&[]models.JFLibraryEpisode{
+		{Id: "e4", Name: sp("Finale"), SeriesId: sp("s1"), ParentIndexNumber: ip(2), IndexNumber: ip(2), RunTimeTicks: i64(100 * secTicks)},
+		{Id: "e0", Name: sp("Making of"), SeriesId: sp("s1"), ParentIndexNumber: ip(0), IndexNumber: ip(1), RunTimeTicks: i64(100 * secTicks)},
+	}).Error)
+	pos := int64(100)
+	special := trackedRow("sp1", "u1", "e0", "Episode", time.Now().Add(-time.Hour), 100, 100, &pos)
+	special.NowPlayingItemId, special.EpisodeId = sp("s1"), sp("e0")
+	oldEp := trackedRow("sp2", "u2", "e1", "Episode", testutil.RecentDay(100).Add(20*time.Hour), 100, 100, &pos)
+	oldEp.NowPlayingItemId, oldEp.EpisodeId = sp("s1"), sp("e1")
+	oldSpecial := trackedRow("sp3", "u2", "e0", "Episode", testutil.RecentDay(100).Add(21*time.Hour), 100, 100, &pos)
+	oldSpecial.NowPlayingItemId, oldSpecial.EpisodeId = sp("s1"), sp("e0")
+	must(db.Create(&[]models.JFPlaybackActivity{special, oldEp, oldSpecial}).Error)
+
+	var user struct {
+		InProgress []struct {
+			NextID   string
+			Progress float64
+		}
+	}
+	v2JSON(t, db, "/api/v2/users/u1", &user)
+	if len(user.InProgress) != 1 || user.InProgress[0].NextID != "e4" || user.InProgress[0].Progress != 0.75 {
+		t.Errorf("inProgress = %+v", user.InProgress)
+	}
+
+	var ab struct {
+		Items []struct {
+			ID                            string
+			EpisodesViewed, EpisodesTotal *int
+		}
+	}
+	v2JSON(t, db, "/api/v2/discover/abandoned?type=series&userId=u2", &ab)
+	if len(ab.Items) != 1 || ab.Items[0].ID != "s1" || ab.Items[0].EpisodesViewed == nil || *ab.Items[0].EpisodesViewed != 1 ||
+		ab.Items[0].EpisodesTotal == nil || *ab.Items[0].EpisodesTotal != 4 {
+		t.Errorf("abandoned = %+v", ab.Items)
 	}
 }
 
@@ -138,7 +267,7 @@ func TestV2SpecialsAndMisc(t *testing.T) {
 	v2JSON(t, db, "/api/v2/series/s1", &series)
 	last := series.Seasons[len(series.Seasons)-1]
 	if series.Item.Seasons != 2 || len(series.Seasons) != 3 || !last.Special || last.Number != 0 || last.Episodes[0].ID != "e0" ||
-		series.Seasons[0].Special || !approx(series.Totals.Retention, 1) {
+		series.Seasons[0].Special || !approx(series.Totals.Retention, 1) || series.Item.Episodes != 3 {
 		t.Errorf("series = %+v", series)
 	}
 	var lib struct {

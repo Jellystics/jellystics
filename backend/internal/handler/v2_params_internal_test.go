@@ -65,6 +65,9 @@ func TestParseV2(t *testing.T) {
 			from: at("2026-10-24 00:00"), to: at("2026-11-23 00:00"), page: 3, size: 200, mediaType: "Audio", typ: "music", desc: true},
 		{name: "series type", query: "type=series", now: nowNearMidnight,
 			from: at("2026-10-24 00:00"), to: at("2026-11-23 00:00"), page: 1, size: 25, mediaType: "Episode", typ: "series"},
+		{name: "clamped to sane bounds", query: "from=1900-01-01&to=2100-01-01", now: nowNearMidnight,
+			from: at("1970-01-01 00:00"), to: at("2027-11-23 00:00"), page: 1, size: 25},
+		{name: "entirely before the epoch", query: "from=1900-01-01&to=1950-01-01", wantErr: true},
 		{name: "from equals to", query: "from=2026-11-01&to=2026-11-01", wantErr: true},
 		{name: "from after to", query: "from=2026-11-02&to=2026-11-01", wantErr: true},
 		{name: "impossible date", query: "from=2026-02-30&to=2026-03-01", wantErr: true},
@@ -104,6 +107,36 @@ func TestParseV2(t *testing.T) {
 				t.Errorf("got %+v", p)
 			}
 		})
+	}
+}
+
+func TestCSVSafe(t *testing.T) {
+	for in, want := range map[string]string{
+		"":         "",
+		"Alice":    "Alice",
+		"=1+1":     "'=1+1",
+		"+1":       "'+1",
+		"-1":       "'-1",
+		"@SUM(A1)": "'@SUM(A1)",
+		"\t=1":     "'\t=1",
+		"\r=1":     "'\r=1",
+		"a=b":      "a=b",
+	} {
+		if got := csvSafe(in); got != want {
+			t.Errorf("csvSafe(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestResetStatsCaches(t *testing.T) {
+	collectedSinceCache.Lock()
+	collectedSinceCache.m[nil] = "2020-01-01"
+	collectedSinceCache.Unlock()
+	ResetStatsCaches()
+	collectedSinceCache.Lock()
+	defer collectedSinceCache.Unlock()
+	if len(collectedSinceCache.m) != 0 {
+		t.Errorf("cache not reset: %v", collectedSinceCache.m)
 	}
 }
 
