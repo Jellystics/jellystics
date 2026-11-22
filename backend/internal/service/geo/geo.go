@@ -10,11 +10,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/netip"
 	"os"
-	"strings"
 	"time"
 
+	"github.com/Jellystics/Jellystics/internal/netutil"
 	"gorm.io/gorm"
 )
 
@@ -23,6 +22,10 @@ var (
 	ErrNotConfigured = errors.New("geolite credentials missing")
 	// ErrNotFound means the geolocator has no answer for this IP (cached as a miss).
 	ErrNotFound = errors.New("ip not found")
+	// ErrUnauthorized: GeoLite rejected the credentials (401/403); the run stops.
+	ErrUnauthorized = errors.New("geolite credentials rejected")
+	// ErrRateLimited: GeoLite quota exceeded (429); the run stops.
+	ErrRateLimited = errors.New("geolite rate limit reached")
 )
 
 const (
@@ -92,6 +95,12 @@ func (g *GeoLite) Locate(ctx context.Context, ip string) (string, string, error)
 	if status == http.StatusNotFound {
 		return "", "", ErrNotFound
 	}
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return "", "", ErrUnauthorized
+	case http.StatusTooManyRequests:
+		return "", "", ErrRateLimited
+	}
 	if status != http.StatusOK {
 		return "", "", fmt.Errorf("geolite status %d", status)
 	}
@@ -128,18 +137,8 @@ func New(db *gorm.DB, loc Geolocator) *Service {
 // publicIP normalises a RemoteEndPoint ("ip", "ip:port", "[v6]:port",
 // IPv4-mapped IPv6) and returns false for non-public addresses.
 func publicIP(s string) (string, bool) {
-	s = strings.TrimSpace(s)
-	var addr netip.Addr
-	if ap, err := netip.ParseAddrPort(s); err == nil {
-		addr = ap.Addr()
-	} else if a, err := netip.ParseAddr(strings.Trim(s, "[]")); err == nil {
-		addr = a
-	} else {
-		return "", false
-	}
-	addr = addr.Unmap().WithZone("")
-	if addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() ||
-		addr.IsLinkLocalMulticast() || addr.IsUnspecified() || addr.IsMulticast() {
+	addr, ok := netutil.Parse(s)
+	if !ok || !netutil.IsGeolocatable(addr) {
 		return "", false
 	}
 	return addr.String(), true
@@ -209,6 +208,8 @@ func (s *Service) Run(ctx context.Context) (int, error) {
 		switch {
 		case errors.Is(err, ErrNotConfigured):
 			return done, nil
+		case errors.Is(err, ErrUnauthorized), errors.Is(err, ErrRateLimited):
+			return done, err // no point hammering the service
 		case errors.Is(err, ErrNotFound):
 			country, city = "", "" // remembered as a miss
 		case err != nil:

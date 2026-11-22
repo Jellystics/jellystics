@@ -121,6 +121,55 @@ func TestRun_NotConfiguredStopsQuietly(t *testing.T) {
 	}
 }
 
+func TestRun_SkipsCGNATAndMulticast(t *testing.T) {
+	f := &fakeGeo{}
+	s, db := newSvc(t, f)
+	yes := true
+	seedPlay(t, db, "a", "100.64.3.4", &yes, 1)
+	seedPlay(t, db, "b", "224.0.0.1", &yes, 1)
+	if n, _ := s.Run(context.Background()); n != 0 || len(f.calls) != 0 {
+		t.Fatalf("n=%d calls=%v", n, f.calls)
+	}
+}
+
+func TestRun_AuthOrQuotaFailureStopsTheRun(t *testing.T) {
+	for _, bad := range []error{ErrUnauthorized, ErrRateLimited} {
+		f := &fakeGeo{res: map[string]error{"203.0.113.9": bad, "203.0.113.10": bad}}
+		s, db := newSvc(t, f)
+		yes := true
+		seedPlay(t, db, "a", "203.0.113.9", &yes, 1)
+		seedPlay(t, db, "b", "203.0.113.10", &yes, 1)
+		if _, err := s.Run(context.Background()); !errors.Is(err, bad) {
+			t.Fatalf("err = %v, want %v", err, bad)
+		}
+		total := 0
+		for _, c := range f.calls {
+			total += c
+		}
+		if total != 1 {
+			t.Fatalf("run must stop after first failure, calls=%v", f.calls)
+		}
+		var cnt int
+		db.Raw(`SELECT count(*) FROM ip_geo_cache`).Scan(&cnt)
+		if cnt != 0 {
+			t.Fatalf("failures must not be cached")
+		}
+	}
+}
+
+func TestGeoLite_StatusMapping(t *testing.T) {
+	code := http.StatusUnauthorized
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(code) }))
+	defer srv.Close()
+	g := &GeoLite{AccountID: "a", LicenseKey: "k", BaseURL: srv.URL}
+	for c, want := range map[int]error{401: ErrUnauthorized, 403: ErrUnauthorized, 429: ErrRateLimited} {
+		code = c
+		if _, _, err := g.Locate(context.Background(), "1.1.1.1"); !errors.Is(err, want) {
+			t.Fatalf("%d: err = %v", c, err)
+		}
+	}
+}
+
 func TestRun_MaxPerRun(t *testing.T) {
 	f := &fakeGeo{}
 	s, db := newSvc(t, f)

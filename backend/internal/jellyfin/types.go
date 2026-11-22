@@ -9,46 +9,46 @@ type ItemsResponse struct {
 
 // Item represents a Jellyfin library item (Movie, Series, Episode, Audio, MusicAlbum, etc.)
 type Item struct {
-	Id                  string          `json:"Id"`
-	Name                string          `json:"Name"`
-	ServerId            string          `json:"ServerId"`
-	Type                string          `json:"Type"`
-	CollectionType      string          `json:"CollectionType"`
-	PremiereDate        *string         `json:"PremiereDate"`
-	DateCreated         *string         `json:"DateCreated"`
-	EndDate             *string         `json:"EndDate"`
-	CommunityRating     *float64        `json:"CommunityRating"`
-	OfficialRating      *string         `json:"OfficialRating"`
-	RunTimeTicks        *int64          `json:"RunTimeTicks"`
-	ProductionYear      *int            `json:"ProductionYear"`
-	IsFolder            bool            `json:"IsFolder"`
-	Status              *string         `json:"Status"`
-	Overview            *string         `json:"Overview"`
-	Genres              []string        `json:"Genres"`
-	ImageTags           ImageTags       `json:"ImageTags"`
-	ImageBlurHashes     ImageBlurHashes `json:"ImageBlurHashes"`
-	BackdropImageTags   []string        `json:"BackdropImageTags"`
-	ParentId            *string         `json:"ParentId"`
+	Id                string          `json:"Id"`
+	Name              string          `json:"Name"`
+	ServerId          string          `json:"ServerId"`
+	Type              string          `json:"Type"`
+	CollectionType    string          `json:"CollectionType"`
+	PremiereDate      *string         `json:"PremiereDate"`
+	DateCreated       *string         `json:"DateCreated"`
+	EndDate           *string         `json:"EndDate"`
+	CommunityRating   *float64        `json:"CommunityRating"`
+	OfficialRating    *string         `json:"OfficialRating"`
+	RunTimeTicks      *int64          `json:"RunTimeTicks"`
+	ProductionYear    *int            `json:"ProductionYear"`
+	IsFolder          bool            `json:"IsFolder"`
+	Status            *string         `json:"Status"`
+	Overview          *string         `json:"Overview"`
+	Genres            []string        `json:"Genres"`
+	ImageTags         ImageTags       `json:"ImageTags"`
+	ImageBlurHashes   ImageBlurHashes `json:"ImageBlurHashes"`
+	BackdropImageTags []string        `json:"BackdropImageTags"`
+	ParentId          *string         `json:"ParentId"`
 	// Series
-	SeriesId            *string         `json:"SeriesId"`
-	SeriesName          *string         `json:"SeriesName"`
-	SeasonId            *string         `json:"SeasonId"`
-	SeasonName          *string         `json:"SeasonName"`
-	IndexNumber         *int            `json:"IndexNumber"`
-	ParentIndexNumber   *int            `json:"ParentIndexNumber"`
-	ParentLogoItemId    *string         `json:"ParentLogoItemId"`
-	ParentBackdropItemId *string        `json:"ParentBackdropItemId"`
-	ParentBackdropImageTags []string    `json:"ParentBackdropImageTags"`
-	SeriesPrimaryImageTag   *string     `json:"SeriesPrimaryImageTag"`
+	SeriesId                *string  `json:"SeriesId"`
+	SeriesName              *string  `json:"SeriesName"`
+	SeasonId                *string  `json:"SeasonId"`
+	SeasonName              *string  `json:"SeasonName"`
+	IndexNumber             *int     `json:"IndexNumber"`
+	ParentIndexNumber       *int     `json:"ParentIndexNumber"`
+	ParentLogoItemId        *string  `json:"ParentLogoItemId"`
+	ParentBackdropItemId    *string  `json:"ParentBackdropItemId"`
+	ParentBackdropImageTags []string `json:"ParentBackdropImageTags"`
+	SeriesPrimaryImageTag   *string  `json:"SeriesPrimaryImageTag"`
 	// Music
-	AlbumArtist         *string         `json:"AlbumArtist"`
-	Album               *string         `json:"Album"`
-	AlbumId             *string         `json:"AlbumId"`
-	AlbumArtists        []NamedItem     `json:"AlbumArtists"`
-	ArtistItems         []NamedItem     `json:"ArtistItems"`
+	AlbumArtist  *string     `json:"AlbumArtist"`
+	Album        *string     `json:"Album"`
+	AlbumId      *string     `json:"AlbumId"`
+	AlbumArtists []NamedItem `json:"AlbumArtists"`
+	ArtistItems  []NamedItem `json:"ArtistItems"`
 	// Media info
-	MediaSources        []MediaSource   `json:"MediaSources"`
-	MediaStreams        []MediaStream   `json:"MediaStreams"`
+	MediaSources []MediaSource `json:"MediaSources"`
+	MediaStreams []MediaStream `json:"MediaStreams"`
 }
 
 // Backdrop returns the first backdrop image tag or empty string.
@@ -107,25 +107,25 @@ type NamedItem struct {
 }
 
 type MediaSource struct {
-	Id       string        `json:"Id"`
-	Path     string        `json:"Path"`
-	Size     *int64        `json:"Size"`
-	Bitrate  *int64        `json:"Bitrate"`
-	Container string       `json:"Container"`
+	Id           string        `json:"Id"`
+	Path         string        `json:"Path"`
+	Size         *int64        `json:"Size"`
+	Bitrate      *int64        `json:"Bitrate"`
+	Container    string        `json:"Container"`
 	MediaStreams []MediaStream `json:"MediaStreams"`
 }
 
 type MediaStream struct {
-	Codec         string  `json:"Codec"`
-	Type          string  `json:"Type"`
-	BitRate       *int64  `json:"BitRate"`
-	Height        *int    `json:"Height"`
-	Width         *int    `json:"Width"`
-	DisplayTitle  *string `json:"DisplayTitle"`
-	Language      *string `json:"Language"`
-	IsDefault     bool    `json:"IsDefault"`
-	Index         int     `json:"Index"`
-	IsExternal    bool    `json:"IsExternal"`
+	Codec          string     `json:"Codec"`
+	Type           string     `json:"Type"`
+	BitRate        *int64     `json:"BitRate"`
+	Height         *int       `json:"Height"`
+	Width          *int       `json:"Width"`
+	DisplayTitle   *string    `json:"DisplayTitle"`
+	Language       *string    `json:"Language"`
+	IsDefault      bool       `json:"IsDefault"`
+	Index          int        `json:"Index"`
+	IsExternal     bool       `json:"IsExternal"`
 	VideoRange     FlexString `json:"VideoRange"`     // SDR | HDR
 	VideoRangeType FlexString `json:"VideoRangeType"` // SDR | HDR10 | HLG | DOVI | ...
 }
@@ -149,12 +149,12 @@ type LibrariesResponse struct {
 
 // User is a Jellyfin user.
 type User struct {
-	Id                string     `json:"Id"`
-	Name              string     `json:"Name"`
-	PrimaryImageTag   *string    `json:"PrimaryImageTag"`
-	LastLoginDate     *string    `json:"LastLoginDate"`
-	LastActivityDate  *string    `json:"LastActivityDate"`
-	Policy            UserPolicy `json:"Policy"`
+	Id               string     `json:"Id"`
+	Name             string     `json:"Name"`
+	PrimaryImageTag  *string    `json:"PrimaryImageTag"`
+	LastLoginDate    *string    `json:"LastLoginDate"`
+	LastActivityDate *string    `json:"LastActivityDate"`
+	Policy           UserPolicy `json:"Policy"`
 }
 
 type UserPolicy struct {
@@ -169,19 +169,19 @@ type AuthResponse struct {
 
 // SessionInfo represents an active playback session.
 type SessionInfo struct {
-	Id                   string         `json:"Id"`
-	UserId               string         `json:"UserId"`
-	UserName             string         `json:"UserName"`
-	Client               string         `json:"Client"`
-	DeviceName           string         `json:"DeviceName"`
-	DeviceId             string         `json:"DeviceId"`
-	ApplicationVersion   string         `json:"ApplicationVersion"`
-	NowPlayingItem       *SessionItem   `json:"NowPlayingItem"`
-	PlayState            *PlayState     `json:"PlayState"`
-	TranscodingInfo      *TranscodingInfo `json:"TranscodingInfo"`
-	RemoteEndPoint       *string        `json:"RemoteEndPoint"`
-	ServerId             *string        `json:"ServerId"`
-	IsActive             bool           `json:"IsActive"`
+	Id                 string           `json:"Id"`
+	UserId             string           `json:"UserId"`
+	UserName           string           `json:"UserName"`
+	Client             string           `json:"Client"`
+	DeviceName         string           `json:"DeviceName"`
+	DeviceId           string           `json:"DeviceId"`
+	ApplicationVersion string           `json:"ApplicationVersion"`
+	NowPlayingItem     *SessionItem     `json:"NowPlayingItem"`
+	PlayState          *PlayState       `json:"PlayState"`
+	TranscodingInfo    *TranscodingInfo `json:"TranscodingInfo"`
+	RemoteEndPoint     *string          `json:"RemoteEndPoint"`
+	ServerId           *string          `json:"ServerId"`
+	IsActive           bool             `json:"IsActive"`
 	// LastPlaybackCheckIn is only updated by real client progress reports;
 	// LastActivityDate is also bumped by the server-side 1 s position
 	// extrapolation. Their gap tells whether a playing client went silent.
@@ -199,13 +199,14 @@ type SessionItem struct {
 	SeasonId     *string       `json:"SeasonId"`
 	SeriesId     *string       `json:"SeriesId"`
 	Container    *string       `json:"Container"`
-	MediaStreams  []MediaStream `json:"MediaStreams"`
+	MediaStreams []MediaStream `json:"MediaStreams"`
+	MediaSources []MediaSource `json:"MediaSources"`
 	// Music fields
-	AlbumId      *string       `json:"AlbumId"`
-	AlbumArtist  *string       `json:"AlbumArtist"`
-	Album        *string       `json:"Album"`
-	RunTimeTicks *int64        `json:"RunTimeTicks"`
-	ExtraType    *string       `json:"ExtraType"` // ThemeSong, ThemeVideo, Trailer... (not real plays)
+	AlbumId      *string `json:"AlbumId"`
+	AlbumArtist  *string `json:"AlbumArtist"`
+	Album        *string `json:"Album"`
+	RunTimeTicks *int64  `json:"RunTimeTicks"`
+	ExtraType    *string `json:"ExtraType"` // ThemeSong, ThemeVideo, Trailer... (not real plays)
 }
 
 type PlayState struct {
@@ -245,7 +246,8 @@ type CustomQueryResponse struct {
 
 // PlaybackReportingRow holds one row from the PlaybackReporting plugin SQLite query.
 // Column order: [0]=rowid [1]=DateCreated [2]=UserId [3]=ItemId [4]=ItemType
-//               [5]=ItemName [6]=PlaybackMethod [7]=ClientName [8]=DeviceName [9]=PlayDuration
+//
+//	[5]=ItemName [6]=PlaybackMethod [7]=ClientName [8]=DeviceName [9]=PlayDuration
 type PlaybackReportingRow = []interface{}
 
 // UserItemData is the per-user playback state of an item.
