@@ -248,6 +248,7 @@ type JFActivityWatchdog struct {
 	StartedAt          *time.Time `gorm:"column:StartedAt"`
 	LastCheckIn        *time.Time `gorm:"column:LastCheckIn"`
 	PeriodicReporter   bool       `gorm:"column:PeriodicReporter;not null;default:false"`
+	LastServerActivity *time.Time `gorm:"column:LastServerActivity"` // Jellyfin LastActivityDate at the last poll
 }
 
 func (JFActivityWatchdog) TableName() string { return "jf_activity_watchdog" }

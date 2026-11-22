@@ -352,3 +352,46 @@ func TestAccumulate_TotalNeverExceedsWallTime(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// Real Jellyfin 10.11 (e2e): stopping a < 5 min item saves Played=true and
+// position 0, so the stop position is unusable. The session stays listed with
+// LastActivityDate = stop time, which gives the tail on the server clock.
+func TestTracker_ShortItemTailFromServerActivity(t *testing.T) {
+	d := newDriver(t)
+	srv := time.Date(2026, 11, 22, 17, 0, 0, 0, time.UTC)
+	at := func(s jellyfin.SessionInfo, ts time.Time) jellyfin.SessionInfo {
+		s.LastActivityDate = jellyfin.FlexTime{Time: ts}
+		s.LastPlaybackCheckIn = jellyfin.FlexTime{Time: srv}
+		return s
+	}
+	d.tick(0, at(trackAt("s1", "t1", 0, 75), srv))
+	d.tick(5, at(trackAt("s1", "t1", 5000, 75), srv.Add(5*time.Second)))
+	// Stopped 4 s after that poll: Jellyfin reports Played=true / position 0.
+	d.mock.userData["t1"] = jellyfin.UserItemData{Played: true}
+	idle := jellyfin.SessionInfo{Id: "s1", UserId: "user-1", LastActivityDate: jellyfin.FlexTime{Time: srv.Add(9 * time.Second)}}
+	d.tick(5, idle)
+	if got := *d.plays()[0].PlaybackDuration; got != 9 {
+		t.Errorf("watched = %d s, want 9 (5 s polled + 4 s tail from LastActivityDate)", got)
+	}
+}
+
+// Real Jellyfin 10.11 (e2e): a play resumed mid-way lost the time between the
+// client's Playing report and the first poll (30 s play recorded as 27 s).
+func TestTracker_ResumedPlayHeadFromCheckIn(t *testing.T) {
+	d := newDriver(t)
+	srv := time.Date(2026, 11, 22, 17, 0, 0, 0, time.UTC)
+	s := movieAt("s1", "m1", 1_503_500, false) // resumed at ~25:00, now at 25:03.5
+	s.LastPlaybackCheckIn = jellyfin.FlexTime{Time: srv}
+	s.LastActivityDate = jellyfin.FlexTime{Time: srv.Add(3500 * time.Millisecond)}
+	d.tick(0, s)
+	if wd := d.watchdog("s1"); wd.WatchedMs != 3500 {
+		t.Errorf("head = %d ms, want 3500 (LastActivityDate − LastPlaybackCheckIn)", wd.WatchedMs)
+	}
+	paused := s
+	paused.PlayState = &jellyfin.PlayState{PositionTicks: s.PlayState.PositionTicks, IsPaused: true}
+	paused.Id = "s2"
+	d.tick(0, paused)
+	if wd := d.watchdog("s2"); wd.WatchedMs != 0 {
+		t.Errorf("paused session got head credit %d ms", wd.WatchedMs)
+	}
+}

@@ -381,7 +381,7 @@ func (r *watchdogRepo) Upsert(ctx context.Context, entries []models.JFActivityWa
 				"OriginalContainer", "RemoteEndPoint", "ServerId",
 				"WatchedSeconds", "LastTickAt",
 				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "WatchedMs", "PausedMs",
-				"StartedAt", "LastCheckIn", "PeriodicReporter",
+				"StartedAt", "LastCheckIn", "PeriodicReporter", "LastServerActivity",
 			}),
 		}).
 		CreateInBatches(entries, 500).Error

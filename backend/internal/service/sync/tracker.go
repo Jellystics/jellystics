@@ -83,6 +83,7 @@ type observation struct {
 	pos       *int64
 	paused    bool
 	checkIn   time.Time // LastPlaybackCheckIn (zero if unknown)
+	activity  time.Time // LastActivityDate (server clock, bumped every second while playing)
 	silentFor time.Duration
 	playlist  string
 }
@@ -128,6 +129,7 @@ func observe(sess jellyfin.SessionInfo) (observation, bool) {
 		o.pos = sess.PlayState.PositionTicks
 	}
 	o.checkIn = sess.LastPlaybackCheckIn.Time
+	o.activity = sess.LastActivityDate.Time
 	if !o.checkIn.IsZero() && !sess.LastActivityDate.IsZero() {
 		o.silentFor = sess.LastActivityDate.Sub(o.checkIn)
 	}
@@ -240,6 +242,24 @@ func headCreditMs(o observation, sinceMs int64) int64 {
 	return minI64(p, sinceMs)
 }
 
+// headFromCheckIn is the head credit for a play first seen mid-way (resumed):
+// the time since the client's "Playing" report, i.e. LastActivityDate minus
+// LastPlaybackCheckIn, both on the Jellyfin server clock. Bounded by capMs.
+func headFromCheckIn(o observation, capMs int64) int64 {
+	if o.paused || o.silentFor <= 0 || capMs <= 0 {
+		return 0
+	}
+	return minI64(ms(o.silentFor), capMs)
+}
+
+// firstHead combines both head estimates.
+func firstHead(o observation, sinceMs int64) int64 {
+	if h := headCreditMs(o, sinceMs); h > 0 {
+		return h
+	}
+	return headFromCheckIn(o, sinceMs+stepSlackMs)
+}
+
 // newEntry starts tracking a new play.
 func newEntry(o observation, now time.Time, headMs int64, periodic bool) models.JFActivityWatchdog {
 	s := o.sess
@@ -287,6 +307,10 @@ func refresh(e *models.JFActivityWatchdog, o observation, now time.Time) {
 		ci := o.checkIn
 		e.LastCheckIn = &ci
 	}
+	if !o.activity.IsZero() {
+		act := o.activity
+		e.LastServerActivity = &act
+	}
 	if s.PlayState != nil {
 		e.PlayMethod = s.PlayState.PlayMethod
 		ps := map[string]any{
@@ -315,8 +339,9 @@ func refresh(e *models.JFActivityWatchdog, o observation, now time.Time) {
 // closedPlay is a play that ended during this poll.
 type closedPlay struct {
 	wd           models.JFActivityWatchdog
-	tailBudgetMs int64 // max time that may have been played after the last poll
-	deleteRow    bool  // the session is gone: remove its watchdog row
+	tailBudgetMs int64      // max time that may have been played after the last poll
+	deleteRow    bool       // the session is gone: remove its watchdog row
+	stopActivity *time.Time // LastActivityDate of the still-listed, now idle session (= stop time)
 }
 
 // SessionTick polls Jellyfin sessions once: broadcasts them, accumulates real
@@ -345,6 +370,10 @@ func (s *Service) SessionTick(ctx context.Context) {
 
 	now := time.Now()
 	live := make(map[string]bool, len(sessions))
+	listed := make(map[string]jellyfin.SessionInfo, len(sessions))
+	for _, ss := range sessions {
+		listed[ss.Id] = ss
+	}
 	var entries []models.JFActivityWatchdog
 	var closed []closedPlay
 
@@ -359,7 +388,7 @@ func (s *Service) SessionTick(ctx context.Context) {
 		var e models.JFActivityWatchdog
 		switch {
 		case !had:
-			e = newEntry(o, now, headCreditMs(o, ms(PollInterval)), false)
+			e = newEntry(o, now, firstHead(o, ms(PollInterval)), false)
 		case prev.ItemId == nil:
 			// Row written by an older Jellystics version: close it, start fresh.
 			closed = append(closed, closedPlay{wd: prev})
@@ -368,7 +397,7 @@ func (s *Service) SessionTick(ctx context.Context) {
 			e = accumulate(prev, o, now)
 		default:
 			el := elapsedMs(&prev, now)
-			head := headCreditMs(o, el)
+			head := minI64(firstHead(o, el), el)
 			closed = append(closed, closedPlay{wd: prev, tailBudgetMs: el - head})
 			e = newEntry(o, now, head, prev.PeriodicReporter)
 		}
@@ -378,14 +407,19 @@ func (s *Service) SessionTick(ctx context.Context) {
 
 	for _, wd := range existing {
 		if !live[wd.Id] {
-			closed = append(closed, closedPlay{wd: wd, tailBudgetMs: elapsedMs(&wd, now), deleteRow: true})
+			c := closedPlay{wd: wd, tailBudgetMs: elapsedMs(&wd, now), deleteRow: true}
+			if ss, ok := listed[wd.Id]; ok && !ss.LastActivityDate.IsZero() {
+				act := ss.LastActivityDate.Time
+				c.stopActivity = &act
+			}
+			closed = append(closed, c)
 		}
 	}
 
 	if len(closed) > 0 {
 		acts := make([]models.JFPlaybackActivity, 0, len(closed))
 		for _, c := range closed {
-			if a, ok := s.finalize(ctx, c.wd, c.tailBudgetMs, now); ok {
+			if a, ok := s.finalize(ctx, c, now); ok {
 				acts = append(acts, a)
 			}
 		}
@@ -450,8 +484,12 @@ func (s *Service) tailMs(ctx context.Context, wd models.JFActivityWatchdog, budg
 }
 
 // finalize turns a finished watchdog entry into a playback row.
-func (s *Service) finalize(ctx context.Context, wd models.JFActivityWatchdog, tailBudgetMs int64, now time.Time) (models.JFPlaybackActivity, bool) {
-	tail, endPos := s.tailMs(ctx, wd, tailBudgetMs)
+func (s *Service) finalize(ctx context.Context, c closedPlay, now time.Time) (models.JFPlaybackActivity, bool) {
+	wd := c.wd
+	tail, endPos := s.tailMs(ctx, wd, c.tailBudgetMs)
+	if tail == 0 {
+		tail, endPos = tailFromActivity(c)
+	}
 	watchedMs := wd.WatchedMs + tail
 	if wd.ItemId == nil {
 		watchedMs = wd.WatchedSeconds * 1000 // legacy row
@@ -533,4 +571,31 @@ func (s *Service) finalize(ctx context.Context, wd models.JFActivityWatchdog, ta
 func (s *Service) SyncSessions(ctx context.Context) error {
 	s.SessionTick(ctx)
 	return nil
+}
+
+// tailFromActivity recovers the playback time after the last poll when the
+// stop position is not usable (Jellyfin saves position 0 / Played=true for
+// items shorter than MinResumeDurationSeconds, 5 min by default — i.e. nearly
+// every music track). After a stop the session stays listed and its
+// LastActivityDate is the stop time; the gap with the LastActivityDate stored
+// at the last poll is measured on the Jellyfin server clock only.
+func tailFromActivity(c closedPlay) (int64, *int64) {
+	wd := c.wd
+	if c.stopActivity == nil || wd.LastServerActivity == nil || (wd.IsPaused != nil && *wd.IsPaused) {
+		return 0, nil
+	}
+	budget := minI64(c.tailBudgetMs, maxTailMs)
+	t := ms(c.stopActivity.Sub(*wd.LastServerActivity))
+	if t <= 0 || budget <= 0 {
+		return 0, nil
+	}
+	t = minI64(t, budget)
+	if wd.PlaybackDuration == nil {
+		return t, nil
+	}
+	end := *wd.PlaybackDuration + t*ticksPerMs
+	if wd.RunTimeTicks != nil && *wd.RunTimeTicks > 0 && end > *wd.RunTimeTicks {
+		end = *wd.RunTimeTicks
+	}
+	return t, &end
 }

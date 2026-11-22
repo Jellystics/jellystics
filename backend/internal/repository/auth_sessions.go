@@ -16,8 +16,14 @@ func (r *authSessionRepo) Create(ctx context.Context, s *models.AuthSession) err
 
 func (r *authSessionRepo) Get(ctx context.Context, id string) (*models.AuthSession, error) {
 	var s models.AuthSession
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&s).Error; err != nil {
-		return nil, err
+	// Find + Limit (not First): a missing session is a normal case (logged out,
+	// revoked) and must not be logged as an error by GORM.
+	res := r.db.WithContext(ctx).Where("id = ?", id).Limit(1).Find(&s)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
 	}
 	return &s, nil
 }
