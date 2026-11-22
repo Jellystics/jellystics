@@ -611,10 +611,24 @@ func (s *Service) SessionTick(ctx context.Context) {
 	}
 
 	if len(closed) > 0 {
+		healthy, known := s.pluginState(ctx, now)
 		acts := make([]models.JFPlaybackActivity, 0, len(closed))
-		for _, c := range closed {
-			if a, ok := s.finalize(ctx, c, now); ok {
-				acts = append(acts, a)
+		if healthy {
+			// The Jellystics plugin records plays at the source: the tracker
+			// keeps observing (live page, watchdog) but leaves them to it.
+			log.Printf("[tracker] %d finished play(s) left to the Jellystics plugin", len(closed))
+		} else {
+			for _, c := range closed {
+				if a, ok := s.finalize(ctx, c, now); ok {
+					acts = append(acts, a)
+				}
+			}
+		}
+		if known && len(acts) > 0 {
+			var err error
+			if acts, err = s.repos.PluginSync.FilterTrackerPlays(ctx, acts); err != nil {
+				log.Printf("[tracker] cannot check plugin plays, will retry: %v", err)
+				return
 			}
 		}
 		if err := s.repos.Playback.Upsert(ctx, acts); err != nil {
@@ -634,6 +648,21 @@ func (s *Service) SessionTick(ctx context.Context) {
 			_ = s.repos.Watchdog.Delete(ctx, c.wd.Id)
 		}
 	}
+}
+
+// pluginState reports whether the Jellystics plugin is healthy (its plays
+// are authoritative, the tracker must not write) and whether it has ever
+// synced (plugin rows may exist and must be reconciled). Any error counts as
+// "no plugin": Jellystics stays autonomous.
+func (s *Service) pluginState(ctx context.Context, now time.Time) (healthy, known bool) {
+	if s.repos.PluginSync == nil {
+		return false, false
+	}
+	st, err := s.repos.PluginSync.GetState(ctx)
+	if err != nil {
+		return false, false
+	}
+	return st.Healthy(now), st.LastSuccessAt != nil
 }
 
 // tailMs recovers the playback time between the last poll and the actual stop
