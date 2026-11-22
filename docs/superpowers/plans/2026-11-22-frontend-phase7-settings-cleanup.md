@@ -1,0 +1,14 @@
+# Phase 7 — Réglages, retrait de MUI, nettoyage
+
+**Spec:** `docs/superpowers/specs/2026-11-22-frontend-redesign-design.md` §7 (Réglages, Connexion), §9, §11.7. **Visual reference:** `design/jellystics-design.html` (Composants: Field, Switch, Select, Dialog, Toast, Menu; Pages shell).
+
+## Global constraints
+Same as phases 3–5 (`docs/superpowers/plans/2026-11-22-frontend-phase3to5-pages.md`): kit only, i18n `app.*` fr/en/es, one-line commits without attribution, all suites green (`pnpm test`, `tsc`, `lint`, `build`, `test:e2e`, backend `go test ./...`).
+
+## Tasks
+1. **Réglages** `/settings/:section` rebuilt in the new DA, same features as legacy `frontend/src/features/settings/**` and `features/about`: sections `config` (Jellyfin URL/API key test via `/proxy/validateSettings`, timezone display, tracked libraries / untracked users if endpoints exist), `tasks` (list, run, cron edit, live logs via socket), `backup` (list, create, authenticated download, restore with ConfirmDialog, upload, delete), `logs`, `webhooks` (Discord/HTTP list, create/edit Dialog with validation, test, enable toggle, event toggles), `apikeys` (list, create with copy-once Dialog, delete), `about` (version, update check, links). Settings sub-navigation as Tabs (or side list ≥ 900 px) bound to the route. The palette choice and favicon/logo upload of the legacy app are dropped (single accent; spec).
+2. **Remove MUI and legacy code**: delete `src/features/**`, `src/shared/**`, legacy `src/lib` modules (theme.ts, ThemeModeContext, PaletteContext, FaviconContext, dateRange, palette, favicon, chartColors, dateLocale, axios, publicApi, router), `src/app/legacy/**`, `LegacyAt`; remove deps `@mui/*`, `@emotion/*`, `@mui/x-*`, `recharts`, `@fluentui/react-icons`, `@tabler/icons-react`, `@mui/icons-material`, `@mui/lab`, `react-image-crop`, `crypto-js`, `axios`, `notistack`, `react-transition-group` (if unused), `@hookform/resolvers`/`react-hook-form`/`zod` only if unused. Remove the ESLint ignores for legacy paths. Remove the `src/test/setup.ts` Request/AbortSignal wrapper if no longer needed.
+3. **i18n pass**: delete unused legacy keys, ensure fr/en/es have identical key sets (add a Vitest test that compares the three files' key sets), no hardcoded strings (grep JSX text nodes), `lang` attribute synced.
+4. **Follow-ups**: address `docs/superpowers/plans/2026-11-22-frontend-phase1-followups.md` items that are still relevant (a11y nits, chart keyboard activation, react-hooks v7 compiler rules re-enabled per file, etc.); delete the file once handled.
+5. **Full Playwright pass**: every route (static + one per dynamic entity) in light/dark/mobile, no console error, no horizontal overflow; login flow; settings flows smoke (open each section).
+6. **README**: update screenshots section text and feature list (new pages, clicks vs views, accurate tracking), dev commands (`pnpm test`, `pnpm test:e2e`).
