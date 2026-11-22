@@ -429,10 +429,27 @@
     },
     "action": {
       "remove": "Quitar",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "cancel": "Cancelar"
     },
     "nav": {
       "breadcrumbs": "Ruta de navegación"
+    },
+    "period": {
+      "today": "Hoy",
+      "7d": "Últimos 7 días",
+      "30d": "Últimos 30 días",
+      "90d": "Últimos 90 días",
+      "mtd": "Mes en curso",
+      "ytd": "Año en curso",
+      "all": "Todo",
+      "custom": "Rango personalizado…",
+      "compare": "Comparar con el período anterior",
+      "apply": "Aplicar",
+      "vs": "vs {{range}}",
+      "from": "Desde",
+      "to": "Hasta",
+      "invalid": "La fecha de inicio no puede ser posterior a la de fin."
     }
   }
 }

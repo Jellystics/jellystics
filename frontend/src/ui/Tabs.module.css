@@ -1,0 +1,6 @@
+.tabs { display: flex; gap: var(--s-4); border-bottom: 1px solid var(--border); }
+.tab { background: none; border: 0; padding: 10px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; font: inherit; color: var(--ink-3); font-size: var(--fs-md); font-weight: 550; cursor: pointer; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-color: var(--ink); }
+.tab:focus-visible { outline: none; box-shadow: var(--focus); }
+.count { font-weight: 500; color: var(--ink-3); margin-left: 4px; }

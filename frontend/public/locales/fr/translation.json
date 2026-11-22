@@ -429,10 +429,27 @@
     },
     "action": {
       "remove": "Retirer",
-      "retry": "Réessayer"
+      "retry": "Réessayer",
+      "cancel": "Annuler"
     },
     "nav": {
       "breadcrumbs": "Fil d’Ariane"
+    },
+    "period": {
+      "today": "Aujourd'hui",
+      "7d": "7 derniers jours",
+      "30d": "30 derniers jours",
+      "90d": "90 derniers jours",
+      "mtd": "Mois en cours",
+      "ytd": "Année en cours",
+      "all": "Tout",
+      "custom": "Période personnalisée…",
+      "compare": "Comparer à la période précédente",
+      "apply": "Appliquer",
+      "vs": "vs {{range}}",
+      "from": "Du",
+      "to": "Au",
+      "invalid": "La date de début doit précéder la date de fin."
     }
   }
 }

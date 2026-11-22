@@ -1,0 +1,8 @@
+.input { height: 32px; border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); padding: 0 10px; font: inherit; font-size: var(--fs-md); color: var(--ink); width: 100%; }
+.input:hover { border-color: var(--axis); }
+.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.wrap { position: relative; display: block; }
+.wrap svg { position: absolute; left: 9px; top: 8px; width: 16px; height: 16px; color: var(--ink-3); pointer-events: none; }
+.wrap .input { padding-left: 32px; }
+.wrap.hasKbd .input { padding-right: 40px; }
+.kbd { position: absolute; right: 8px; top: 6px; font-family: var(--mono); font-size: var(--fs-xs); color: var(--ink-3); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--r-sm); padding: 0 5px; background: var(--surface); }
