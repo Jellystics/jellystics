@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import RecapPage from './RecapPage'
 import { recapOptions } from './recapOptions'
-import { mockApi, renderPage } from '../insights/testUtils'
+import { mockApi, renderPage } from '../_shared/testUtils'
 
 const months = Array.from({ length: 12 }, (_, i) => `2025-${String(i + 1).padStart(2, '0')}`)
 const RECAP = {

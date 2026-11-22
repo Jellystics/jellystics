@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import { LanguagesCard } from './LanguagesCard'
-import { mockApi, renderPage } from '@/app/pages/insights/testUtils'
+import { mockApi, renderPage } from '@/app/pages/_shared/testUtils'
 
 beforeEach(() => { vi.restoreAllMocks() })
 

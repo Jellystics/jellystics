@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import InsightsPage from './InsightsPage'
-import { mockApi, renderPage } from './testUtils'
-import { entityPath, formatBitrate, formatBytes } from './analyticsFormat'
+import { mockApi, renderPage } from '../_shared/testUtils'
+import { entityPath, formatBitrate, formatBytes } from '../_shared/analyticsFormat'
 
 const zeros = (n: number) => Array.from({ length: n }, () => 0)
 const week = () => Array.from({ length: 7 }, () => zeros(24))

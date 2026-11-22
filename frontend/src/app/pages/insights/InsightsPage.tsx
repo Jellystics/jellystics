@@ -6,9 +6,9 @@ import {
 import { ChartFrame, Columns, SmallMultiples, StackedArea, WeekHeatmap } from '@/charts'
 import { AppLink, Art, BarList, Card, CardBody, CardHeader, PageHeader, SegBar } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { QueryCard } from './shared'
-import { entityPath, formatHours, formatMonth } from './analyticsFormat'
-import styles from './analytics.module.css'
+import { QueryCard } from '../_shared/shared'
+import { entityPath, formatHours, formatMonth } from '../_shared/analyticsFormat'
+import styles from '../_shared/analytics.module.css'
 
 const TYPES = ['movie', 'series', 'music'] as const
 const typeFill = (t: string) => `color-mix(in srgb, var(--t-${t}) 18%, transparent)`

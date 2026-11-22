@@ -3,9 +3,9 @@ import { useDiscoverAbandoned, useDiscoverAdded, useDiscoverStorage, useDiscover
 import { ChartFrame, Scatter } from '@/charts'
 import { AppLink, Art, Card, CardBody, CardHeader, ErrorState, MediaTypeBadge, Meter, PageHeader, Skeleton, StatStrip, StatTile } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { QueryCard } from '../insights/shared'
-import { entityPath, familyOf, formatBytes } from '../insights/analyticsFormat'
-import styles from '../insights/analytics.module.css'
+import { QueryCard } from '../_shared/shared'
+import { entityPath, familyOf, formatBytes } from '../_shared/analyticsFormat'
+import styles from '../_shared/analytics.module.css'
 
 const GB = 1_000_000_000
 

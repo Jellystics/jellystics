@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import DiscoverPage from './DiscoverPage'
-import { mockApi, renderPage } from '../insights/testUtils'
+import { mockApi, renderPage } from '../_shared/testUtils'
 
 const FULL = {
   '/api/v2/discover/unwatched': {

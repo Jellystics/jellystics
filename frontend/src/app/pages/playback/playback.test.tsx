@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import PlaybackPage from './PlaybackPage'
-import { mockApi, renderPage } from '../insights/testUtils'
+import { mockApi, renderPage } from '../_shared/testUtils'
 
 const QUALITY = {
   collectedSince: '2026-11-01', captured: 40, views: 100, transcodes: 20,

@@ -6,9 +6,9 @@ import { ChartFrame, Columns, Matrix, StackedColumns } from '@/charts'
 import { Badge, BarList, Card, CardBody, CardHeader, ErrorState, PageHeader, SegBar, Skeleton, StatStrip, StatTile, type StatDelta } from '@/ui'
 import { useFormat } from '@/lib/format'
 import { usePeriod } from '@/lib/useUrlState'
-import { CollectedEmpty, QueryCard } from '../insights/shared'
-import { formatBitrate } from '../insights/analyticsFormat'
-import styles from '../insights/analytics.module.css'
+import { CollectedEmpty, QueryCard } from '../_shared/shared'
+import { formatBitrate } from '../_shared/analyticsFormat'
+import styles from '../_shared/analytics.module.css'
 
 /** Jellyfin TranscodeReason values with a translated label (others show raw). */
 const KNOWN_REASONS = new Set([

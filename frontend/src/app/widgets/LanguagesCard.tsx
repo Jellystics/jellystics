@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { useUserLanguages } from '@/api/analytics'
 import { BarList, Card, CardBody, CardHeader, SegBar } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { CollectedEmpty, QueryCard } from '@/app/pages/insights/shared'
-import styles from '@/app/pages/insights/analytics.module.css'
+import { CollectedEmpty, QueryCard } from '@/app/pages/_shared/shared'
+import styles from '@/app/pages/_shared/analytics.module.css'
 
 /** ISO 639-2 (as stored by Jellyfin) → BCP 47, for Intl.DisplayNames. */
 const ISO2: Record<string, string> = {
