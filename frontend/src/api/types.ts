@@ -114,9 +114,13 @@ export interface UserDetail {
 
 // ── Entities ─────────────────────────────────────────────────────────────────
 export interface Funnel { clicks: number; views: number; half: number; completed: number }
+/** Library an entity belongs to (null when unknown). */
+export interface LibraryRef { id: string; name: string }
+/** Neighbouring episode: regular episodes cross seasons, specials only link to specials. */
+export interface EpisodeRef { id: string; season: number | null; episode: number | null }
 
 export interface MovieDetail {
-  item: { id: string; name: string; year: number | null; runtimeSeconds: number; genres: string[]; sizeBytes: number | null; resolution: string | null }
+  item: { id: string; name: string; year: number | null; runtimeSeconds: number; genres: string[]; sizeBytes: number | null; resolution: string | null; library: LibraryRef | null }
   totals: { views: number; clicks: number; viewers: number; completedRatio: number | null; transcodeRatio: number | null; watchSeconds: number }
   funnel: Funnel
   /** 24 bins over the runtime: furthest stop of each (user, item, day) view unit. */
@@ -129,7 +133,7 @@ export type CadenceBucket = '<1min' | '1-15min' | '15-60min' | 'sameDay' | 'next
 export type ReleaseLagBucket = '<24h' | '1-7d' | '1-4w' | '1-6m' | '6-12m' | '>1y'
 export interface SeriesEpisode { id: string; number: number | null; name: string; views: number; viewers: number; avgCompletion: number | null; abandons: number }
 export interface SeriesDetail {
-  item: { id: string; name: string; years: { from: number | null; to: number | null }; seasons: number; episodes: number; genres: string[] }
+  item: { id: string; name: string; years: { from: number | null; to: number | null }; seasons: number; episodes: number; genres: string[]; library: LibraryRef | null }
   totals: { watchSeconds: number; views: number; clicks: number; viewers: number; retention: number | null; binges: number }
   /** Viewers per episode, one array per season (catalog order). */
   retention: number[][]
@@ -143,7 +147,8 @@ export interface SeriesDetail {
 export interface EpisodeDetail {
   item: {
     id: string; name: string; seriesId: string; seriesName: string; season: number | null; episode: number | null
-    runtimeSeconds: number; premiereDate: ISODate | null; prevId: string | null; nextId: string | null
+    runtimeSeconds: number; premiereDate: ISODate | null; library: LibraryRef | null
+    prev: EpisodeRef | null; next: EpisodeRef | null
   }
   totals: { views: number; viewers: number; avgCompletion: number | null; pausedSecondsAvg: number | null }
   funnel: Funnel
@@ -154,7 +159,7 @@ export interface EpisodeDetail {
 
 export interface TrackStat { id: string; name: string; albumId: string; albumName: string; views: number; clicks: number; skipRate: number | null; listeners: number }
 export interface ArtistDetail {
-  item: { id: string; name: string; genres: string[]; albums: number; tracks: number }
+  item: { id: string; name: string; genres: string[]; albums: number; tracks: number; library: LibraryRef | null }
   totals: { listens: number; watchSeconds: number; listeners: number; skipRate: number | null }
   topTracks: TrackStat[]
   albums: { id: string; name: string; year: number | null; tracks: number; listens: number }[]
@@ -163,13 +168,13 @@ export interface ArtistDetail {
 }
 
 export interface AlbumDetail {
-  item: { id: string; name: string; artistId: string | null; artistName: string | null; year: number | null; tracks: number; runtimeSeconds: number }
+  item: { id: string; name: string; artistId: string | null; artistName: string | null; year: number | null; tracks: number; runtimeSeconds: number; library: LibraryRef | null }
   totals: { listens: number; fullListenRatio: number | null; fullAlbumListens: number; listeners: number; skipRate: number | null }
   tracks: { id: string; number: number | null; name: string; runtimeSeconds: number; views: number; clicks: number; skipRate: number | null; listeners: number }[]
 }
 
 export interface TrackDetail {
-  item: { id: string; name: string; albumId: string | null; artistId: string | null }
+  item: { id: string; name: string; albumId: string | null; albumName: string | null; artistId: string | null; artistName: string | null }
   totals: { views: number; clicks: number; skipRate: number | null; listeners: number }
   recent: { user: RefUser; startedAt: ISOTime; watchSeconds: number }[]
 }

@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, Button, Card, DataTable, EmptyState, PageHeader, SearchInput, SegmentedControl, StatStrip, StatTile, Tabs } from '@/ui'
+import { AppLink, Art, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SearchInput, SegmentedControl, StatStrip, StatTile, Tabs } from '@/ui'
 import { Sparkline } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
@@ -131,12 +131,13 @@ function ItemsTab({ data, loading }: { data: LibraryDetail; loading: boolean }) 
 function ActivityTab({ id }: { id: string }) {
   const [page, setPage] = usePage()
   const q = useHistory({ libraryId: id, page, pageSize: PAGE_SIZE })
+  const { t } = useTranslation()
   return (
     <Card>
-      <HistoryTable
+      {q.isError ? <ErrorState title={t('app.entity.error')} onRetry={() => { void q.refetch() }} /> : <HistoryTable
         rows={q.data?.rows ?? []} loading={q.isPending}
         pagination={q.data ? { page, pageSize: PAGE_SIZE, total: q.data.total, onPageChange: setPage } : undefined}
-      />
+      />}
     </Card>
   )
 }

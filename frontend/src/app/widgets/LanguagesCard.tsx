@@ -35,7 +35,7 @@ export function LanguagesCard({ userId }: { userId: string }) {
   return (
     <QueryCard
       title={t('app.languages.title')} subtitle={t('app.languages.subtitle')} query={q}
-      isEmpty={(d) => d.captured === 0} empty={q.data ? <CaptureEmpty since={q.data.collectedSince} from={period.from} /> : undefined}
+      isEmpty={(d) => !d?.split || d.captured === 0} empty={q.data ? <CaptureEmpty since={q.data.collectedSince} from={period.from} /> : undefined}
     >
       {(d) => {
         const known = d.split.originalSubtitled + d.split.original + d.split.dubbed

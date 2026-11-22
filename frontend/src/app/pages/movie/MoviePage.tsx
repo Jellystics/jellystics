@@ -1,16 +1,15 @@
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Art, Card, DataTable, EmptyState, EntityHeader, MediaTypeBadge, StatStrip, StatTile, Tabs } from '@/ui'
+import { Art, Card, DataTable, EmptyState, EntityHeader, StatStrip, StatTile, Tabs } from '@/ui'
 import { ChartFrame, Columns } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { useMovie, type MovieDetail } from '@/api'
 import { useMovieSittings } from '@/api/entityExtras'
-import { useSetCrumbLabel } from '@/app/shell/crumbs'
-import { CompletionCell, EntitySkeleton, HistoryTable, QueryView, UserCell } from '../library/EntityParts'
+import { CompletionCell, EntitySkeleton, HistoryTable, LibraryKicker, QueryView, SubQuery, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
-import { formatBytes, formatWhen, itemArt } from '../library/entity'
+import { formatBytes, formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
 import styles from '../library/entity.module.css'
 
 type Viewer = MovieDetail['viewers'][number]
@@ -28,9 +27,9 @@ function Sittings({ id }: { id: string }) {
       title={t('app.movie.sittings.title')} subtitle={t('app.movie.sittings.subtitle')} csvName={`movie-${id}-sittings`}
       table={{ columns: [t('app.movie.sittings.col'), t('app.movie.sittings.count'), t('app.movie.sittings.share')], rows: buckets.map((b, i) => [labels[i], b.count, f.percent(shares[i])]) }}
     >
-      {q.isError ? <EmptyState title={t('app.entity.error')} />
-        : total === 0 ? <EmptyState title={q.isPending ? t('app.entity.loading') : t('app.movie.sittings.empty')} />
-          : <Columns labels={labels} values={shares} name={t('app.movie.sittings.share')} emphasis={0} height={160} yFormat={f.percent} />}
+      <SubQuery query={q} height={160} empty={total === 0 ? <EmptyState title={t('app.movie.sittings.empty')} /> : null}>
+        <Columns labels={labels} values={shares} name={t('app.movie.sittings.share')} emphasis={0} height={160} yFormat={f.percent} />
+      </SubQuery>
     </ChartFrame>
   )
 }
@@ -56,7 +55,7 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
     <div className={styles.stack}>
       <EntityHeader
         art={<Art title={item.name} kind="poster" size="lg" src={itemArt(item.id)} seed={item.id} />}
-        kicker={<MediaTypeBadge type="movie" />}
+        kicker={<LibraryKicker type="movie" library={item.library} />}
         title={item.name}
         meta={meta}
       />
@@ -89,6 +88,6 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
 export default function MoviePage() {
   const { id = '' } = useParams()
   const q = useMovie(id)
-  useSetCrumbLabel(q.data?.item.name)
+  useEntityCrumbs(q.data?.item.name, q.data?.item.library)
   return <QueryView query={q} skeleton={<EntitySkeleton />}>{(data) => <Movie id={id} data={data} />}</QueryView>
 }

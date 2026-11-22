@@ -1,7 +1,7 @@
 // Test helpers for the phase 4 entity pages (imported by *.test.tsx only).
 import { createElement, Fragment, type ReactElement } from 'react'
 import { render } from '@testing-library/react'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 type Reply = unknown | ((url: URL) => unknown)
@@ -25,9 +25,9 @@ export function mockApi(map: Record<string, Reply>) {
 export const calls = (spy: ReturnType<typeof mockApi>, path: string) =>
   spy.mock.calls.map((c) => new URL(String(c[0]), 'http://x')).filter((u) => u.pathname === path)
 
-/** Current location (pathname + search) of the last rendered page. */
-export const loc = { current: '' }
-function Loc() { const l = useLocation(); loc.current = l.pathname + l.search; return null }
+/** Current location (pathname + search) and last navigation type of the last rendered page. */
+export const loc = { current: '', type: '' }
+function Loc() { const l = useLocation(); const type = useNavigationType(); loc.current = l.pathname + l.search; loc.type = type; return null }
 
 /** Renders `element` at `path` (route `pattern`) with a fresh query client. */
 export function renderPage(pattern: string, path: string, element: ReactElement) {

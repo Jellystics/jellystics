@@ -1,6 +1,6 @@
 import { Navigate, useLocation, useParams, useSearchParams, type RouteObject } from 'react-router-dom'
 import { AppShell } from './shell/AppShell'
-import type { Crumb, RouteHandle } from './shell/crumbs'
+import type { Crumb, CrumbLabels, RouteHandle } from './shell/crumbs'
 import { RequireAuth } from './RequireAuth'
 import LoginPage from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -61,6 +61,18 @@ const nav = (n: NonNullable<RouteHandle['nav']>, crumb?: RouteHandle['crumb']): 
 const LIBS = { label: 'app.nav.libraries', to: '/libraries' }
 const USERS = { label: 'app.nav.users', to: '/users' }
 const trail = (...items: Crumb[]) => () => items
+/** Libraries › <library> (when the page published it) › … › <last> (name set by the page). */
+const libCrumb = (l: CrumbLabels): Crumb[] => (l.library && l.libraryId ? [{ label: l.library, raw: true, to: `/libraries/${encodeURIComponent(l.libraryId)}` }] : [])
+const entityTrail = (last: string) => (_m: Match, l: CrumbLabels): Crumb[] => [LIBS, ...libCrumb(l), { label: last }]
+const episodeTrail = (m: Match, l: CrumbLabels): Crumb[] => {
+  const series = `/series/${m.params.id}`
+  return [
+    LIBS, ...libCrumb(l),
+    l.series ? { label: l.series, raw: true, to: series } : { label: 'app.crumb.series', to: series },
+    ...(l.season && l.seasonNumber ? [{ label: l.season, raw: true, to: `${series}?season=${encodeURIComponent(l.seasonNumber)}` }] : []),
+    { label: 'app.crumb.episode' },
+  ]
+}
 const SETTINGS_SECTIONS = ['config', 'tasks', 'backup', 'logs', 'webhooks', 'apikeys', 'about']
 const settingsTrail = (m: Match): Crumb[] => [{ label: 'app.nav.settings', to: '/settings' }, ...(SETTINGS_SECTIONS.includes(m.params.section ?? 'config') ? [{ label: `app.crumb.settings.${m.params.section ?? 'config'}` }] : [])]
 
@@ -75,11 +87,11 @@ export const routes: RouteObject[] = [
       { path: '/history', ...nav('history'), element: <HistoryPage /> },
       { path: '/libraries', ...nav('libraries'), element: <LibrariesPage /> },
       { path: '/libraries/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.library' })), element: <LibraryPage /> },
-      { path: '/movies/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.movie' })), element: <MoviePage /> },
-      { path: '/series/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.series' })), element: <SeriesPage /> },
-      { path: '/series/:id/episodes/:episodeId', ...nav('libraries', (m) => [LIBS, { label: 'app.crumb.series', to: `/series/${m.params.id}` }, { label: 'app.crumb.episode' }]), element: <EpisodePage /> },
-      { path: '/artists/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.artist' })), element: <ArtistPage /> },
-      { path: '/albums/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.album' })), element: <AlbumPage /> },
+      { path: '/movies/:id', ...nav('libraries', entityTrail('app.crumb.movie')), element: <MoviePage /> },
+      { path: '/series/:id', ...nav('libraries', entityTrail('app.crumb.series')), element: <SeriesPage /> },
+      { path: '/series/:id/episodes/:episodeId', ...nav('libraries', episodeTrail), element: <EpisodePage /> },
+      { path: '/artists/:id', ...nav('libraries', entityTrail('app.crumb.artist')), element: <ArtistPage /> },
+      { path: '/albums/:id', ...nav('libraries', entityTrail('app.crumb.album')), element: <AlbumPage /> },
       { path: '/users', ...nav('users'), element: <UsersPage /> },
       { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: <UserPage /> },
       { path: '/users/:id/recap/:period', handle: { ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]).handle, period: false }, element: <RecapPage /> },

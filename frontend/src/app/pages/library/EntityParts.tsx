@@ -3,9 +3,9 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { SearchX } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Avatar, Card, DataTable, EmptyState, ErrorState, Meter, MethodBadge, Skeleton, StatStrip, ViewBadge } from '@/ui'
+import { AppLink, Avatar, Card, DataTable, EmptyState, ErrorState, MediaTypeBadge, Meter, MethodBadge, Skeleton, StatStrip, ViewBadge } from '@/ui'
 import { useFormat } from '@/lib/format'
-import type { HistoryRow, RefUser } from '@/api'
+import type { HistoryRow, LibraryRef, RefUser } from '@/api'
 import { formatWhen, historyItemPath, isNotFound, playMethod } from './entity'
 import styles from './entity.module.css'
 
@@ -18,6 +18,25 @@ export function QueryView<T>({ query, skeleton, children }: { query: UseQueryRes
     return <ErrorState title={t('app.entity.error')} onRetry={() => { void query.refetch() }} />
   }
   return <>{skeleton}</>
+}
+
+/** Kicker of an entity header: media type badge + link to its library. */
+export function LibraryKicker({ type, library, children }: { type: 'movie' | 'series' | 'music'; library: LibraryRef | null | undefined; children?: ReactNode }) {
+  return (
+    <span className={styles.row}>
+      <MediaTypeBadge type={type} />
+      {library && <AppLink to={`/libraries/${encodeURIComponent(library.id)}`} className={styles.subLink}>{library.name}</AppLink>}
+      {children}
+    </span>
+  )
+}
+
+/** Chart / list body of a secondary query: skeleton while loading, retry on error. */
+export function SubQuery({ query, height, empty, children }: { query: Pick<UseQueryResult, 'isPending' | 'isError' | 'refetch'>; height: number; empty: ReactNode | null; children: ReactNode }) {
+  const { t } = useTranslation()
+  if (query.isError) return <ErrorState title={t('app.entity.error')} onRetry={() => { void query.refetch() }} />
+  if (query.isPending) return <Skeleton height={height} radius="md" />
+  return <>{empty ?? children}</>
 }
 
 /** Skeleton shaped like an entity page: header, tile strip, two cards, table. */

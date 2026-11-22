@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { entityApi, libraryHistoryFixture } from '../src/app/pages/library/fixtures' // phase 4
+import { entityApi } from '../src/app/pages/library/fixtures' // phase 4
 
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
 export const FAKE_JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ userId: 'u1', userName: 'Céline', isAdmin: true, sid: 's' })}.sig`
@@ -76,13 +76,15 @@ const PHASE3: Record<string, () => unknown> = {
   '/api/v2/users/share': shareFixture,
   '/api/v2/users/u1': () => userFixture('u1', 'Céline'),
   '/api/v2/users/u2': () => userFixture(),
+  '/api/v2/users/u1/languages': () => ({ collectedSince: '2026-11-01', captured: 12, split: { originalSubtitled: 6, original: 2, dubbed: 3, unknown: 1 }, audio: [{ label: 'eng', views: 8 }, { label: 'fra', views: 4 }], subtitles: [{ label: 'fra', views: 6 }], subtitleOff: 6 }),
+  '/api/v2/users/u2/languages': () => ({ collectedSince: '2026-11-01', captured: 12, split: { originalSubtitled: 6, original: 2, dubbed: 3, unknown: 1 }, audio: [{ label: 'eng', views: 8 }, { label: 'fra', views: 4 }], subtitles: [{ label: 'fra', views: 6 }], subtitleOff: 6 }),
   '/api/v2/concurrency': concurrencyFixture,
   '/sessions/current': sessionsFixture,
 }
 // --- end phase 3 ---
 // --- phase 4 ---
 // Entity pages: realistic payloads for the fixture ids (lib-s, m1, s1, e5, ar1, al1, t3).
-Object.assign(OBJECTS, entityApi, { '/api/v2/history': libraryHistoryFixture })
+Object.assign(OBJECTS, entityApi)
 // --- end phase 4 ---
 
 const json = (body: unknown, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })

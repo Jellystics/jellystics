@@ -1,13 +1,12 @@
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, Card, CardHeader, DataTable, EmptyState, EntityHeader, MediaTypeBadge, StatStrip, StatTile } from '@/ui'
+import { AppLink, Art, Card, CardHeader, DataTable, EmptyState, EntityHeader, StatStrip, StatTile } from '@/ui'
 import { ChartFrame, Columns } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useArtist, type ArtistDetail, type TrackStat } from '@/api'
-import { useSetCrumbLabel } from '@/app/shell/crumbs'
-import { EntitySkeleton, QueryView, SkipCell } from '../library/EntityParts'
-import { entityPath, itemArt } from '../library/entity'
+import { EntitySkeleton, LibraryKicker, QueryView, SkipCell } from '../library/EntityParts'
+import { PANEL_STATE, entityPath, itemArt, useEntityCrumbs } from '../library/entity'
 import { TrackPanel } from '../album/TrackPanel'
 import styles from '../library/entity.module.css'
 
@@ -35,7 +34,7 @@ function Artist({ id, data }: { id: string; data: ArtistDetail }) {
     <div className={styles.stack}>
       <EntityHeader
         art={<Art title={item.name} kind="square" size="lg" src={itemArt(item.id)} seed={item.id} />}
-        kicker={<MediaTypeBadge type="music" />}
+        kicker={<LibraryKicker type="music" library={item.library} />}
         title={item.name}
         meta={[t('app.artist.counts', { albums: item.albums, tracks: item.tracks }), item.genres.length ? item.genres.slice(0, 3).join(', ') : null].filter(Boolean)}
       />
@@ -49,7 +48,7 @@ function Artist({ id, data }: { id: string; data: ArtistDetail }) {
       </Card>
       <Card>
         <CardHeader title={t('app.artist.topTracks')} subtitle={t('app.artist.topTracksSub')} />
-        <DataTable columns={cols} data={data.topTracks} rowHref={(tr) => trackPath(tr.id)} empty={<EmptyState title={t('app.artist.noTracks')} />} />
+        <DataTable columns={cols} data={data.topTracks} rowHref={(tr) => trackPath(tr.id)} rowState={PANEL_STATE} empty={<EmptyState title={t('app.artist.noTracks')} />} />
       </Card>
       <section aria-label={t('app.artist.albums')} className={styles.stack}>
         <h2 className="sr-only">{t('app.artist.albums')}</h2>
@@ -83,6 +82,6 @@ function Artist({ id, data }: { id: string; data: ArtistDetail }) {
 export default function ArtistPage() {
   const { id = '' } = useParams()
   const q = useArtist(id)
-  useSetCrumbLabel(q.data?.item.name)
+  useEntityCrumbs(q.data?.item.name, q.data?.item.library)
   return <QueryView query={q} skeleton={<EntitySkeleton />}>{(data) => <Artist id={id} data={data} />}</QueryView>
 }

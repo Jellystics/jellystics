@@ -41,6 +41,13 @@ it('shows empty sittings and empty viewers', async () => {
   expect(await screen.findByText('app.movie.sittings.empty')).toBeInTheDocument()
 })
 
+it('links the library and shows a retryable error for a failed widget', async () => {
+  mockApi({ '/api/v2/movies/m1': movieFixture, '/api/v2/movies/m1/sittings': { __status: 500 } })
+  open('/movies/m1')
+  expect(await screen.findByRole('link', { name: 'Films' })).toHaveAttribute('href', '/libraries/lib-m')
+  expect(await screen.findByRole('alert')).toHaveTextContent('app.action.retry')
+})
+
 it('shows an error with retry, and not found on 404', async () => {
   mockApi({ '/api/v2/movies/m1': { __status: 500 } })
   open('/movies/m1')

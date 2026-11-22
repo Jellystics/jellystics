@@ -4,6 +4,8 @@
 const totals = (watchSeconds: number, views: number, clicks: number, activeUsers: number, completion: number | null) => ({ watchSeconds, views, clicks, activeUsers, completion })
 const trend = (seed: number) => Array.from({ length: 14 }, (_, i) => ((i * 7 + seed * 3) % 9) + (i > 9 ? 2 : 0))
 const u = (id: string, name: string) => ({ id, name })
+const LIB_S = { id: 'lib-s', name: 'Séries' }
+const LIB_MU = { id: 'lib-mu', name: 'Musique' }
 const USERS = [u('u1', 'Céline'), u('u2', 'Hugo'), u('u3', 'Léa'), u('u4', 'Malik'), u('u5', 'Inès')]
 
 const row = (id: string, user: { id: string; name: string }, item: Record<string, unknown>, mediaType: string, startedAt: string, watchSeconds: number, completion: number | null, method = 'DirectPlay', isView = true) => ({
@@ -47,7 +49,7 @@ export const growthFixture = {
 const stops = (n: number, end: number) => Array.from({ length: n }, (_, i) => (i < 2 ? 20 - i * 4 : i === n - 1 ? end : i === n - 2 ? Math.round(end / 2) : (i * 5) % 9))
 
 export const movieFixture = {
-  item: { id: 'm1', name: 'Les Rivages', year: 2024, runtimeSeconds: 7680, genres: ['Drame'], sizeBytes: 18_200_000_000, resolution: '4K' },
+  item: { id: 'm1', name: 'Les Rivages', year: 2024, runtimeSeconds: 7680, genres: ['Drame'], sizeBytes: 18_200_000_000, resolution: '4K', library: { id: 'lib-m', name: 'Films' } },
   totals: { views: 48, clicks: 61, viewers: 5, completedRatio: 0.6, transcodeRatio: 0.21, watchSeconds: 302_400 },
   funnel: { clicks: 61, views: 48, half: 37, completed: 29 },
   stopPositions: stops(24, 92),
@@ -62,7 +64,7 @@ export const sittingsFixture = [{ sittings: 1, count: 18 }, { sittings: 2, count
 
 const ep = (id: string, number: number, name: string, views: number, viewers: number, avgCompletion: number, abandons: number) => ({ id, number, name, views, viewers, avgCompletion, abandons })
 export const seriesFixture = {
-  item: { id: 's1', name: 'Station Nord', years: { from: 2022, to: 2025 }, seasons: 2, episodes: 5, genres: ['Drame', 'Science-fiction'] },
+  item: { id: 's1', name: 'Station Nord', years: { from: 2022, to: 2025 }, seasons: 2, episodes: 5, genres: ['Drame', 'Science-fiction'], library: LIB_S },
   totals: { watchSeconds: 1_036_800, views: 412, clicks: 497, viewers: 5, retention: 0.33, binges: 14 },
   retention: [[6, 6, 5], [4, 3]],
   seasons: [
@@ -83,7 +85,7 @@ export const seriesHistoryFixture = {
 }
 
 export const episodeFixture = {
-  item: { id: 'e5', name: 'La Fracture', seriesId: 's1', seriesName: 'Station Nord', season: 2, episode: 2, runtimeSeconds: 2880, premiereDate: '2024-03-03', prevId: 'e4', nextId: null },
+  item: { id: 'e5', name: 'La Fracture', seriesId: 's1', seriesName: 'Station Nord', season: 2, episode: 2, runtimeSeconds: 2880, premiereDate: '2024-03-03', library: LIB_S, prev: { id: 'e4', season: 2, episode: 1 }, next: null },
   totals: { views: 5, viewers: 5, avgCompletion: 0.86, pausedSecondsAvg: 240 },
   funnel: { clicks: 7, views: 5, half: 5, completed: 4 },
   stopPositions: stops(20, 6),
@@ -91,7 +93,7 @@ export const episodeFixture = {
 }
 
 export const artistFixture = {
-  item: { id: 'ar1', name: 'Lune Pâle', genres: ['Indie', 'Dream pop'], albums: 2, tracks: 23 },
+  item: { id: 'ar1', name: 'Lune Pâle', genres: ['Indie', 'Dream pop'], albums: 2, tracks: 23, library: LIB_MU },
   totals: { listens: 612, watchSeconds: 133_200, listeners: 3, skipRate: 0.19 },
   topTracks: [
     { id: 't1', name: 'Rivière noire', albumId: 'al2', albumName: 'Rivière noire', views: 182, clicks: 214, skipRate: 0.15, listeners: 3 },
@@ -103,7 +105,7 @@ export const artistFixture = {
 }
 
 export const albumFixture = {
-  item: { id: 'al1', name: 'Halo', artistId: 'ar1', artistName: 'Lune Pâle', year: 2023, tracks: 3, runtimeSeconds: 2520 },
+  item: { id: 'al1', name: 'Halo', artistId: 'ar1', artistName: 'Lune Pâle', year: 2023, tracks: 3, runtimeSeconds: 2520, library: LIB_MU },
   totals: { listens: 341, fullListenRatio: 0.62, fullAlbumListens: 9, listeners: 3, skipRate: 0.16 },
   tracks: [
     { id: 't4', number: 1, name: 'Aube', runtimeSeconds: 192, views: 44, clicks: 51, skipRate: 0.14, listeners: 3 },
@@ -118,12 +120,10 @@ export const fullListensFixture = [
 ]
 
 export const trackFixture = {
-  item: { id: 't3', name: 'Basse lumière', albumId: 'al1', artistId: 'ar1' },
+  item: { id: 't3', name: 'Basse lumière', albumId: 'al1', albumName: 'Halo', artistId: 'ar1', artistName: 'Lune Pâle' },
   totals: { views: 96, clicks: 151, skipRate: 0.36, listeners: 2 },
   recent: [{ user: USERS[1], startedAt: '2026-11-22T10:00:00+01:00', watchSeconds: 222 }, { user: USERS[0], startedAt: '2026-11-21T18:00:00+01:00', watchSeconds: 60 }],
 }
-
-export const libraryHistoryFixture = seriesHistoryFixture
 
 /** Path → payload map of every phase 4 endpoint (ids of the fixtures above). */
 export const entityApi: Record<string, unknown> = {

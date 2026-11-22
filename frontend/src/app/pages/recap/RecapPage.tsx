@@ -6,7 +6,7 @@ import { ApiError } from '@/lib/api'
 import { ChartFrame, Columns } from '@/charts'
 import { AppLink, Art, BarList, ButtonLink, Card, CardBody, CardHeader, EmptyState, ErrorState, Skeleton, StatStrip, StatTile } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { useSetCrumbLabels } from '@/app/shell/crumbs'
+import { useSetCrumbTail } from '@/app/shell/crumbs'
 import { useServerConfig } from '@/lib/serverConfig'
 import { NoData } from '../_shared/shared'
 import { entityPath, formatHours, formatMonth } from '../_shared/analyticsFormat'
@@ -25,7 +25,7 @@ export default function RecapPage() {
   const recap = useRecap(id, valid ? period : undefined)
   const label = (p: string) => (p.length === 4 ? p : new Intl.DateTimeFormat(f.locale, { month: 'long', year: 'numeric' }).format(new Date(Number(p.slice(0, 4)), Number(p.slice(5, 7)) - 1, 1)))
   // Users › Léa › Recap 2026 (the user name replaces the generic "user" crumb).
-  useSetCrumbLabels(valid ? [recap.data?.user.name, t('app.recap.crumb', { period: label(period) })] : null)
+  useSetCrumbTail(valid ? [recap.data?.user.name, t('app.recap.crumb', { period: label(period) })] : null)
   const tz = useServerConfig().data?.timezone
 
   const switcher = valid && (

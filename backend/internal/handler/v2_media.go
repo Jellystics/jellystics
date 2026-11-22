@@ -15,6 +15,27 @@ func (p V2Params) entityFilter() *actFilter {
 	return acts().inRange(p.Range).forUser(p.UserID)
 }
 
+// libraryRef is the library an entity belongs to (kicker link / breadcrumb).
+type libraryRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// libraryRefOf resolves a library id to {id, name}; nil when empty or unknown.
+func (h *V2Handler) libraryRefOf(c *gin.Context, id *string) (*libraryRef, error) {
+	if id == nil || *id == "" {
+		return nil, nil
+	}
+	var r libraryRef
+	if err := h.raw(c, &r, `SELECT "Id" AS id, COALESCE("Name", '') AS name FROM jf_libraries WHERE "Id" = ?`, *id); err != nil {
+		return nil, err
+	}
+	if r.ID == "" {
+		return nil, nil
+	}
+	return &r, nil
+}
+
 type refUser struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -125,18 +146,24 @@ func (h *V2Handler) Movie(c *gin.Context) {
 		Genres       jsonOf[[]string]
 		SizeBytes    *int64
 		Width        *int
+		LibraryID    *string
 	}
 	if v2Fail(c, h.raw(c, &item, `
 		SELECT i."Id" AS id, i."Name" AS name, i."ProductionYear" AS year, i."RunTimeTicks" AS run_time_ticks,
 		       i."Genres"::text AS genres, ii."Size" AS size_bytes,
 		       (SELECT (s->>'Width')::int FROM jsonb_array_elements(CASE WHEN jsonb_typeof(ii."MediaStreams") = 'array' THEN ii."MediaStreams" ELSE '[]'::jsonb END) s
-		         WHERE s->>'Type' = 'Video' LIMIT 1) AS width
+		         WHERE s->>'Type' = 'Video' LIMIT 1) AS width,
+		       i."ParentId" AS library_id
 		FROM jf_library_items i LEFT JOIN jf_item_info ii ON ii."Id" = i."Id"
 		WHERE i."Id" = ? AND i."Type" = 'Movie'`, id)) {
 		return
 	}
 	if item.ID == "" {
 		v2NotFound(c)
+		return
+	}
+	lib, err := h.libraryRefOf(c, item.LibraryID)
+	if v2Fail(c, err) {
 		return
 	}
 	f := p.entityFilter().where(`a."MediaType" = 'Movie' AND a."ItemId" = ?`, id)
@@ -193,6 +220,7 @@ func (h *V2Handler) Movie(c *gin.Context) {
 		"item": gin.H{
 			"id": item.ID, "name": strOrEmpty(item.Name), "year": item.Year, "runtimeSeconds": ticksToSeconds(item.RunTimeTicks),
 			"genres": strs(item.Genres), "sizeBytes": item.SizeBytes, "resolution": resolutionLabel(item.Width),
+			"library": lib,
 		},
 		"totals":        totals,
 		"funnel":        fun,
@@ -249,23 +277,29 @@ func (h *V2Handler) Series(c *gin.Context) {
 	}
 	id := c.Param("id")
 	var item struct {
-		ID       string
-		Name     *string
-		YearFrom *int
-		EndDate  *string
-		Genres   jsonOf[[]string]
-		Seasons  int
-		Episodes int
+		ID        string
+		Name      *string
+		YearFrom  *int
+		EndDate   *string
+		Genres    jsonOf[[]string]
+		Seasons   int
+		Episodes  int
+		LibraryID *string
 	}
 	if v2Fail(c, h.raw(c, &item, `
 		SELECT i."Id" AS id, i."Name" AS name, i."ProductionYear" AS year_from, i."EndDate" AS end_date, i."Genres"::text AS genres,
 		       (SELECT COUNT(DISTINCT COALESCE(e."ParentIndexNumber", 1)) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived AND `+notSpecial+`)::int AS seasons,
-		       (SELECT COUNT(*) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived)::int AS episodes
+		       (SELECT COUNT(*) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived)::int AS episodes,
+		       i."ParentId" AS library_id
 		FROM jf_library_items i WHERE i."Id" = ? AND i."Type" = 'Series'`, id)) {
 		return
 	}
 	if item.ID == "" {
 		v2NotFound(c)
+		return
+	}
+	lib, err := h.libraryRefOf(c, item.LibraryID)
+	if v2Fail(c, err) {
 		return
 	}
 	var yearTo *int
@@ -440,6 +474,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 		"item": gin.H{
 			"id": item.ID, "name": strOrEmpty(item.Name), "years": gin.H{"from": item.YearFrom, "to": yearTo},
 			"seasons": item.Seasons, "episodes": item.Episodes, "genres": strs(item.Genres),
+			"library": lib,
 		},
 		"totals": gin.H{
 			"watchSeconds": totals.WatchSeconds, "views": totals.Views, "clicks": totals.Clicks,
@@ -472,8 +507,13 @@ func (h *V2Handler) Episode(c *gin.Context) {
 		Episode      *int
 		RunTimeTicks *int64
 		PremiereDate *string
+		LibraryID    *string
 		PrevID       *string
+		PrevSeason   *int
+		PrevEpisode  *int
 		NextID       *string
+		NextSeason   *int
+		NextEpisode  *int
 	}
 	if v2Fail(c, h.raw(c, &item, `
 		WITH target AS (
@@ -481,15 +521,18 @@ func (h *V2Handler) Episode(c *gin.Context) {
 		),
 		ordered AS (
 		  SELECT e."Id",
-		         LAG(e."Id") OVER w AS prev_id, LEAD(e."Id") OVER w AS next_id
+		         LAG(e."Id") OVER w AS prev_id, LAG(e."ParentIndexNumber") OVER w AS prev_season, LAG(e."IndexNumber") OVER w AS prev_episode,
+		         LEAD(e."Id") OVER w AS next_id, LEAD(e."ParentIndexNumber") OVER w AS next_season, LEAD(e."IndexNumber") OVER w AS next_episode
 		  FROM jf_library_episodes e
 		  WHERE e."SeriesId" = (SELECT "SeriesId" FROM target) AND (NOT e.archived OR e."Id" = (SELECT "Id" FROM target))
+		    AND COALESCE(e."ParentIndexNumber" = 0, false) = (SELECT COALESCE("ParentIndexNumber" = 0, false) FROM target)
 		  WINDOW w AS (ORDER BY `+episodeOrder+`)
 		)
 		SELECT t."Id" AS id, t."Name" AS name, t."SeriesId" AS series_id,
 		       COALESCE(s."Name", t."SeriesName") AS series_name,
 		       t."ParentIndexNumber" AS season, t."IndexNumber" AS episode, t."RunTimeTicks" AS run_time_ticks,
-		       NULLIF(t."PremiereDate", '') AS premiere_date, o.prev_id, o.next_id
+		       NULLIF(t."PremiereDate", '') AS premiere_date, s."ParentId" AS library_id,
+		       o.prev_id, o.prev_season, o.prev_episode, o.next_id, o.next_season, o.next_episode
 		FROM target t
 		LEFT JOIN jf_library_items s ON s."Id" = t."SeriesId"
 		LEFT JOIN ordered o ON o."Id" = t."Id"`, id, id, id)) {
@@ -497,6 +540,10 @@ func (h *V2Handler) Episode(c *gin.Context) {
 	}
 	if item.ID == "" {
 		v2NotFound(c)
+		return
+	}
+	lib, err := h.libraryRefOf(c, item.LibraryID)
+	if v2Fail(c, err) {
 		return
 	}
 	f := p.entityFilter().where(`a."MediaType" = 'Episode' AND a."ItemId" = ?`, item.ID)
@@ -551,13 +598,30 @@ func (h *V2Handler) Episode(c *gin.Context) {
 		"item": gin.H{
 			"id": item.ID, "name": strOrEmpty(item.Name), "seriesId": strOrEmpty(item.SeriesID), "seriesName": strOrEmpty(item.SeriesName),
 			"season": item.Season, "episode": item.Episode, "runtimeSeconds": ticksToSeconds(item.RunTimeTicks),
-			"premiereDate": premiereDate(item.PremiereDate), "prevId": item.PrevID, "nextId": item.NextID,
+			"premiereDate": premiereDate(item.PremiereDate), "library": lib,
+			"prev": episodeRefOf(item.PrevID, item.PrevSeason, item.PrevEpisode),
+			"next": episodeRefOf(item.NextID, item.NextSeason, item.NextEpisode),
 		},
 		"totals":        totals,
 		"funnel":        fun,
 		"stopPositions": stops,
 		"viewers":       viewers,
 	})
+}
+
+// episodeRef is a neighbouring episode in catalog order: regular episodes
+// link across season boundaries, specials only to other specials.
+type episodeRef struct {
+	ID      string `json:"id"`
+	Season  *int   `json:"season"`
+	Episode *int   `json:"episode"`
+}
+
+func episodeRefOf(id *string, season, episode *int) *episodeRef {
+	if id == nil {
+		return nil
+	}
+	return &episodeRef{ID: *id, Season: season, Episode: episode}
 }
 
 // premiereDate keeps the YYYY-MM-DD part of a stored premiere timestamp.

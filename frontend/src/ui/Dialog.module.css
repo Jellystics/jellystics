@@ -1,4 +1,4 @@
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 90; }
+.overlay { position: fixed; inset: 0; background: var(--scrim); z-index: 90; }
 .dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 91; width: 420px; max-width: calc(100% - 2 * var(--s-4)); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
 .head { padding: var(--s-4) var(--s-4) 0; }
 .title { font-size: var(--fs-lg); font-weight: 600; margin: 0; }

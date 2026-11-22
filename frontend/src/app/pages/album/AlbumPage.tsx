@@ -1,13 +1,12 @@
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, BarList, Card, CardBody, CardHeader, DataTable, EmptyState, EntityHeader, MediaTypeBadge, StatStrip, StatTile } from '@/ui'
+import { AppLink, Art, BarList, Card, CardBody, CardHeader, DataTable, EmptyState, EntityHeader, StatStrip, StatTile } from '@/ui'
 import { useFormat } from '@/lib/format'
 import { useAlbum, type AlbumDetail } from '@/api'
 import { useAlbumFullListens } from '@/api/entityExtras'
-import { useSetCrumbLabel } from '@/app/shell/crumbs'
-import { EntitySkeleton, QueryView, SkipCell } from '../library/EntityParts'
-import { entityPath, itemArt } from '../library/entity'
+import { EntitySkeleton, LibraryKicker, QueryView, SkipCell, SubQuery } from '../library/EntityParts'
+import { PANEL_STATE, entityPath, itemArt, useEntityCrumbs } from '../library/entity'
 import { TrackPanel } from './TrackPanel'
 import styles from '../library/entity.module.css'
 
@@ -21,17 +20,15 @@ function FullAlbums({ id }: { id: string }) {
     <Card>
       <CardHeader title={t('app.album.full.title')} subtitle={t('app.album.full.subtitle')} />
       <CardBody>
-        {q.isError ? <EmptyState title={t('app.entity.error')} />
-          : rows.length === 0 ? <EmptyState title={q.isPending ? t('app.entity.loading') : t('app.album.full.empty')} />
-            : (
-              <BarList
-                labelHeader={t('app.album.full.album')} valueLabel={t('app.album.full.count')}
-                rows={rows.map((a) => ({
-                  key: a.id, label: a.name, value: a.fullListens, to: a.id === id ? undefined : entityPath('album', a.id),
-                  lead: <Art title={a.name} kind="square" src={itemArt(a.id, 72)} seed={a.id} />,
-                }))}
-              />
-            )}
+        <SubQuery query={q} height={120} empty={rows.length === 0 ? <EmptyState title={t('app.album.full.empty')} /> : null}>
+          <BarList
+            labelHeader={t('app.album.full.album')} valueLabel={t('app.album.full.count')}
+            rows={rows.map((a) => ({
+              key: a.id, label: a.name, value: a.fullListens, to: a.id === id ? undefined : entityPath('album', a.id),
+              lead: <Art title={a.name} kind="square" src={itemArt(a.id, 72)} seed={a.id} />,
+            }))}
+          />
+        </SubQuery>
       </CardBody>
     </Card>
   )
@@ -57,10 +54,11 @@ function Album({ id, data }: { id: string; data: AlbumDetail }) {
     <div className={styles.stack}>
       <EntityHeader
         art={<Art title={item.name} kind="square" size="lg" src={itemArt(item.id)} seed={item.id} />}
-        kicker={<>
-          <MediaTypeBadge type="music" />
-          {item.artistId && item.artistName ? <AppLink to={entityPath('artist', item.artistId)} className={styles.subLink}>{item.artistName}</AppLink> : item.artistName}
-        </>}
+        kicker={
+          <LibraryKicker type="music" library={item.library}>
+            {item.artistId && item.artistName ? <AppLink to={entityPath('artist', item.artistId)} className={styles.subLink}>{item.artistName}</AppLink> : item.artistName}
+          </LibraryKicker>
+        }
         title={item.name}
         meta={[item.year ? String(item.year) : null, t('app.album.tracksMeta', { count: item.tracks, duration: f.duration(item.runtimeSeconds) })].filter(Boolean)}
       />
@@ -74,7 +72,7 @@ function Album({ id, data }: { id: string; data: AlbumDetail }) {
       </Card>
       <Card>
         <CardHeader title={t('app.album.tracks')} subtitle={t('app.album.tracksSub')} />
-        <DataTable dense columns={cols} data={data.tracks} rowHref={(tr) => trackPath(tr.id)}empty={<EmptyState title={t('app.album.noTracks')} />} />
+        <DataTable dense columns={cols} data={data.tracks} rowHref={(tr) => trackPath(tr.id)} rowState={PANEL_STATE} empty={<EmptyState title={t('app.album.noTracks')} />} />
       </Card>
       <FullAlbums id={id} />
       <TrackPanel names={names} />
@@ -85,6 +83,6 @@ function Album({ id, data }: { id: string; data: AlbumDetail }) {
 export default function AlbumPage() {
   const { id = '' } = useParams()
   const q = useAlbum(id)
-  useSetCrumbLabel(q.data?.item.name)
+  useEntityCrumbs(q.data?.item.name, q.data?.item.library)
   return <QueryView query={q} skeleton={<EntitySkeleton />}>{(data) => <Album id={id} data={data} />}</QueryView>
 }

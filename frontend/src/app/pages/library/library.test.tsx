@@ -73,6 +73,13 @@ it('activity tab lists the library history', async () => {
   expect(calls(spy, '/api/v2/history')[0].searchParams.get('libraryId')).toBe('lib-s')
 })
 
+it('activity tab shows a retryable error instead of an empty table', async () => {
+  mockApi({ '/api/v2/libraries/lib-s': libraryFixture, '/api/v2/history': { __status: 500 } })
+  open('/libraries/lib-s?tab=activity')
+  expect(await screen.findByRole('alert')).toHaveTextContent('app.entity.error')
+  expect(screen.queryByRole('table')).toBeNull()
+})
+
 it('shows not found for an unknown library', async () => {
   mockApi({})
   open('/libraries/nope')
