@@ -38,7 +38,11 @@ const catalogJoins = `
 //	started_at, ended_at (timestamptz), local_ts (display-zone wall time),
 //	duration (s), is_view, play_method, client, device_name, runtime_ticks,
 //	pos_end, now_playing_item_id, now_playing_item_name, series_name,
-//	paused_seconds, app_version, pos_start
+//	paused_seconds, app_version, pos_start,
+//	plugin_open (Jellystics-plugin play still in progress: provisional, kept in
+//	watch time but never in completion / skip stats), plugin_closed (closed
+//	Jellystics-plugin play: the only rows with reliable seek_count /
+//	skipped_seconds), seek_count, skipped_seconds, played_to_completion
 func actsSelect() string {
 	started := statsql.StartedAt("a")
 	return `
@@ -82,7 +86,12 @@ func actsSelect() string {
 	  a."SeriesName" AS series_name,
 	  COALESCE(a."PausedSeconds", 0)::bigint AS paused_seconds,
 	  a."ApplicationVersion" AS app_version,
-	  a."PositionTicksStart" AS pos_start
+	  a."PositionTicksStart" AS pos_start,
+	  COALESCE(a."PluginOpen", false) AS plugin_open,
+	  COALESCE(a."PluginOpen" = false, false) AS plugin_closed,
+	  a."SeekCount" AS seek_count,
+	  a."SkippedSeconds" AS skipped_seconds,
+	  a."PlayedToCompletion" AS played_to_completion
 	FROM jf_playback_activity a` + catalogJoins + `
 	WHERE ` + statsql.MediaFilter("a")
 }
@@ -159,13 +168,14 @@ binge_sessions AS (
 // The ratio uses the furthest stop position / longest sitting of the day, so
 // an episode resumed in two sittings whose last sitting reaches the end counts
 // as one completed view, not one completed + one abandoned.
+// Open Jellystics-plugin plays are provisional and left out.
 var completionCTE = `,
 completion AS (
   SELECT
     MAX(media_type) AS item_type,
     ` + statsql.CompletionRatio("MAX(pos_end)", "MAX(duration)", "MAX(runtime_ticks)") + ` AS completion_ratio
   FROM acts
-  WHERE is_view AND runtime_ticks > 0
+  WHERE is_view AND runtime_ticks > 0 AND NOT plugin_open
   GROUP BY user_id, item_id, local_ts::date
 )
 `
