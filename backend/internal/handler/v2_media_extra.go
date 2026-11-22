@@ -124,7 +124,7 @@ func (h *V2Handler) LibraryDecades(c *gin.Context) {
 	}
 	var views []struct{ Decade, N int }
 	q, args := acts().inRange(p.Range).forUser(p.UserID).where(`(`+libraryIdExpr+`) = ?`, id).sql(`
-		SELECT (i."ProductionYear" / 10 * 10)::int AS decade, COUNT(*) FILTER (WHERE acts.is_view)::int AS n
+		SELECT (i."ProductionYear" / 10 * 10)::int AS decade, ` + aggPlays + ` AS n
 		FROM acts JOIN jf_library_items i ON i."Id" = acts.group_id
 		WHERE i."ProductionYear" > 0 GROUP BY 1`)
 	if v2Fail(c, h.raw(c, &views, q, args...)) {
@@ -202,20 +202,22 @@ func bucketNext(d time.Time, unit string) time.Time {
 	return d.AddDate(0, 0, 1)
 }
 
-// libraryLeavesSQL lists (Id, DateCreated) of the movies, episodes and tracks
-// of library ? (three placeholders, all the library id).
+// libraryLeavesSQL lists (Id, DateCreated, kind = playback MediaType) of the
+// movies, episodes and tracks of library ? (three placeholders, all the
+// library id).
 const libraryLeavesSQL = `
-	SELECT i."Id", NULLIF(i."DateCreated", '')::timestamptz AS d FROM jf_library_items i
+	SELECT i."Id", NULLIF(i."DateCreated", '')::timestamptz AS d, 'Movie' AS kind FROM jf_library_items i
 	WHERE i."ParentId" = ? AND i."Type" = 'Movie' AND NOT i.archived
 	UNION ALL
-	SELECT e."Id", NULLIF(e."DateCreated", '')::timestamptz FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId"
+	SELECT e."Id", NULLIF(e."DateCreated", '')::timestamptz, 'Episode' FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId"
 	WHERE s."ParentId" = ? AND NOT e.archived
 	UNION ALL
-	SELECT t."Id", NULLIF(t."DateCreated", '')::timestamptz FROM jf_music_tracks t WHERE t."LibraryId" = ? AND NOT t.archived`
+	SELECT t."Id", NULLIF(t."DateCreated", '')::timestamptz, 'Audio' FROM jf_music_tracks t WHERE t."LibraryId" = ? AND NOT t.archived`
 
 // LibraryGrowth compares, per bucket of the range, the movies / episodes /
-// tracks added to the library with the ones viewed for the first time (by
-// anyone, all time). Returns {bucket, points}.
+// tracks added to the library with the ones viewed for the first time (all
+// time; by the userId user when given). `type` restricts both series to that
+// media type. Returns {bucket, points}.
 func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 	p, ok := v2Params(c)
 	if !ok {
@@ -235,14 +237,18 @@ func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 	}
 	if v2Fail(c, h.raw(c, &added, `
 		SELECT `+trunc("l.d")+` AS date, COUNT(*)::int AS n FROM (`+libraryLeavesSQL+`) l
-		WHERE l.d >= ? AND l.d < ? GROUP BY 1`, id, id, id, p.Range.From, p.Range.To)) {
+		WHERE l.d >= ? AND l.d < ? AND (? = '' OR l.kind = ?) GROUP BY 1`, id, id, id, p.Range.From, p.Range.To, p.MediaType, p.MediaType)) {
 		return
 	}
 	var first []struct {
 		Date string
 		N    int
 	}
-	q, args := acts().where(`a."IsView"`).where(`(`+libraryIdExpr+`) = ?`, id).sql(`,
+	ff := acts().forUser(p.UserID).where(`a."IsView"`).where(`(`+libraryIdExpr+`) = ?`, id)
+	if p.MediaType != "" {
+		ff.where(`a."MediaType" = ?`, p.MediaType)
+	}
+	q, args := ff.sql(`,
 		fw AS (SELECT item_id, MIN(started_at) AS first_view FROM acts GROUP BY item_id)
 		SELECT `+trunc("fw.first_view")+` AS date, COUNT(*)::int AS n FROM fw
 		WHERE fw.first_view >= ? AND fw.first_view < ? GROUP BY 1`, p.Range.From, p.Range.To)
@@ -327,8 +333,9 @@ func (h *V2Handler) AlbumFullListens(c *gin.Context) {
 	}
 	q, args := p.entityFilter().where(`a."MediaType" = 'Audio'`).sql(`,
 		ud AS (
-		  SELECT group_id, user_id, local_ts::date AS day, COUNT(DISTINCT item_id) AS n
-		  FROM acts WHERE is_view GROUP BY 1, 2, 3
+		  SELECT acts.group_id, acts.user_id, acts.local_ts::date AS day, COUNT(DISTINCT acts.item_id) AS n
+		  FROM acts JOIN jf_music_tracks t ON t."Id" = acts.item_id AND t."AlbumId" = acts.group_id AND NOT t.archived
+		  WHERE acts.is_view GROUP BY 1, 2, 3
 		),
 		tc AS (
 		  SELECT t."AlbumId" AS album_id, COUNT(*) AS n FROM jf_music_tracks t WHERE NOT t.archived GROUP BY 1

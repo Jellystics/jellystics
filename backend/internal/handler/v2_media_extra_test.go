@@ -156,3 +156,106 @@ func TestV2SeriesHistory(t *testing.T) {
 		}
 	}
 }
+
+func TestV2EntityLibraryRef(t *testing.T) {
+	db := v2Seeded(t)
+	type ref struct{ ID, Name string }
+	var got struct{ Item struct{ Library *ref } }
+	for path, want := range map[string]ref{
+		"/api/v2/movies/m1":   {"lib-m", "Films"},
+		"/api/v2/series/s1":   {"lib-s", "Séries"},
+		"/api/v2/episodes/e2": {"lib-s", "Séries"},
+		"/api/v2/artists/ar1": {"lib-mu", "Musique"},
+		"/api/v2/albums/al1":  {"lib-mu", "Musique"},
+	} {
+		got.Item.Library = nil
+		v2JSON(t, db, path, &got)
+		if got.Item.Library == nil || *got.Item.Library != want {
+			t.Errorf("%s library = %+v, want %+v", path, got.Item.Library, want)
+		}
+	}
+	// Unknown parent library: null.
+	if err := db.Create(&models.JFLibraryItem{Id: "m9", Name: sp("Orphan"), Type: sp("Movie"), ParentId: sp("gone")}).Error; err != nil {
+		t.Fatal(err)
+	}
+	got.Item.Library = &ref{}
+	v2JSON(t, db, "/api/v2/movies/m9", &got)
+	if got.Item.Library != nil {
+		t.Errorf("orphan library = %+v", got.Item.Library)
+	}
+}
+
+func TestV2TrackNames(t *testing.T) {
+	db := v2Seeded(t)
+	var got struct {
+		Item struct{ AlbumName, ArtistName *string }
+	}
+	v2JSON(t, db, "/api/v2/tracks/t1", &got)
+	if got.Item.AlbumName == nil || *got.Item.AlbumName != "Blue Album" || got.Item.ArtistName == nil || *got.Item.ArtistName != "The Band" {
+		t.Errorf("track item = %+v", got.Item)
+	}
+}
+
+func TestV2LibraryDecadesUserFilter(t *testing.T) {
+	db := v2Seeded(t)
+	var got []struct{ Decade, Views, Catalog int }
+	v2JSON(t, db, "/api/v2/libraries/lib-m/decades?userId=u1", &got)
+	if len(got) != 2 || got[1].Decade != 2010 || got[1].Views != 1 || got[1].Catalog != 1 {
+		t.Errorf("decades u1 = %+v", got)
+	}
+}
+
+func TestV2LibraryGrowthFilters(t *testing.T) {
+	db := v2Seeded(t)
+	type point struct {
+		Date              string
+		Added, FirstViews int
+	}
+	var got struct{ Points []point }
+	sum := func() (added, first int) {
+		for _, p := range got.Points {
+			added += p.Added
+			first += p.FirstViews
+		}
+		return
+	}
+	v2JSON(t, db, "/api/v2/libraries/lib-s/growth?userId=u2", &got)
+	if _, first := sum(); first != 0 {
+		t.Errorf("u2 first views = %d", first)
+	}
+	v2JSON(t, db, "/api/v2/libraries/lib-s/growth?userId=u1", &got)
+	if _, first := sum(); first != 3 {
+		t.Errorf("u1 first views = %d", first)
+	}
+	v2JSON(t, db, "/api/v2/libraries/lib-m/growth?type=series", &got)
+	if added, first := sum(); added != 0 || first != 0 {
+		t.Errorf("type=series on movies = %d %d", added, first)
+	}
+	v2JSON(t, db, "/api/v2/libraries/lib-m/growth?type=movie", &got)
+	if added, _ := sum(); added != 1 {
+		t.Errorf("type=movie added = %d", added)
+	}
+}
+
+func TestV2AlbumFullListensIgnoresArchivedTracks(t *testing.T) {
+	db := v2Seeded(t)
+	if err := db.Create(&models.JFMusicTrack{Id: "t3", Name: sp("Hidden"), AlbumId: sp("al1"), ArtistId: sp("ar1"), Archived: true, RunTimeTicks: i64(200 * secTicks), Genres: js(`[]`)}).Error; err != nil {
+		t.Fatal(err)
+	}
+	// Bob listened to t1 (r7) and now to the archived t3: two distinct tracks
+	// on the day, but only one of the two catalog tracks.
+	pos := int64(200)
+	r := trackedRow("r12", "u2", "t3", "Audio", v2Day1.Add(9*time.Hour), 200, 200, &pos)
+	r.NowPlayingItemId = sp("al1")
+	if err := db.Create(&r).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got []struct {
+		ID          string
+		FullListens int
+	}
+	v2JSON(t, db, "/api/v2/albums/al1/full-listens", &got)
+	if len(got) == 0 || got[0].ID != "al1" || got[0].FullListens != 0 {
+		t.Errorf("albums = %+v", got)
+	}
+}

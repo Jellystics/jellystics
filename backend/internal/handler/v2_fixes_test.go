@@ -154,11 +154,15 @@ func TestV2SpecialsAndMisc(t *testing.T) {
 		t.Errorf("library retention = %+v", lib.Items.Rows)
 	}
 	var ep struct {
-		Item struct{ PrevID, NextID *string }
+		Item struct{ Prev, Next *struct{ ID string } }
 	}
 	v2JSON(t, db, "/api/v2/episodes/e3", &ep)
-	if ep.Item.NextID == nil || *ep.Item.NextID != "e0" {
-		t.Errorf("e3 next = %v (specials come last)", ep.Item.NextID)
+	if ep.Item.Next != nil || ep.Item.Prev == nil || ep.Item.Prev.ID != "e2" {
+		t.Errorf("e3 prev/next = %+v %+v (regular episodes never link to specials)", ep.Item.Prev, ep.Item.Next)
+	}
+	v2JSON(t, db, "/api/v2/episodes/e0", &ep)
+	if ep.Item.Prev != nil || ep.Item.Next != nil {
+		t.Errorf("e0 prev/next = %+v %+v (lone special)", ep.Item.Prev, ep.Item.Next)
 	}
 
 	// Ascending library sort with desc=0.

@@ -145,7 +145,12 @@ func TestV2Episode(t *testing.T) {
 			ID, Name, SeriesID, SeriesName string
 			Season, Episode                int
 			RuntimeSeconds                 int64
-			PremiereDate, PrevID, NextID   *string
+			PremiereDate                   *string
+			Prev, Next                     *struct {
+				ID              string
+				Season, Episode int
+			}
+			Library *struct{ ID, Name string }
 		}
 		Totals struct {
 			Views, Viewers                  int
@@ -163,7 +168,9 @@ func TestV2Episode(t *testing.T) {
 	v2JSON(t, db, "/api/v2/episodes/e2", &got)
 	it := got.Item
 	if it.SeriesID != "s1" || it.SeriesName != "Les Rivages" || it.Season != 1 || it.Episode != 2 || it.RuntimeSeconds != 100 ||
-		it.PrevID == nil || *it.PrevID != "e1" || it.NextID == nil || *it.NextID != "e3" || it.PremiereDate == nil || len(*it.PremiereDate) != 10 {
+		it.Prev == nil || it.Prev.ID != "e1" || it.Prev.Season != 1 || it.Prev.Episode != 1 ||
+		it.Next == nil || it.Next.ID != "e3" || it.Next.Season != 2 || it.Next.Episode != 1 ||
+		it.Library == nil || it.Library.ID != "lib-s" || it.Library.Name != "Séries" || it.PremiereDate == nil || len(*it.PremiereDate) != 10 {
 		t.Errorf("item = %+v", it)
 	}
 	if got.Totals.Views != 1 || got.Totals.Viewers != 1 || !approx(got.Totals.AvgCompletion, 0.95) || !approx(got.Totals.PausedSecondsAvg, 42) {
@@ -176,8 +183,8 @@ func TestV2Episode(t *testing.T) {
 		t.Errorf("viewers = %+v", got.Viewers)
 	}
 	v2JSON(t, db, "/api/v2/episodes/e1", &got)
-	if got.Item.PrevID != nil || got.Item.NextID == nil || *got.Item.NextID != "e2" {
-		t.Errorf("e1 prev/next = %v %v", got.Item.PrevID, got.Item.NextID)
+	if got.Item.Prev != nil || got.Item.Next == nil || got.Item.Next.ID != "e2" {
+		t.Errorf("e1 prev/next = %+v %+v", got.Item.Prev, got.Item.Next)
 	}
 	if w := v2Get(t, db, "/api/v2/episodes/nope"); w.Code != http.StatusNotFound {
 		t.Errorf("episode nope: %d", w.Code)

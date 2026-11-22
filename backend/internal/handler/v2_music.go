@@ -33,14 +33,17 @@ func (h *V2Handler) Artist(c *gin.Context) {
 	}
 	id := c.Param("id")
 	var item struct {
-		ID     string
-		Name   *string
-		Genres jsonOf[[]string]
-		Albums int
-		Tracks int
+		ID        string
+		Name      *string
+		Genres    jsonOf[[]string]
+		Albums    int
+		Tracks    int
+		LibraryID *string
 	}
 	if v2Fail(c, h.raw(c, &item, `
 		SELECT ar."Id" AS id, ar."Name" AS name, ar."Genres"::text AS genres,
+		       COALESCE(ar."LibraryId", (SELECT t."LibraryId" FROM jf_music_tracks t WHERE t."ArtistId" = ar."Id" AND t."LibraryId" IS NOT NULL
+		                                 GROUP BY 1 ORDER BY COUNT(*) DESC, 1 LIMIT 1)) AS library_id,
 		       (SELECT COUNT(*) FROM (
 		          SELECT i."Id" FROM jf_library_items i WHERE i."Type" = 'MusicAlbum' AND i."ArtistId" = ar."Id" AND NOT i.archived
 		          UNION SELECT t."AlbumId" FROM jf_music_tracks t WHERE t."ArtistId" = ar."Id" AND t."AlbumId" IS NOT NULL AND NOT t.archived
@@ -51,6 +54,10 @@ func (h *V2Handler) Artist(c *gin.Context) {
 	}
 	if item.ID == "" {
 		v2NotFound(c)
+		return
+	}
+	lib, err := h.libraryRefOf(c, item.LibraryID)
+	if v2Fail(c, err) {
 		return
 	}
 	f := p.entityFilter().where(`a."MediaType" = 'Audio' AND (ct."ArtistId" = ? OR (ct."ArtistId" IS NULL AND cal."ArtistId" = ?))`, id, id)
@@ -113,7 +120,7 @@ func (h *V2Handler) Artist(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"item":       gin.H{"id": item.ID, "name": strOrEmpty(item.Name), "genres": strs(item.Genres), "albums": item.Albums, "tracks": item.Tracks},
+		"item":       gin.H{"id": item.ID, "name": strOrEmpty(item.Name), "genres": strs(item.Genres), "albums": item.Albums, "tracks": item.Tracks, "library": lib},
 		"totals":     totals,
 		"topTracks":  topTracks,
 		"albums":     albums,
@@ -139,9 +146,10 @@ func (h *V2Handler) Album(c *gin.Context) {
 		Year         *int
 		Tracks       int
 		RuntimeTicks int64
+		LibraryID    *string
 	}
 	if v2Fail(c, h.raw(c, &item, `
-		SELECT i."Id" AS id, i."Name" AS name, i."ArtistId" AS artist_id,
+		SELECT i."Id" AS id, i."Name" AS name, i."ArtistId" AS artist_id, i."ParentId" AS library_id,
 		       COALESCE(ar."Name", i."AlbumArtist") AS artist_name, i."ProductionYear" AS year,
 		       (SELECT COUNT(*) FROM jf_music_tracks t WHERE t."AlbumId" = i."Id" AND NOT t.archived)::int AS tracks,
 		       (SELECT COALESCE(SUM(t."RunTimeTicks"), 0) FROM jf_music_tracks t WHERE t."AlbumId" = i."Id" AND NOT t.archived)::bigint AS runtime_ticks
@@ -151,6 +159,10 @@ func (h *V2Handler) Album(c *gin.Context) {
 	}
 	if item.ID == "" {
 		v2NotFound(c)
+		return
+	}
+	lib, err := h.libraryRefOf(c, item.LibraryID)
+	if v2Fail(c, err) {
 		return
 	}
 	f := p.entityFilter().where(`a."MediaType" = 'Audio' AND COALESCE(ct."AlbumId", a."NowPlayingItemId") = ?`, id)
@@ -208,6 +220,7 @@ func (h *V2Handler) Album(c *gin.Context) {
 		"item": gin.H{
 			"id": item.ID, "name": strOrEmpty(item.Name), "artistId": item.ArtistID, "artistName": item.ArtistName,
 			"year": item.Year, "tracks": item.Tracks, "runtimeSeconds": item.RuntimeTicks / 10_000_000,
+			"library": lib,
 		},
 		"totals": totals,
 		"tracks": tracks,
@@ -225,12 +238,20 @@ func (h *V2Handler) Track(c *gin.Context) {
 	}
 	id := c.Param("id")
 	var item struct {
-		ID       string
-		Name     *string
-		AlbumID  *string
-		ArtistID *string
+		ID         string
+		Name       *string
+		AlbumID    *string
+		AlbumName  *string
+		ArtistID   *string
+		ArtistName *string
 	}
-	if v2Fail(c, h.raw(c, &item, `SELECT "Id" AS id, "Name" AS name, "AlbumId" AS album_id, "ArtistId" AS artist_id FROM jf_music_tracks WHERE "Id" = ?`, id)) {
+	if v2Fail(c, h.raw(c, &item, `
+		SELECT t."Id" AS id, t."Name" AS name, t."AlbumId" AS album_id, COALESCE(al."Name", t."AlbumName") AS album_name,
+		       t."ArtistId" AS artist_id, ar."Name" AS artist_name
+		FROM jf_music_tracks t
+		LEFT JOIN jf_library_items al ON al."Id" = t."AlbumId"
+		LEFT JOIN jf_music_artists ar ON ar."Id" = t."ArtistId"
+		WHERE t."Id" = ?`, id)) {
 		return
 	}
 	if item.ID == "" {
@@ -268,7 +289,10 @@ func (h *V2Handler) Track(c *gin.Context) {
 		out[i] = recent{refUser{r.UserID, r.UserName}, localTime(r.StartedAt), r.WatchSeconds}
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"item":   gin.H{"id": item.ID, "name": strOrEmpty(item.Name), "albumId": item.AlbumID, "artistId": item.ArtistID},
+		"item": gin.H{
+			"id": item.ID, "name": strOrEmpty(item.Name), "albumId": item.AlbumID, "albumName": item.AlbumName,
+			"artistId": item.ArtistID, "artistName": item.ArtistName,
+		},
 		"totals": totals,
 		"recent": out,
 	})
