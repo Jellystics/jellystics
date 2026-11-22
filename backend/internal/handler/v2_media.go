@@ -357,7 +357,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 		SELECT e."Id" AS id, COALESCE(e."ParentIndexNumber", 0) AS season, COALESCE(e."ParentIndexNumber" = 0, false) AS special, e."IndexNumber" AS number, e."Name" AS name,
 		       COALESCE(ep.views, 0) AS views, COALESCE(ep.viewers, 0) AS viewers,
 		       comp.avg_completion, COALESCE(comp.abandons, 0) AS abandons,
-		       COALESCE(sk.skip_plays, 0) AS skip_plays, COALESCE(sk.skipped, 0) AS skipped, COALESCE(sk.intro, 0) AS intro, sk.avg_skipped_seconds
+		       COALESCE(sk.skip_plays, 0) AS skip_plays, COALESCE(sk.skipped, 0) AS skipped, COALESCE(sk.intro_plays, 0) AS intro_plays, COALESCE(sk.intro, 0) AS intro, sk.avg_skipped_seconds
 		FROM jf_library_episodes e
 		LEFT JOIN ep ON ep.item_id = e."Id"
 		LEFT JOIN comp ON comp.item_id = e."Id"
@@ -376,7 +376,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 		}
 		s := &seasons[len(seasons)-1]
 		s.Episodes = append(s.Episodes, seriesEpisode{ID: e.ID, Number: e.Number, Name: strOrEmpty(e.Name), Views: e.Views, Viewers: e.Viewers, AvgCompletion: e.AvgCompletion, Abandons: e.Abandons,
-			SkipPlays: e.SkipPlays, IntroRate: ratioOf(e.Intro, e.SkipPlays), SkipRate: ratioOf(e.Skipped, e.SkipPlays), AvgSkippedSeconds: e.AvgSkippedSeconds})
+			SkipPlays: e.SkipPlays, IntroRate: ratioOf(e.Intro, e.IntroPlays), SkipRate: ratioOf(e.Skipped, e.SkipPlays), AvgSkippedSeconds: e.AvgSkippedSeconds})
 		retention[len(retention)-1] = append(retention[len(retention)-1], e.Viewers)
 	}
 	// Retention: viewers of the last regular episode / viewers of the first

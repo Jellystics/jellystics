@@ -29,6 +29,12 @@ type TimeRange struct {
 const catalogJoins = `
 	LEFT JOIN jf_users u ON u."Id" = a."UserId"` + statsql.CatalogJoins
 
+// runtimeTicks is the runtime of a playback row (row first, then catalog).
+const runtimeTicks = `COALESCE(a."RunTimeTicks", cm."RunTimeTicks", ce."RunTimeTicks", ct."RunTimeTicks")`
+
+// ptcMinRuntimeTicks: PlayedToCompletion is trusted from this runtime on (300 s).
+const ptcMinRuntimeTicks int64 = 300 * 10_000_000
+
 // actsColumns documents the columns exposed by the acts CTE:
 //
 //	id, user_id, user_name, item_id (movie/episode/track), media_type
@@ -42,7 +48,9 @@ const catalogJoins = `
 //	plugin_open (Jellystics-plugin play still in progress: provisional, kept in
 //	watch time but never in completion / skip stats), plugin_closed (closed
 //	Jellystics-plugin play: the only rows with reliable seek_count /
-//	skipped_seconds), seek_count, skipped_seconds, played_to_completion
+//	skipped_seconds), seek_count, skipped_seconds, played_to_completion,
+//	trusted_ptc (PlayedToCompletion of movies / episodes of 300 s or more,
+//	else NULL: Jellyfin's flag is unreliable on short media and music)
 func actsSelect() string {
 	started := statsql.StartedAt("a")
 	return `
@@ -79,7 +87,7 @@ func actsSelect() string {
 	  COALESCE(NULLIF(a."PlayMethod", ''), 'Unknown') AS play_method,
 	  a."Client" AS client,
 	  a."DeviceName" AS device_name,
-	  COALESCE(a."RunTimeTicks", cm."RunTimeTicks", ce."RunTimeTicks", ct."RunTimeTicks") AS runtime_ticks,
+	  ` + runtimeTicks + ` AS runtime_ticks,
 	  a."PositionTicksEnd" AS pos_end,
 	  a."NowPlayingItemId" AS now_playing_item_id,
 	  a."NowPlayingItemName" AS now_playing_item_name,
@@ -91,7 +99,9 @@ func actsSelect() string {
 	  COALESCE(a."PluginOpen" = false, false) AS plugin_closed,
 	  a."SeekCount" AS seek_count,
 	  a."SkippedSeconds" AS skipped_seconds,
-	  a."PlayedToCompletion" AS played_to_completion
+	  a."PlayedToCompletion" AS played_to_completion,
+	  CASE WHEN a."MediaType" IN ('Movie', 'Episode') AND ` + runtimeTicks + ` >= ` + fmt.Sprint(ptcMinRuntimeTicks) + `
+	       THEN a."PlayedToCompletion" END AS trusted_ptc
 	FROM jf_playback_activity a` + catalogJoins + `
 	WHERE ` + statsql.MediaFilter("a")
 }
@@ -169,11 +179,19 @@ binge_sessions AS (
 // an episode resumed in two sittings whose last sitting reaches the end counts
 // as one completed view, not one completed + one abandoned.
 // Open Jellystics-plugin plays are provisional and left out.
+//
+// finished is THE "finished view" of every page: when a row of the unit has
+// a trusted PlayedToCompletion (Jellyfin's end-of-playback report), the unit
+// is measured and finished if any row was played to completion; otherwise
+// it is estimated from the ratio (>= CompletionThreshold).
 var completionCTE = `,
 completion AS (
   SELECT
     MAX(media_type) AS item_type,
-    ` + statsql.CompletionRatio("MAX(pos_end)", "MAX(duration)", "MAX(runtime_ticks)") + ` AS completion_ratio
+    ` + unitRatio + ` AS completion_ratio,
+    BOOL_OR(trusted_ptc IS NOT NULL) AS measured,
+    CASE WHEN BOOL_OR(trusted_ptc IS NOT NULL) THEN COALESCE(BOOL_OR(trusted_ptc), false)
+         ELSE ` + unitRatio + ` >= ` + fmt.Sprint(statsql.CompletionThreshold) + ` END AS finished
   FROM acts
   WHERE is_view AND runtime_ticks > 0 AND NOT plugin_open
   GROUP BY user_id, item_id, local_ts::date
@@ -200,8 +218,11 @@ func strOrEmpty(p *string) string {
 	return *p
 }
 
-// completedCond is the shared "completed" predicate on completion_ratio.
-var completedCond = fmt.Sprintf(`completion_ratio >= %g`, statsql.CompletionThreshold)
+// unitRatio is the completion ratio of a (user, item, day) unit.
+var unitRatio = statsql.CompletionRatio("MAX(pos_end)", "MAX(duration)", "MAX(runtime_ticks)")
+
+// completedCond is the shared "finished" predicate on a completionCTE row.
+const completedCond = `finished`
 
 // inPlaceholders returns "?,?,?" for n values.
 func inPlaceholders(n int) string {

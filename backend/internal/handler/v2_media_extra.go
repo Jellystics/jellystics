@@ -230,7 +230,9 @@ func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 	trunc := func(expr string) string {
 		return `to_char(date_trunc('` + unit + `', ` + statsql.AtLocal(expr) + `)::date, 'YYYY-MM-DD')`
 	}
-	cutoff, err := h.libraryEventsSince(c, id)
+	// Cutoff = first live plugin library event, all libraries: the plugin
+	// watches every library from then on.
+	cutoff, err := h.pluginFirst(c, "library")
 	if v2Fail(c, err) {
 		return
 	}
@@ -245,8 +247,8 @@ func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 		SELECT `+trunc("e.at")+`, COUNT(*) FILTER (WHERE e.kind = 'added')::int, COUNT(*) FILTER (WHERE e.kind = 'removed')::int
 		FROM (`+libraryEventsSQL+`) e
 		WHERE e.at >= ? AND e.at < ? AND (? = '' OR e.item_type = ?) GROUP BY 1`,
-		id, id, id, p.Range.From, p.Range.To, p.MediaType, p.MediaType, cutoff, cutoff,
-		id, id, id, id, p.Range.From, p.Range.To, p.MediaType, p.MediaType)) {
+		append([]interface{}{id, id, id, p.Range.From, p.Range.To, p.MediaType, p.MediaType, cutoff, cutoff},
+			append(libraryEventsArgs(id), p.Range.From, p.Range.To, p.MediaType, p.MediaType)...)...)) {
 		return
 	}
 	var first []struct {

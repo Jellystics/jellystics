@@ -327,7 +327,7 @@ func (r *pluginSyncRepo) UpsertLibraryEvents(ctx context.Context, rows []models.
 		Columns: []clause.Column{{Name: "Id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"Kind", "At", "ItemId", "ItemType", "ItemName", "SeriesId", "AlbumId", "LibraryId",
-			"RunTimeTicks", "SizeBytes", "Version",
+			"RunTimeTicks", "SizeBytes", "DateCreated", "Version",
 		}),
 	}).CreateInBatches(rows, 500).Error
 }

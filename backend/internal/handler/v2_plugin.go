@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/middleware"
-	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -29,51 +28,72 @@ import (
 // First plugin data dates
 // ---------------------------------------------------------------------------
 
+// pluginNegativeTTL: how long "no plugin data yet" is cached. The plugin
+// sync resets the caches as soon as it writes rows (OnDataChanged).
+const pluginNegativeTTL = 5 * time.Minute
+
+type pluginFirstEntry struct {
+	first *time.Time // nil: nothing yet
+	at    time.Time  // when a nil result was cached
+}
+
 // pluginSinceCache keeps, per database and source, the first plugin data
-// date once known (reset with ResetStatsCaches). "Nothing yet" is not cached.
+// timestamp (reset with ResetStatsCaches; negative results expire).
 var pluginSinceCache = struct {
 	sync.Mutex
-	m map[*gorm.DB]map[string]string
-}{m: map[*gorm.DB]map[string]string{}}
+	m map[*gorm.DB]map[string]pluginFirstEntry
+}{m: map[*gorm.DB]map[string]pluginFirstEntry{}}
 
 func resetPluginSinceCache() {
 	pluginSinceCache.Lock()
-	pluginSinceCache.m = map[*gorm.DB]map[string]string{}
+	pluginSinceCache.m = map[*gorm.DB]map[string]pluginFirstEntry{}
 	pluginSinceCache.Unlock()
 }
 
 // pluginSources: SQL returning the first timestamp of each plugin source.
 var pluginSources = map[string]string{
-	// PluginOpen is only set on rows recorded by the Jellystics plugin.
-	"plays":    `SELECT MIN("StartedAt") AS first FROM jf_playback_activity WHERE "PluginOpen" IS NOT NULL`,
-	"library":  `SELECT MIN("At") AS first FROM jf_library_events`,
+	// PluginOpen is only set on rows recorded by the Jellystics plugin
+	// (partial index idx_playback_plugin_started_at).
+	"plays": `SELECT MIN("StartedAt") AS first FROM jf_playback_activity WHERE "PluginOpen" IS NOT NULL`,
+	// First LIVE library event (plugin start): "present" snapshot rows are
+	// not live data.
+	"library":  `SELECT MIN("At") AS first FROM jf_library_events WHERE "Kind" IN ('added', 'removed')`,
 	"userData": `SELECT MIN("At") AS first FROM jf_user_data_events`,
 	"logins":   `SELECT MIN("At") AS first FROM jf_user_logins`,
 }
 
-// pluginSince is the local date (YYYY-MM-DD) of the first row of a plugin
-// source, nil when the plugin has not sent any yet.
-func (h *V2Handler) pluginSince(c *gin.Context, source string) (*string, error) {
+// pluginFirst is the first row timestamp of a plugin source, nil when the
+// plugin has not sent any yet.
+func (h *V2Handler) pluginFirst(c *gin.Context, source string) (*time.Time, error) {
 	pluginSinceCache.Lock()
-	if v, ok := pluginSinceCache.m[h.db][source]; ok {
+	if e, ok := pluginSinceCache.m[h.db][source]; ok && (e.first != nil || time.Since(e.at) < pluginNegativeTTL) {
 		pluginSinceCache.Unlock()
-		return &v, nil
+		return e.first, nil
 	}
 	pluginSinceCache.Unlock()
 	var row struct{ First *time.Time }
 	if err := h.raw(c, &row, pluginSources[source]); err != nil {
 		return nil, err
 	}
-	if row.First == nil || row.First.IsZero() {
-		return nil, nil
+	if row.First != nil && row.First.IsZero() {
+		row.First = nil
 	}
-	d := localDate(*row.First)
 	pluginSinceCache.Lock()
 	if pluginSinceCache.m[h.db] == nil {
-		pluginSinceCache.m[h.db] = map[string]string{}
+		pluginSinceCache.m[h.db] = map[string]pluginFirstEntry{}
 	}
-	pluginSinceCache.m[h.db][source] = d
+	pluginSinceCache.m[h.db][source] = pluginFirstEntry{first: row.First, at: time.Now()}
 	pluginSinceCache.Unlock()
+	return row.First, nil
+}
+
+// pluginSince is the local date (YYYY-MM-DD) of pluginFirst.
+func (h *V2Handler) pluginSince(c *gin.Context, source string) (*string, error) {
+	first, err := h.pluginFirst(c, source)
+	if err != nil || first == nil {
+		return nil, err
+	}
+	d := localDate(*first)
 	return &d, nil
 }
 
@@ -81,14 +101,13 @@ func (h *V2Handler) pluginSince(c *gin.Context, source string) (*string, error) 
 // Skips (SeekCount / SkippedSeconds of closed plugin plays)
 // ---------------------------------------------------------------------------
 
+// The plugin records how much was skipped forward, not where: "intro
+// skipped" is an estimate — a short skip in a play started at the beginning.
 const (
-	// introSkipMaxShare: an intro / credits skip is a short forward jump, at
-	// most this share of the runtime in total.
-	introSkipMaxShare = 0.15
-	// introSkipStartShare: ... in a play started from the beginning (start
-	// position within this share of the runtime). The plugin records how much
-	// was skipped, not where: "intro skipped" is an estimate built on both.
-	introSkipStartShare = 0.05
+	introSkipStartShare = 0.05 // play started within 5 % of the runtime
+	introSkipMaxShare   = 0.15 // total skip at most 15 % of the runtime…
+	introSkipMaxSeconds = 180  // … and at most 3 min
+	introSkipMinSeconds = 10   // and at least 10 s (not a nudge)
 )
 
 // skipEligible: the acts rows whose skips are known (closed plugin views
@@ -97,29 +116,36 @@ const skipEligible = `(plugin_closed AND is_view AND runtime_ticks > 0 AND skipp
 
 const skipAny = `skipped_seconds > 0`
 
-var skipIntro = fmt.Sprintf(`(skipped_seconds > 0 AND COALESCE(pos_start, 0) <= runtime_ticks * %g AND skipped_seconds * 10000000.0 <= runtime_ticks * %g)`,
-	introSkipStartShare, introSkipMaxShare)
+// introBase: measured plays started at the beginning (introRate denominator).
+var introBase = fmt.Sprintf(`(%s AND COALESCE(pos_start, 0) <= runtime_ticks * %g)`, skipEligible, introSkipStartShare)
+
+var skipIntro = fmt.Sprintf(`(skipped_seconds >= %d AND skipped_seconds * 10000000.0 <= LEAST(runtime_ticks * %g, %d * 10000000.0))`,
+	introSkipMinSeconds, introSkipMaxShare, introSkipMaxSeconds)
 
 // skipCols aggregates the skip counters over acts (or a GROUP BY of it).
 var skipCols = `COUNT(*) FILTER (WHERE ` + skipEligible + `)::int AS skip_plays,
 	COUNT(*) FILTER (WHERE ` + skipEligible + ` AND ` + skipAny + `)::int AS skipped,
-	COUNT(*) FILTER (WHERE ` + skipEligible + ` AND ` + skipIntro + `)::int AS intro,
+	COUNT(*) FILTER (WHERE ` + introBase + `)::int AS intro_plays,
+	COUNT(*) FILTER (WHERE ` + introBase + ` AND ` + skipIntro + `)::int AS intro,
 	AVG(skipped_seconds) FILTER (WHERE ` + skipEligible + ` AND ` + skipAny + `)::float8 AS avg_skipped_seconds`
 
 // SkipCounts scans skipCols (exported so it can be embedded in scanned rows).
 type SkipCounts struct {
 	SkipPlays         int
 	Skipped           int
+	IntroPlays        int
 	Intro             int
 	AvgSkippedSeconds *float64
 }
 
 // skipStats: plays = closed plugin views (the only plays whose skips are
-// measured); rates are nil without such plays; avgSkippedSeconds is the mean
-// forward skip of the plays with a skip.
+// measured), skipRate = skipped / plays; introPlays = those started at the
+// beginning, introRate = intro / introPlays; rates are nil without plays;
+// avgSkippedSeconds is the mean forward skip of the plays with a skip.
 type skipStats struct {
 	Plays             int      `json:"plays"`
 	Skipped           int      `json:"skipped"`
+	IntroPlays        int      `json:"introPlays"`
 	Intro             int      `json:"intro"`
 	SkipRate          *float64 `json:"skipRate"`
 	IntroRate         *float64 `json:"introRate"`
@@ -135,8 +161,8 @@ func ratioOf(n, d int) *float64 {
 }
 
 func (r SkipCounts) stats() skipStats {
-	return skipStats{Plays: r.SkipPlays, Skipped: r.Skipped, Intro: r.Intro,
-		SkipRate: ratioOf(r.Skipped, r.SkipPlays), IntroRate: ratioOf(r.Intro, r.SkipPlays), AvgSkippedSeconds: r.AvgSkippedSeconds}
+	return skipStats{Plays: r.SkipPlays, Skipped: r.Skipped, IntroPlays: r.IntroPlays, Intro: r.Intro,
+		SkipRate: ratioOf(r.Skipped, r.SkipPlays), IntroRate: ratioOf(r.Intro, r.IntroPlays), AvgSkippedSeconds: r.AvgSkippedSeconds}
 }
 
 func (h *V2Handler) skips(c *gin.Context, f *actFilter) (skipStats, error) {
@@ -147,13 +173,14 @@ func (h *V2Handler) skips(c *gin.Context, f *actFilter) (skipStats, error) {
 }
 
 // ---------------------------------------------------------------------------
-// "Played to the end" (PlayedToCompletion, ratio fallback)
+// Finished views (the completionCTE units)
 // ---------------------------------------------------------------------------
 
-// playedToEnd counts the closed views whose outcome is known: measured by
-// the plugin (PlayedToCompletion) or, for other rows, estimated from the
-// completion ratio (>= CompletionThreshold). Measured = 0 means the plugin
-// has no data for the period.
+// playedToEnd counts the closed (user, item, local day) view units of
+// completionCTE: finished per its `finished` column (trusted
+// PlayedToCompletion when known, else ratio >= CompletionThreshold).
+// Measured = units with a trusted PlayedToCompletion (0: no plugin data).
+// Ratio is the "finished views" figure of every page.
 type playedToEnd struct {
 	Plays            int      `json:"plays"`
 	Finished         int      `json:"finished"`
@@ -162,19 +189,13 @@ type playedToEnd struct {
 	Ratio            *float64 `json:"ratio"`
 }
 
-var playedToEndEligible = `(is_view AND NOT plugin_open AND (played_to_completion IS NOT NULL OR runtime_ticks > 0))`
-
-var playedToEndFinished = fmt.Sprintf(`COALESCE(played_to_completion, %s >= %g)`,
-	statsql.CompletionRatio("pos_end", "duration", "runtime_ticks"), statsql.CompletionThreshold)
-
 func (h *V2Handler) playedToEnd(c *gin.Context, f *actFilter) (playedToEnd, error) {
 	var out playedToEnd
-	q, args := f.sql(`SELECT
-		COUNT(*) FILTER (WHERE ` + playedToEndEligible + `)::int AS plays,
-		COUNT(*) FILTER (WHERE ` + playedToEndEligible + ` AND ` + playedToEndFinished + `)::int AS finished,
-		COUNT(*) FILTER (WHERE is_view AND NOT plugin_open AND played_to_completion IS NOT NULL)::int AS measured,
-		COUNT(*) FILTER (WHERE is_view AND NOT plugin_open AND played_to_completion)::int AS measured_finished
-		FROM acts`)
+	q, args := f.sql(completionCTE + `
+		SELECT COUNT(*)::int AS plays, COUNT(*) FILTER (WHERE finished)::int AS finished,
+		       COUNT(*) FILTER (WHERE measured)::int AS measured,
+		       COUNT(*) FILTER (WHERE measured AND finished)::int AS measured_finished
+		FROM completion`)
 	if err := h.raw(c, &out, q, args...); err != nil {
 		return out, err
 	}
@@ -187,7 +208,7 @@ func (h *V2Handler) playedToEnd(c *gin.Context, f *actFilter) (playedToEnd, erro
 // ---------------------------------------------------------------------------
 
 // skipMinPlays: series need this many measured plays to be ranked.
-const skipMinPlays = 3
+const skipMinPlays = 5
 
 type skippedSeries struct {
 	ID                string   `json:"id"`
@@ -230,7 +251,13 @@ func (h *V2Handler) InsightsSkips(c *gin.Context) {
 		series = append(series, skippedSeries{r.ID, r.Name, s.Plays, s.IntroRate, s.SkipRate, s.AvgSkippedSeconds})
 	}
 	sort.SliceStable(series, func(i, j int) bool {
-		a, b := *series[i].IntroRate, *series[j].IntroRate
+		rate := func(p *float64) float64 {
+			if p == nil {
+				return -1
+			}
+			return *p
+		}
+		a, b := rate(series[i].IntroRate), rate(series[j].IntroRate)
 		if a != b {
 			return a > b
 		}
@@ -400,27 +427,35 @@ func (h *V2Handler) ItemMarks(c *gin.Context) {
 // Library events (real additions)
 // ---------------------------------------------------------------------------
 
-// libraryEventsSQL: the added / removed events of the movies, episodes and
-// tracks of library ? (four placeholders, all the library id). Events carry
-// their library; older ones without it match through the catalog.
+// libraryAllLeavesSQL is libraryLeavesSQL including archived (removed)
+// catalog rows: removal events must still find their library (three
+// placeholders, all the library id).
+const libraryAllLeavesSQL = `
+	SELECT i."Id" FROM jf_library_items i WHERE i."ParentId" = ? AND i."Type" = 'Movie'
+	UNION ALL
+	SELECT e."Id" FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId" WHERE s."ParentId" = ?
+	UNION ALL
+	SELECT t."Id" FROM jf_music_tracks t WHERE t."LibraryId" = ?`
+
+// libraryEventsSQL: the LIVE added / removed events (never the first-run
+// "present" snapshot rows) of the movies, episodes and tracks of library ?
+// (six placeholders, all the library id). Events carry their library; those
+// without it match through the catalog (archived rows included), their
+// series or their album.
 const libraryEventsSQL = `
 	SELECT ev."ItemId" AS item_id, ev."Kind" AS kind, ev."At" AS at, ev."ItemType" AS item_type
 	FROM jf_library_events ev
-	WHERE ev."ItemType" IN ('Movie', 'Episode', 'Audio')
-	  AND (ev."LibraryId" = ? OR (ev."LibraryId" IS NULL AND ev."ItemId" IN (SELECT l."Id" FROM (` + libraryLeavesSQL + `) l)))`
+	WHERE ev."Kind" IN ('added', 'removed') AND ev."ItemType" IN ('Movie', 'Episode', 'Audio') AND ev."LibraryId" = ?
+	UNION ALL
+	SELECT ev."ItemId", ev."Kind", ev."At", ev."ItemType"
+	FROM jf_library_events ev
+	WHERE ev."Kind" IN ('added', 'removed') AND ev."ItemType" IN ('Movie', 'Episode', 'Audio') AND ev."LibraryId" IS NULL
+	  AND (ev."ItemId" IN (` + libraryAllLeavesSQL + `)
+	       OR ev."SeriesId" IN (SELECT s."Id" FROM jf_library_items s WHERE s."ParentId" = ? AND s."Type" = 'Series')
+	       OR ev."AlbumId" IN (SELECT al."Id" FROM jf_library_items al WHERE al."ParentId" = ? AND al."Type" = 'MusicAlbum'))`
 
-// libraryEventsSince is the first event of the library (nil: none, the
-// catalog dates are the only source).
-func (h *V2Handler) libraryEventsSince(c *gin.Context, id string) (*time.Time, error) {
-	var row struct{ First *time.Time }
-	if err := h.raw(c, &row, `SELECT MIN(at) AS first FROM (`+libraryEventsSQL+`) e`, id, id, id, id); err != nil {
-		return nil, err
-	}
-	if row.First == nil || row.First.IsZero() {
-		return nil, nil
-	}
-	return row.First, nil
-}
+// libraryEventsArgs are the placeholders of libraryEventsSQL.
+func libraryEventsArgs(id string) []interface{} { return []interface{}{id, id, id, id, id, id} }
 
 // ---------------------------------------------------------------------------
 // GET /api/v2/libraries/:id/first-view-delay
@@ -442,14 +477,10 @@ func (h *V2Handler) LibraryFirstViewDelay(c *gin.Context) {
 	if _, ok := h.libraryOf(c, id); !ok {
 		return
 	}
-	first, err := h.libraryEventsSince(c, id)
+	// The plugin watches every library from its first live event on.
+	since, err := h.pluginSince(c, "library")
 	if v2Fail(c, err) {
 		return
-	}
-	var since *string
-	if first != nil {
-		d := localDate(*first)
-		since = &d
 	}
 	var rows []struct {
 		Bucket string
@@ -468,10 +499,9 @@ func (h *V2Handler) LibraryFirstViewDelay(c *gin.Context) {
 		  GROUP BY item_id
 		),
 		delays AS (
-		  SELECT ad.item_id,
-		         (SELECT EXTRACT(EPOCH FROM MIN(acts.started_at) - ad.added_at) FROM acts
-		           WHERE acts.item_id = ad.item_id AND acts.started_at >= ad.added_at) AS secs
-		  FROM added ad
+		  SELECT ad.item_id, EXTRACT(EPOCH FROM MIN(acts.started_at) - ad.added_at) AS secs
+		  FROM added ad LEFT JOIN acts ON acts.item_id = ad.item_id AND acts.started_at >= ad.added_at
+		  GROUP BY ad.item_id, ad.added_at
 		)
 		SELECT CASE
 		         WHEN secs IS NULL THEN 'none'
@@ -482,7 +512,7 @@ func (h *V2Handler) LibraryFirstViewDelay(c *gin.Context) {
 		         ELSE '>4w'
 		       END AS bucket, COUNT(*)::int AS n,
 		       (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY secs) FROM delays WHERE secs IS NOT NULL)::float8 AS median
-		FROM delays GROUP BY 1`, id, id, id, id, p.Range.From, p.Range.To, p.MediaType, p.MediaType)
+		FROM delays GROUP BY 1`, append(libraryEventsArgs(id), p.Range.From, p.Range.To, p.MediaType, p.MediaType)...)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return
 	}

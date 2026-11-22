@@ -252,6 +252,11 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 			annexErr = errors.Join(annexErr, err)
 		}
 	}
+	// Library / user-data / login rows feed plugin-only stats (and their
+	// cached "data since" dates); a resync may also change plays.
+	if (res.Library+res.UserData+res.Logins > 0 || res.CursorReset) && s.OnDataChanged != nil {
+		s.OnDataChanged()
+	}
 	if annexErr != nil {
 		return res, s.fail(ctx, st, annexErr)
 	}
