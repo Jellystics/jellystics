@@ -303,6 +303,8 @@ func logV2(c *gin.Context, err error) { log.Printf("api v2 %s: %v", c.FullPath()
 func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2 := g.Group("/api/v2")
 	v2.GET("/overview", h.Overview)
+	v2.GET("/overview/plays", h.OverviewPlays)
+	v2.GET("/overview/libraries-daily", h.OverviewLibrariesDaily)
 	v2.GET("/history", h.History)
 	v2.GET("/history.csv", h.HistoryCSV)
 	v2.GET("/history/calendar", h.HistoryCalendar)
