@@ -97,7 +97,7 @@ export function HistoryTable({ state, hideUser }: { state: HistoryUrlState; hide
         data={data?.rows ?? []}
         loading={!data}
         sort={{ id: state.sort, desc: state.desc, onChange: state.setSort }}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPageChange: state.setPage } : undefined}
+        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPageChange: state.setPage, onPageSizeChange: state.setPageSize } : undefined}
         empty={<EmptyState icon={<HistoryIcon size={20} strokeWidth={1.6} />} title={t('app.history.empty')} description={t('app.history.emptyHint')} />}
       />
     </Card>

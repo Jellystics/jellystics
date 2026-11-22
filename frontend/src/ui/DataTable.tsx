@@ -7,6 +7,7 @@ import { Button } from './Button'
 import { EmptyState } from './EmptyState'
 import { Skeleton } from './Skeleton'
 import styles from './DataTable.module.css'
+import { PageSizeSelect } from './PageSizeSelect'
 
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -19,7 +20,7 @@ export type DataTableProps<T> = {
   rowHref?: (row: T) => string
   /** History state passed along with the row link navigation. */
   rowState?: unknown
-  pagination?: { page: number; pageSize: number; total: number; onPageChange(p: number): void }
+  pagination?: { page: number; pageSize: number; total: number; onPageChange(p: number): void; /** Shows a « per page » selector. */ onPageSizeChange?(n: number): void }
   sort?: { id: string; desc: boolean; onChange(s: { id: string; desc: boolean }): void }
   dense?: boolean
   empty?: ReactNode
@@ -100,6 +101,7 @@ export function DataTable<T>({ columns, data, rowHref, rowState, pagination, sor
         <div className={styles.pager}>
           <span>{t('app.table.range', { from, to, total: pagination.total })}</span>
           <div className={styles.pagerBtns}>
+            {pagination.onPageSizeChange && <PageSizeSelect value={pagination.pageSize} onChange={pagination.onPageSizeChange} />}
             <Button variant="ghost" size="sm" iconOnly aria-label={t('app.table.prev')} icon={<ChevronLeft size={16} />} disabled={pagination.page <= 1} onClick={() => pagination.onPageChange(pagination.page - 1)} />
             <Button variant="ghost" size="sm" iconOnly aria-label={t('app.table.next')} icon={<ChevronRight size={16} />} disabled={pagination.page >= lastPage} onClick={() => pagination.onPageChange(pagination.page + 1)} />
           </div>

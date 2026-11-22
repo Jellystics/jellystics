@@ -59,7 +59,8 @@
       "range": "{{from}}–{{to}} sur {{total}}",
       "prev": "Page précédente",
       "next": "Page suivante",
-      "empty": "Aucune donnée"
+      "empty": "Aucune donnée",
+      "perPage": "Par page"
     },
     "session": {
       "paused": "En pause",

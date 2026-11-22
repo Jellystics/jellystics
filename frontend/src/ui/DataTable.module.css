@@ -17,4 +17,6 @@
 .num { text-align: right !important; font-variant-numeric: tabular-nums; }
 .dense td { height: 36px; }
 .pager { display: flex; align-items: center; justify-content: space-between; padding: var(--s-2) var(--s-4); font-size: var(--fs-sm); color: var(--ink-3); border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
-.pagerBtns { display: flex; gap: var(--s-1); }
+.pagerBtns { display: flex; align-items: center; gap: var(--s-1); }
+.perPage { display: inline-flex; align-items: center; gap: var(--s-2); margin-right: var(--s-3); white-space: nowrap; }
+.perPageSelect { width: 76px; }

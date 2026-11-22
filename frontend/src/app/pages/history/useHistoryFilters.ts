@@ -14,10 +14,12 @@ export interface HistoryUrlState {
   /** Filters for the API (no paging). */
   filters: HistoryFilters
   page: number
+  pageSize: number
   sort: HistorySort
   desc: boolean
   set: (key: FilterKey, value?: string) => void
   setPage: (page: number) => void
+  setPageSize: (size: number) => void
   setSort: (s: { id: string; desc: boolean }) => void
 }
 
@@ -35,6 +37,8 @@ export function useHistoryFilters(fixed: HistoryFilters = {}): HistoryUrlState {
     views: values.views === '1', q: values.q, ...fixed,
   }
   const page = Math.max(1, Number(sp.get('page')) || 1)
+  const sizeParam = Number(sp.get('pageSize'))
+  const pageSize = HISTORY_PAGE_SIZES.includes(sizeParam) ? sizeParam : HISTORY_PAGE_SIZE
   const sortParam = sp.get('sort') as HistorySort | null
   const sort: HistorySort = sortParam && SORTS.includes(sortParam) ? sortParam : 'startedAt'
   const desc = sp.get('desc') !== '0'
@@ -47,18 +51,23 @@ export function useHistoryFilters(fixed: HistoryFilters = {}): HistoryUrlState {
     p.delete('page')
   }, key === 'q'), [update])
   const setPage = useCallback((n: number) => update((p) => { if (n > 1) p.set('page', String(n)); else p.delete('page') }), [update])
+  const setPageSize = useCallback((n: number) => update((p) => {
+    if (n === HISTORY_PAGE_SIZE) p.delete('pageSize'); else p.set('pageSize', String(n))
+    p.delete('page')
+  }, true), [update])
   const setSort = useCallback((s: { id: string; desc: boolean }) => update((p) => {
     if (s.id === 'startedAt') p.delete('sort'); else p.set('sort', s.id)
     if (s.desc) p.delete('desc'); else p.set('desc', '0')
     p.delete('page')
   }), [update])
 
-  return { values, filters, page, sort, desc, set, setPage, setSort }
+  return { values, filters, page, pageSize, sort, desc, set, setPage, setPageSize, setSort }
 }
 
 export const HISTORY_PAGE_SIZE = 25
+const HISTORY_PAGE_SIZES = [25, 50, 100, 200]
 
 /** The current history page for the URL state (one cache entry shared by the table and the page header). */
-export function useHistoryRows(state: Pick<HistoryUrlState, 'filters' | 'page' | 'sort' | 'desc'>) {
-  return useHistory({ ...state.filters, page: state.page, pageSize: HISTORY_PAGE_SIZE, sort: state.sort, desc: state.desc })
+export function useHistoryRows(state: Pick<HistoryUrlState, 'filters' | 'page' | 'pageSize' | 'sort' | 'desc'>) {
+  return useHistory({ ...state.filters, page: state.page, pageSize: state.pageSize, sort: state.sort, desc: state.desc })
 }

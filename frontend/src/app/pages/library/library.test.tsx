@@ -26,7 +26,15 @@ it('renders header, tiles and the items table with period-keeping links', async 
   expect(screen.getAllByRole('progressbar', { name: 'app.library.col.retention' })[0]).toHaveAttribute('aria-valuenow', '33')
   const q = calls(spy, '/api/v2/libraries/lib-s')[0].searchParams
   expect(q.get('page')).toBe('1')
-  expect(q.get('pageSize')).toBe('25')
+  expect(q.get('pageSize')).toBe('50')
+})
+
+it('sends the page size chosen in the URL', async () => {
+  const spy = api()
+  open('/libraries/lib-s?pageSize=100')
+  expect(await screen.findByRole('heading', { name: 'Séries' })).toBeInTheDocument()
+  expect(calls(spy, '/api/v2/libraries/lib-s')[0].searchParams.get('pageSize')).toBe('100')
+  expect(screen.getByRole('combobox', { name: 'app.table.perPage' })).toHaveTextContent('100')
 })
 
 it('sorts through the URL and sends sort/desc', async () => {

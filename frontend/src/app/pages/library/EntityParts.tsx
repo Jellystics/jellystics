@@ -99,7 +99,7 @@ export function UserCell({ user }: { user: RefUser }) {
 export function HistoryTable({ rows, showItem = true, pagination, loading }: {
   rows: HistoryRow[]
   showItem?: boolean
-  pagination?: { page: number; pageSize: number; total: number; onPageChange(p: number): void }
+  pagination?: { page: number; pageSize: number; total: number; onPageChange(p: number): void; onPageSizeChange?(n: number): void }
   loading?: boolean
 }) {
   const { t } = useTranslation()

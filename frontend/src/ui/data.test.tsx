@@ -52,3 +52,10 @@ it('SessionCard shows link, user, method, square art, paused badge', () => {
   expect(container.querySelector('.square')).not.toBeNull()
   expect(container.querySelector('.art')!.textContent).toContain('H')
 })
+it('DataTable pager shows a per-page selector only when onPageSizeChange is given', () => {
+  const cols = [{ accessorKey: 'name', header: 'Nom' }]
+  const { rerender } = render(<MemoryRouter><DataTable columns={cols} data={[{ name: 'Léa' }]} pagination={{ page: 1, pageSize: 25, total: 60, onPageChange: vi.fn() }} /></MemoryRouter>)
+  expect(screen.queryByRole('combobox', { name: 'app.table.perPage' })).toBeNull()
+  rerender(<MemoryRouter><DataTable columns={cols} data={[{ name: 'Léa' }]} pagination={{ page: 1, pageSize: 50, total: 60, onPageChange: vi.fn(), onPageSizeChange: vi.fn() }} /></MemoryRouter>)
+  expect(screen.getByRole('combobox', { name: 'app.table.perPage' })).toHaveTextContent('50')
+})

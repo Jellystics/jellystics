@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SearchInput, SegmentedControl, StatStrip, StatTile, Tabs } from '@/ui'
+import { AppLink, Art, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, PAGE_SIZES, PageSizeSelect, SearchInput, SegmentedControl, StatStrip, StatTile, Tabs } from '@/ui'
 import { Sparkline } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
@@ -14,7 +14,7 @@ import { LibraryStats } from './LibraryStats'
 import { entityPath, formatBytes, itemArt, libraryFamily, share } from './entity'
 import styles from './entity.module.css'
 
-const PAGE_SIZE = 25
+const DEFAULT_PAGE_SIZE = 50
 const SORTS = ['name', 'views', 'viewers', 'watchSeconds']
 
 function usePage(): [number, (p: number) => void] {
@@ -22,15 +22,29 @@ function usePage(): [number, (p: number) => void] {
   return [Math.max(1, Number(page) || 1), (p) => setPage(String(p))]
 }
 
+const toPageSize = (v: string | null) => { const n = Number(v); return (PAGE_SIZES as readonly number[]).includes(n) ? n : DEFAULT_PAGE_SIZE }
+
+/** Page size bound to `?pageSize=`; changing it goes back to the first page. */
+function usePageSize(): [number, (n: number) => void] {
+  const [sp, setSp] = useSearchParams()
+  return [toPageSize(sp.get('pageSize')), (n) => setSp((prev) => {
+    const out = new URLSearchParams(prev)
+    if (n === DEFAULT_PAGE_SIZE) out.delete('pageSize'); else out.set('pageSize', String(n))
+    out.delete('page')
+    return out
+  }, { replace: true })]
+}
+
 /** Pager of the grid layout (same look as the DataTable pager). */
-function GridPager({ page, pageSize, total, onPageChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void }) {
+function GridPager({ page, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageSize: number; total: number; onPageChange: (p: number) => void; onPageSizeChange?: (n: number) => void }) {
   const { t } = useTranslation()
   const last = Math.max(1, Math.ceil(total / pageSize))
-  if (total <= pageSize) return null
+  if (total <= PAGE_SIZES[0]) return null
   return (
     <div className={styles.pager}>
       <span className="num">{t('app.table.range', { from: (page - 1) * pageSize + 1, to: Math.min(total, page * pageSize), total })}</span>
       <span className={styles.row}>
+        {onPageSizeChange && <PageSizeSelect value={pageSize} onChange={onPageSizeChange} />}
         <Button variant="ghost" size="sm" iconOnly aria-label={t('app.table.prev')} icon={<ChevronLeft size={16} />} disabled={page <= 1} onClick={() => onPageChange(page - 1)} />
         <Button variant="ghost" size="sm" iconOnly aria-label={t('app.table.next')} icon={<ChevronRight size={16} />} disabled={page >= last} onClick={() => onPageChange(page + 1)} />
       </span>
@@ -44,6 +58,7 @@ function ItemsTab({ data, loading }: { data: LibraryDetail; loading: boolean }) 
   const [sp, setSp] = useSearchParams()
   const [layout, setLayout] = useSearchParam('layout', 'table')
   const [page, setPage] = usePage()
+  const [pageSize, setPageSize] = usePageSize()
   const urlQ = sp.get('q') ?? ''
   const [term, setTerm] = useState(urlQ)
   useEffect(() => { setTerm(urlQ) }, [urlQ])
@@ -86,7 +101,7 @@ function ItemsTab({ data, loading }: { data: LibraryDetail; loading: boolean }) 
       cell: ({ row }) => <Sparkline values={row.original.trend} width={72} height={22} color={color} />,
     },
   ]
-  const pagination = { page, pageSize: PAGE_SIZE, total: items.total, onPageChange: setPage }
+  const pagination = { page, pageSize, total: items.total, onPageChange: setPage, onPageSizeChange: setPageSize }
   return (
     <div className={styles.stack}>
       <div className={styles.toolbar}>
@@ -130,13 +145,14 @@ function ItemsTab({ data, loading }: { data: LibraryDetail; loading: boolean }) 
 
 function ActivityTab({ id }: { id: string }) {
   const [page, setPage] = usePage()
-  const q = useHistory({ libraryId: id, page, pageSize: PAGE_SIZE })
+  const [pageSize, setPageSize] = usePageSize()
+  const q = useHistory({ libraryId: id, page, pageSize })
   const { t } = useTranslation()
   return (
     <Card>
       {q.isError ? <ErrorState title={t('app.entity.error')} onRetry={() => { void q.refetch() }} /> : <HistoryTable
         rows={q.data?.rows ?? []} loading={q.isPending}
-        pagination={q.data ? { page, pageSize: PAGE_SIZE, total: q.data.total, onPageChange: setPage } : undefined}
+        pagination={q.data ? { page, pageSize, total: q.data.total, onPageChange: setPage, onPageSizeChange: setPageSize } : undefined}
       />}
     </Card>
   )
@@ -154,6 +170,7 @@ function Library({ id, data, loading }: { id: string; data: LibraryDetail; loadi
     const out = new URLSearchParams(prev)
     if (v === 'items') out.delete('tab'); else out.set('tab', v)
     out.delete('page')
+    out.delete('pageSize')
     return out
   }, { replace: true })
   return (
@@ -186,7 +203,7 @@ export default function LibraryPage() {
   const sort = sp.get('sort') ?? undefined
   const desc = sp.has('desc') ? sp.get('desc') === '1' : undefined
   const page = tab === 'items' ? Math.max(1, Number(sp.get('page')) || 1) : 1
-  const q = useLibrary(id, { q: sp.get('q') ?? undefined, page, pageSize: PAGE_SIZE, sort: sort && SORTS.includes(sort) ? sort : undefined, desc })
+  const q = useLibrary(id, { q: sp.get('q') ?? undefined, page, pageSize: toPageSize(sp.get('pageSize')), sort: sort && SORTS.includes(sort) ? sort : undefined, desc })
   useSetCrumbLabel(q.data?.library.name)
   return <QueryView query={q} skeleton={<EntitySkeleton header={false} />}>{(data) => <Library id={id} data={data} loading={q.isFetching} />}</QueryView>
 }
