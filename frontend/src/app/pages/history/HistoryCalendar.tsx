@@ -32,15 +32,15 @@ export function HistoryCalendar({ month, today, filters, onMonth }: { month: str
       {q.isError && !days ? (
         <ErrorState title={t('app.history.error')} onRetry={() => q.refetch()} />
       ) : (
-        <div className={s.calGrid} role="grid" aria-label={label}>
-          {weekdays.map((d) => <div key={d} className={s.calDow} role="columnheader">{d}</div>)}
+        <div className={s.calGrid} role="list" aria-label={label}>
+          {weekdays.map((d) => <div key={d} className={s.calDow} aria-hidden="true">{d}</div>)}
           {Array.from({ length: offset }, (_, i) => <div key={`b${i}`} className={`${s.calDay} ${s.calBlank}`} aria-hidden="true" />)}
           {!days
             ? Array.from({ length: 28 }, (_, i) => <div key={i} className={s.calDay}><Skeleton width="40%" /><Skeleton width="80%" /></div>)
             : days.map((d) => {
               const items = d.items ?? []
               return (
-                <div key={d.date} role="gridcell" className={[s.calDay, d.date === today && s.calToday].filter(Boolean).join(' ')} aria-label={`${d.date} · ${t('app.history.calendar.views', { count: d.views })}`}>
+                <div key={d.date} role="listitem" className={[s.calDay, d.date === today && s.calToday].filter(Boolean).join(' ')} aria-label={`${d.date} · ${t('app.history.calendar.views', { count: d.views })}`}>
                   <div className={s.calTop}>
                     <span className={s.calNum}>{Number(d.date.slice(8))}</span>
                     {d.views > 0 && <span className={s.calCount}>{t('app.history.calendar.views', { count: d.views })}</span>}

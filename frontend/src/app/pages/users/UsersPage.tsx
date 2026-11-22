@@ -98,7 +98,7 @@ function RetentionCard() {
   const data = q.data && Array.isArray(q.data.rows) ? q.data : undefined
   if (q.isError && !data) return <Card><ErrorState title={t('app.users.retention.error')} onRetry={() => q.refetch()} /></Card>
   if (!data) return <Skeleton height={240} radius="lg" />
-  const cols = Array.from({ length: data.offsets }, (_, k) => (k === 0 ? 'S0' : `S+${k}`))
+  const cols = Array.from({ length: data.offsets }, (_, k) => (k === 0 ? t('app.users.retention.offset0') : t('app.users.retention.offset', { k })))
   const rowLabels = data.rows.map((r) => t('app.users.retention.week', { date: f.day(dateOf(r.week)) }))
   return (
     <ChartFrame

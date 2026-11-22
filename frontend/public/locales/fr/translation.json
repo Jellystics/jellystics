@@ -503,6 +503,7 @@
     },
     "overview": {
       "title": "Vue d'ensemble",
+      "hoursUnit": "{{value}} h",
       "subtitle": "{{views}} vues · {{users}} utilisateurs actifs sur la période",
       "metric": {
         "time": "Temps de lecture",
@@ -559,7 +560,8 @@
       "peak": {
         "title": "Pic de flux simultanés",
         "subtitle": "maximum de lectures en même temps, par jour",
-        "series": "Flux max"
+        "series": "Flux max",
+        "empty": "Aucun flux simultané sur la période"
       },
       "onThisDay": {
         "title": "Ce jour-là",
@@ -668,6 +670,8 @@
       "error": "Impossible de charger les utilisateurs",
       "retention": {
         "title": "Rétention des utilisateurs",
+        "offset": "S+{{k}}",
+        "offset0": "S0",
         "subtitle": "utilisateurs d’une semaine encore actifs les semaines suivantes",
         "week": "sem. du {{date}}",
         "cohort": "Semaine",

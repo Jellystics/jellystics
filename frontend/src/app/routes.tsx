@@ -71,7 +71,7 @@ export const routes: RouteObject[] = [
     element: <RequireAuth><AppShell /></RequireAuth>,
     children: [
       { path: '/', ...nav('overview'), element: <OverviewPage /> },
-      { path: '/live', ...nav('live'), element: <LivePage /> },
+      { path: '/live', handle: { ...nav('live').handle, period: false }, element: <LivePage /> },
       { path: '/history', ...nav('history'), element: <HistoryPage /> },
       { path: '/libraries', ...nav('libraries'), element: <LibrariesPage /> },
       { path: '/libraries/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.library' })), element: <LibraryPage /> },

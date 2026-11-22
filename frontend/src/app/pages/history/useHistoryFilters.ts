@@ -60,7 +60,5 @@ export const HISTORY_PAGE_SIZE = 25
 
 /** The current history page for the URL state (one cache entry shared by the table and the page header). */
 export function useHistoryRows(state: Pick<HistoryUrlState, 'filters' | 'page' | 'sort' | 'desc'>) {
-  // The API sorts descending unless desc=0 is sent explicitly; cleanParams drops `false`, so send 0.
-  const desc = (state.desc ? true : 0) as unknown as boolean
-  return useHistory({ ...state.filters, page: state.page, pageSize: HISTORY_PAGE_SIZE, sort: state.sort, desc })
+  return useHistory({ ...state.filters, page: state.page, pageSize: HISTORY_PAGE_SIZE, sort: state.sort, desc: state.desc })
 }

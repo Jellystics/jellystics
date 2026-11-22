@@ -69,3 +69,13 @@ it('version helpers', () => {
   expect(compareVersions('10.10.0', '10.9.3')).toBeGreaterThan(0)
   expect([...outdated(userFixture().devices)]).toEqual([1])
 })
+
+it('wires the VO/VF languages card on the overview', async () => {
+  const api = stubFetch({
+    ...base(),
+    '/api/v2/users/u2/languages': { collectedSince: '2026-11-01', captured: 0, split: { originalSubtitled: 0, original: 0, dubbed: 0, unknown: 0 }, audio: [], subtitles: [], subtitleOff: 0 },
+  })
+  renderPage(<UserPage />, { path: '/users/u2?range=7d', route })
+  expect(await screen.findByText('app.languages.title')).toBeInTheDocument()
+  expect(api.calls('/api/v2/users/u2/languages').length).toBeGreaterThan(0)
+})

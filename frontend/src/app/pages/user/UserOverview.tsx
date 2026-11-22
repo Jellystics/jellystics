@@ -8,6 +8,7 @@ import { useFormat } from '@/lib/format'
 import { usePeriod } from '@/lib/useUrlState'
 import { AppLink, Art, Badge, Card, CardBody, CardHeader, DataTable, EmptyState, Meter, StatStrip, StatTile } from '@/ui'
 import { ratioDelta, pointsDelta } from '../overview/delta'
+import { LanguagesCard } from '@/app/widgets/LanguagesCard'
 import { ComparePanel } from './ComparePanel'
 import { StreakCard } from './StreakCard'
 import { activeDays, outdated, peakIndex } from './stats'
@@ -133,13 +134,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
         <ComparePanel user={user} />
       </div>
 
-      {/*
-        ─── SLOT: « VO/VF & sous-titres » LanguagesCard ───────────────────────────
-        Built in phase 5 by another agent (frontend/src/app/widgets/LanguagesCard.tsx)
-        and wired here by the controller, e.g.:
-          <div className={l.g2}><LanguagesCard userId={user.id} /></div>
-        Intentionally left empty in phase 3.
-      */}
+      <div className={l.g2}><LanguagesCard userId={user.id} /></div>
     </div>
   )
 }

@@ -152,3 +152,8 @@ it('/insights mounts the insights page with the global period picker', async () 
   expect(await screen.findByRole('heading', { name: 'app.insights.title' })).toBeInTheDocument()
   expect(screen.getAllByRole('button', { name: /app\.period\./ }).length).toBeGreaterThan(0)
 })
+it('/live hides the global period picker', async () => {
+  renderApp('/live')
+  await screen.findByText('page-live')
+  expect(screen.queryAllByRole('button', { name: /app\.period\./ })).toHaveLength(0)
+})

@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import LivePage from './LivePage'
-import { timelineRows } from './timeline'
+import { slotLabels, timelineRows } from './timeline'
 import { concurrencyFixture, sessionsFixture } from '../overview/fixtures'
 import { renderPage, stubFetch } from '../overview/renderPage'
 
@@ -15,8 +15,8 @@ afterEach(() => { vi.unstubAllGlobals() })
 it('shows the live tiles, session cards and today’s charts', async () => {
   const api = stubFetch({ '/sessions/current': sessionsFixture(), '/api/v2/concurrency': concurrencyFixture() })
   renderPage(<LivePage />, { path: '/live?range=7d', route: '/live' })
-  expect(await screen.findByRole('link', { name: 'Station Nord' })).toHaveAttribute('href', '/series/s1/episodes/e1?range=7d')
-  expect(screen.getByRole('link', { name: 'Les Rivages' })).toHaveAttribute('href', '/movies/m1?range=7d')
+  expect((await screen.findAllByRole('link', { name: 'Station Nord' }))[0]).toHaveAttribute('href', '/series/s1/episodes/e1?range=7d')
+  expect(screen.getAllByRole('link', { name: 'Les Rivages' })[0]).toHaveAttribute('href', '/movies/m1?range=7d')
   expect(screen.getByText('app.live.playing', { selector: 'span' }).nextSibling).toHaveTextContent('2')
   expect(screen.getByText('app.live.transcodes', { selector: 'span' }).nextSibling).toHaveTextContent('1')
   // 12 + 21 Mb/s outgoing.
@@ -30,10 +30,10 @@ it('shows the live tiles, session cards and today’s charts', async () => {
 it('updates from the socket `sessions` event', async () => {
   stubFetch({ '/sessions/current': sessionsFixture(), '/api/v2/concurrency': concurrencyFixture() })
   renderPage(<LivePage />, { path: '/live', route: '/live' })
-  await screen.findByRole('link', { name: 'Station Nord' })
+  await screen.findAllByRole('link', { name: 'Station Nord' })
   act(() => socket.handlers.sessions?.([sessionsFixture()[1]]))
   await waitFor(() => expect(screen.queryByRole('link', { name: 'Station Nord' })).toBeNull())
-  expect(screen.getByRole('link', { name: 'Les Rivages' })).toBeInTheDocument()
+  expect(screen.getAllByRole('link', { name: 'Les Rivages' }).length).toBeGreaterThan(0)
 })
 
 it('shows an empty state when nothing plays', async () => {
@@ -57,4 +57,22 @@ it('timelineRows groups spans per user and frames the hours', () => {
   expect(rows[0].spans[0]).toMatchObject({ start: 20, type: 'series', label: 'Station Nord · Le phare' })
   expect(fromHour).toBe(18)
   expect(toHour).toBe(22)
+})
+
+it('slotLabels follows the local clock on DST days (92 slots)', () => {
+  const labels = slotLabels('2026-03-29', 92, 15, 'Europe/Paris')
+  expect(labels).toHaveLength(92)
+  expect(labels[0]).toBe('00:00')
+  expect(labels[7]).toBe('01:45')
+  expect(labels[8]).toBe('03:00')
+  expect(labels[91]).toBe('23:45')
+  expect(slotLabels('2026-11-22', 96, 15, 'Europe/Paris')[95]).toBe('23:45')
+})
+
+it('timelineRows drops a live session already reported by /concurrency', () => {
+  const day = concurrencyFixture()
+  const base = sessionsFixture()[1]
+  const live = [{ ...base, UserId: 'u3', UserName: 'Marc', NowPlayingItem: { ...base.NowPlayingItem!, Id: 'm1' } }]
+  const { rows } = timelineRows(day, live, 21.5)
+  expect(rows.find((r) => r.user === 'Marc')!.spans).toHaveLength(1)
 })

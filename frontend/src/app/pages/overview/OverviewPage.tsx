@@ -67,7 +67,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
   const values = daily.map(pick(metric))
   const prevValues = data.previousDaily?.map(pick(metric))
   const metricLabel = t(`app.overview.metric.${metric}`)
-  const yFormat = metric === 'time' ? (v: number) => `${f.number(v)} h` : f.compact
+  const yFormat = metric === 'time' ? (v: number) => t('app.overview.hoursUnit', { value: f.number(v) }) : f.compact
   const xEvery = Math.max(1, Math.ceil(daily.length / 7))
 
   const topRows = useMemo(() => (data.topItems ?? [])
@@ -88,7 +88,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
   const methods = data.byMethod ?? { direct: 0, stream: 0, transcode: 0 }
   const methodTotal = methods.direct + methods.stream + methods.transcode
   const peak = data.concurrencyPeak ?? []
-  const peakMax = peak.reduce((a, p, i) => (p.peak > (peak[a]?.peak ?? -1) ? i : a), -1)
+  const peakMax = peak.reduce((a, p, i) => (p.peak > (peak[a]?.peak ?? 0) ? i : a), -1)
   const weekHour = data.weekHour?.length === 7 ? data.weekHour : Array.from({ length: 7 }, () => Array<number>(24).fill(0))
   const weekdays = f.weekdays()
 
@@ -215,14 +215,16 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
           csvName="overview-concurrency-peak"
           table={{ columns: [t('app.overview.date'), t('app.overview.peak.series')], rows: peak.map((p) => [p.date, p.peak]) }}
         >
-          <Columns
-            labels={peak.map((p) => f.day(dateOf(p.date)))}
-            values={peak.map((p) => p.peak)}
-            name={t('app.overview.peak.series')}
-            emphasis={peakMax}
-            xEvery={Math.max(1, Math.ceil(peak.length / 6))}
-            height={160}
-          />
+          {peak.length === 0 ? <EmptyState title={t('app.overview.peak.empty')} /> : (
+            <Columns
+              labels={peak.map((p) => f.day(dateOf(p.date)))}
+              values={peak.map((p) => p.peak)}
+              name={t('app.overview.peak.series')}
+              emphasis={peakMax}
+              xEvery={Math.max(1, Math.ceil(peak.length / 6))}
+              height={160}
+            />
+          )}
         </ChartFrame>
         <Card>
           <CardHeader title={t('app.overview.onThisDay.title')} subtitle={t('app.overview.onThisDay.subtitle')} />

@@ -503,6 +503,7 @@
     },
     "overview": {
       "title": "Resumen",
+      "hoursUnit": "{{value}} h",
       "subtitle": "{{views}} vistas · {{users}} usuarios activos en el periodo",
       "metric": {
         "time": "Tiempo de reproducción",
@@ -559,7 +560,8 @@
       "peak": {
         "title": "Pico de flujos simultáneos",
         "subtitle": "máximo de reproducciones a la vez, por día",
-        "series": "Flujos máx."
+        "series": "Flujos máx.",
+        "empty": "Sin reproducciones simultáneas en el periodo"
       },
       "onThisDay": {
         "title": "Tal día como hoy",
@@ -668,6 +670,8 @@
       "error": "No se pudieron cargar los usuarios",
       "retention": {
         "title": "Retención de usuarios",
+        "offset": "S+{{k}}",
+        "offset0": "S0",
         "subtitle": "usuarios de una semana aún activos las semanas siguientes",
         "week": "sem. del {{date}}",
         "cohort": "Semana",

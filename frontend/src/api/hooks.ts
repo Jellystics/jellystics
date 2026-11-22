@@ -94,6 +94,9 @@ export async function downloadHistoryCsv(params: QueryParams): Promise<void> {
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'history.csv'
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = name; a.click()
-  URL.revokeObjectURL(url)
+  a.href = url; a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

@@ -7,14 +7,11 @@ import { sessionBitrate, useLiveSessions, type JellyfinSession } from '@/api/liv
 import { ChartFrame, Columns, SessionTimeline } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useServerConfig } from '@/lib/serverConfig'
-import { Card, CardBody, CardHeader, EmptyState, ErrorState, MethodBadge, PageHeader, SessionCard, Skeleton, StatStrip, StatTile } from '@/ui'
-import { methodOf, wallClock } from '../history/links'
-import { timelineRows } from './timeline'
+import { AppLink, Card, CardBody, CardHeader, EmptyState, ErrorState, MethodBadge, PageHeader, SessionCard, Skeleton, StatStrip, StatTile } from '@/ui'
+import { methodOf, userHref, wallClock } from '../history/links'
+import { slotLabels, timelineRows } from './timeline'
 import { toLiveSession } from './toLiveSession'
 import l from '../overview/layout.module.css'
-
-const pad = (n: number) => String(n).padStart(2, '0')
-const slotLabel = (i: number, minutes: number) => `${pad(Math.floor((i * minutes) / 60))}:${pad((i * minutes) % 60)}`
 
 /** Mb/s with one decimal under 10. */
 function mbps(bps: number, f: ReturnType<typeof useFormat>): string {
@@ -45,6 +42,7 @@ export default function LivePage() {
   const firstActive = day ? day.slots.findIndex((v) => v > 0) : -1
   const fromSlot = Math.max(0, Math.min(8 * perHour, firstActive >= 0 ? Math.floor(firstActive / perHour) * perHour : 8 * perHour))
   const slots = day ? day.slots.slice(fromSlot) : []
+  const labels = useMemo(() => (day ? slotLabels(day.date, day.slots.length, minutes, tz) : []), [day, minutes, tz])
 
   return (
     <div className={l.page}>
@@ -75,10 +73,11 @@ export default function LivePage() {
             <ul className={`${l.stack} ${l.plainList}`}>
               {bitrates.sort((a, b) => b.bps - a.bps).map(({ s, bps }) => {
                 const m = methodOf(s.PlayState?.PlayMethod)
+                const ls = toLiveSession(s, t)
                 return (
                   <li key={s.Id} className={l.row}>
                     {m && <MethodBadge method={m} />}
-                    <span className={`${l.ellipsis} ${l.grow}`}>{toLiveSession(s, t).title} · {s.UserName}</span>
+                    <span className={`${l.ellipsis} ${l.grow}`}><AppLink to={ls.itemHref}>{ls.title}</AppLink> · <AppLink to={userHref(s.UserId)}>{s.UserName}</AppLink></span>
                     <span className="num">{mbps(bps, f)} {t('app.live.mbps')}</span>
                   </li>
                 )
@@ -98,10 +97,10 @@ export default function LivePage() {
             title={t('app.live.simultaneous')}
             subtitle={t('app.live.simultaneousSubtitle', { minutes })}
             csvName={`live-concurrency-${day.date}`}
-            table={{ columns: [t('app.live.time'), t('app.live.playing')], rows: day.slots.map((v, i) => [slotLabel(i, minutes), v]) }}
+            table={{ columns: [t('app.live.time'), t('app.live.playing')], rows: day.slots.map((v, i) => [labels[i], v]) }}
           >
             <Columns
-              labels={slots.map((_, i) => slotLabel(i + fromSlot, minutes))}
+              labels={labels.slice(fromSlot)}
               values={slots}
               name={t('app.live.playing')}
               xEvery={perHour * 2}

@@ -29,7 +29,7 @@ export default function HistoryPage() {
   const month = monthParam && MONTH.test(monthParam) ? monthParam : today.slice(0, 7)
   const page = useHistoryRows(state)
   const rows = page.data && Array.isArray(page.data.rows) ? page.data.rows : []
-  const csvParams = usePeriodParams(state.filters)
+  const csvParams = usePeriodParams({ ...state.filters, sort: state.sort, desc: state.desc })
   const [exporting, setExporting] = useState(false)
 
   const exportCsv = async () => {

@@ -503,6 +503,7 @@
     },
     "overview": {
       "title": "Overview",
+      "hoursUnit": "{{value}} h",
       "subtitle": "{{views}} views · {{users}} active users in this period",
       "metric": {
         "time": "Watch time",
@@ -559,7 +560,8 @@
       "peak": {
         "title": "Peak concurrent streams",
         "subtitle": "maximum simultaneous streams per day",
-        "series": "Max streams"
+        "series": "Max streams",
+        "empty": "No simultaneous streams in this period"
       },
       "onThisDay": {
         "title": "On this day",
@@ -668,6 +670,8 @@
       "error": "Could not load the users",
       "retention": {
         "title": "User retention",
+        "offset": "W+{{k}}",
+        "offset0": "W0",
         "subtitle": "users of a week still active in the following weeks",
         "week": "week of {{date}}",
         "cohort": "Week",
