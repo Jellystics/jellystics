@@ -1,0 +1,15 @@
+.badge { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 550; border: 1px solid var(--border); color: var(--ink-2); background: var(--surface); white-space: nowrap; }
+.dot { width: 6px; height: 6px; border-radius: var(--r-full); flex: none; }
+.badge svg { width: 12px; height: 12px; flex: none; }
+/* Status badges: neutral surface + ink text; only the icon / dot carries the status color. */
+.good svg { color: var(--good-ink); }
+.warning svg { color: var(--warning-ink); }
+.serious svg { color: var(--serious-ink); }
+.critical svg { color: var(--critical-ink); }
+.good .dot { background: var(--good); }
+.warning .dot { background: var(--warning); }
+.serious .dot { background: var(--serious); }
+.critical .dot { background: var(--critical); }
+.accent .dot { background: var(--accent); }
+.new { color: var(--ink); letter-spacing: .06em; font-weight: 650; }
+.new .dot { background: var(--accent); }

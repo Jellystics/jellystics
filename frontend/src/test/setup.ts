@@ -10,3 +10,9 @@ class RO { observe() {} unobserve() {} disconnect() {} }
 ;(globalThis as unknown as { ResizeObserver: typeof RO }).ResizeObserver ??= RO
 Element.prototype.hasPointerCapture ??= () => false
 Element.prototype.scrollIntoView ??= () => {}
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o && 'count' in o ? `${k}:${o.count}` : k), i18n: { resolvedLanguage: 'fr', language: 'fr', changeLanguage: vi.fn() } }),
+  Trans: ({ children }: { children: React.ReactNode }) => children,
+  initReactI18next: { type: '3rdParty', init: () => {} },
+}))

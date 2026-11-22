@@ -1,0 +1,2 @@
+.tkey { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--ink-2); }
+.tkey i { width: 8px; height: 8px; border-radius: var(--r-sm); display: inline-block; }

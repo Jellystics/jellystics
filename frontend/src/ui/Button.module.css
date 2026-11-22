@@ -1,0 +1,16 @@
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--r-md); border: 1px solid transparent; font-family: inherit; font-size: var(--fs-md); font-weight: 550; cursor: pointer; transition: background var(--dur), border-color var(--dur), color var(--dur); white-space: nowrap; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn:focus-visible { outline: none; box-shadow: var(--focus); }
+.sm { height: 26px; padding: 0 8px; font-size: var(--fs-sm); }
+.lg { height: 38px; padding: 0 16px; font-size: var(--fs-base); }
+.primary { background: var(--accent); color: var(--ink-on-accent); }
+.primary:hover { background: var(--accent-hover); }
+.secondary { background: var(--surface); border-color: var(--border-strong); color: var(--ink); }
+.secondary:hover { background: var(--surface-2); }
+.ghost { background: transparent; color: var(--ink-2); }
+.ghost:hover { background: var(--surface-2); color: var(--ink); }
+.danger { background: var(--surface); border-color: var(--border-strong); color: var(--critical-ink); }
+.danger:hover { background: var(--critical-wash); }
+.btn:disabled { opacity: .45; pointer-events: none; }
+.iconOnly { width: 32px; padding: 0; }
+.iconOnly.sm { width: 26px; }

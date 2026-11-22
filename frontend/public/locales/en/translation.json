@@ -410,5 +410,29 @@
     "from": "From",
     "to": "To",
     "apply": "Apply"
+  },
+  "app": {
+    "badge": {
+      "view": "View",
+      "click": "Click",
+      "new": "NEW"
+    },
+    "method": {
+      "direct": "Direct",
+      "stream": "Direct stream",
+      "transcode": "Transcode"
+    },
+    "type": {
+      "movie": "Movie",
+      "series": "Series",
+      "music": "Music"
+    },
+    "action": {
+      "remove": "Remove",
+      "retry": "Retry"
+    },
+    "nav": {
+      "breadcrumbs": "Breadcrumbs"
+    }
   }
 }

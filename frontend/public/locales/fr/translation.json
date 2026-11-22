@@ -410,5 +410,29 @@
     "from": "Du",
     "to": "Au",
     "apply": "Appliquer"
+  },
+  "app": {
+    "badge": {
+      "view": "Vue",
+      "click": "Clic",
+      "new": "NEW"
+    },
+    "method": {
+      "direct": "Direct",
+      "stream": "Direct stream",
+      "transcode": "Transcodage"
+    },
+    "type": {
+      "movie": "Film",
+      "series": "Série",
+      "music": "Musique"
+    },
+    "action": {
+      "remove": "Retirer",
+      "retry": "Réessayer"
+    },
+    "nav": {
+      "breadcrumbs": "Fil d’Ariane"
+    }
   }
 }

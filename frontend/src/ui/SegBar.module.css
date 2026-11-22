@@ -1,0 +1,8 @@
+.tall { display: flex; gap: 2px; height: 28px; }
+.tall span { border-radius: var(--r-sm); font-size: var(--fs-sm); font-weight: 600; display: flex; align-items: center; padding: 0 8px; min-width: 0; white-space: nowrap; }
+.thin { display: flex; gap: 2px; height: 8px; }
+.thin span { border-radius: var(--r-full); }
+.tall span:focus-visible, .thin span:focus-visible { outline: none; box-shadow: var(--focus); }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--fs-sm); color: var(--ink-2); margin-top: var(--s-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: var(--r-sm); display: inline-block; }

@@ -410,5 +410,29 @@
     "from": "Desde",
     "to": "Hasta",
     "apply": "Aplicar"
+  },
+  "app": {
+    "badge": {
+      "view": "Vista",
+      "click": "Clic",
+      "new": "NEW"
+    },
+    "method": {
+      "direct": "Directo",
+      "stream": "Directo stream",
+      "transcode": "Transcodificación"
+    },
+    "type": {
+      "movie": "Película",
+      "series": "Serie",
+      "music": "Música"
+    },
+    "action": {
+      "remove": "Quitar",
+      "retry": "Reintentar"
+    },
+    "nav": {
+      "breadcrumbs": "Ruta de navegación"
+    }
   }
 }
