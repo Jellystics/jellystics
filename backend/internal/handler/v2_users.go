@@ -69,14 +69,14 @@ func (h *V2Handler) Users(c *gin.Context) {
 		  SELECT "Id" AS id, "Name" AS name FROM jf_users
 		  UNION
 		  SELECT user_id, MAX(user_name) FROM acts WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT "Id" FROM jf_users) GROUP BY user_id
-		),
-		last AS (
-		  SELECT "UserId" AS user_id, MAX(` + statsql.StartedAt("p") + `) AS last_activity
-		  FROM jf_playback_activity p WHERE ` + statsql.MediaFilter("p") + ` GROUP BY "UserId"
 		)
 		SELECT k.id, COALESCE(k.name, k.id) AS name, COALESCE(st.watch_seconds, 0) AS watch_seconds, COALESCE(st.views, 0) AS views,
 		       COALESCE(st.movie, 0) AS movie, COALESCE(st.series, 0) AS series, COALESCE(st.music, 0) AS music, l.last_activity
-		FROM known k LEFT JOIN st ON st.user_id = k.id LEFT JOIN last l ON l.user_id = k.id
+		FROM known k LEFT JOIN st ON st.user_id = k.id
+		LEFT JOIN LATERAL (
+		  SELECT MAX(p."StartedAt") AS last_activity FROM jf_playback_activity p
+		  WHERE p."UserId" = k.id AND ` + statsql.MediaFilter("p") + `
+		) l ON true
 		ORDER BY watch_seconds DESC, views DESC, name`)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return
@@ -207,8 +207,8 @@ func (h *V2Handler) User(c *gin.Context) {
 		  SELECT e."Id", e."SeriesId", e."ParentIndexNumber", e."IndexNumber",
 		         LEAD(e."Id") OVER w AS next_id, LEAD(e."ParentIndexNumber") OVER w AS next_season,
 		         LEAD(e."IndexNumber") OVER w AS next_episode, COUNT(*) OVER (PARTITION BY e."SeriesId") AS total
-		  FROM jf_library_episodes e WHERE NOT e.archived
-		  WINDOW w AS (PARTITION BY e."SeriesId" ORDER BY COALESCE(e."ParentIndexNumber", 0), e."IndexNumber" NULLS LAST, e."Id")
+		  FROM jf_library_episodes e WHERE NOT e.archived AND ` + notSpecial + `
+		  WINDOW w AS (PARTITION BY e."SeriesId" ORDER BY ` + episodeOrder + `)
 		),
 		last AS (
 		  SELECT DISTINCT ON (group_id) group_id, group_name, item_id, started_at
@@ -254,20 +254,18 @@ func (h *V2Handler) User(c *gin.Context) {
 		Completion *float64
 	}
 	q, args = f.sql(completionCTE+`,
-		per AS (SELECT group_id, COUNT(*) AS n FROM acts WHERE is_view GROUP BY group_id)
+		per AS (SELECT group_id, COUNT(*) AS n FROM acts WHERE is_view GROUP BY group_id),
+		prior AS (
+		  SELECT DISTINCT group_id FROM (`+actsSelect()+`
+		    AND a."UserId" = ? AND a."IsView" AND a."StartedAt" < ?) x
+		  WHERE group_id IS NOT NULL
+		)
 		SELECT COUNT(DISTINCT local_ts::date) FILTER (WHERE is_view)::int AS active_days,
 		       `+aggPlays+` AS views,
-		       COUNT(*) FILTER (WHERE is_view AND NOT EXISTS (
-		         SELECT 1 FROM jf_playback_activity o
-		         LEFT JOIN jf_library_episodes oe ON o."MediaType" = 'Episode' AND oe."Id" = o."ItemId"
-		         LEFT JOIN jf_music_tracks ot ON o."MediaType" = 'Audio' AND ot."Id" = o."ItemId"
-		         WHERE o."UserId" = acts.user_id AND o."IsView" AND `+statsql.StartedAt("o")+` < ?
-		           AND CASE o."MediaType" WHEN 'Movie' THEN o."ItemId"
-		                 WHEN 'Episode' THEN COALESCE(oe."SeriesId", o."NowPlayingItemId")
-		                 ELSE COALESCE(ot."AlbumId", o."NowPlayingItemId") END = acts.group_id))::int AS new_views,
+		       COUNT(*) FILTER (WHERE is_view AND group_id IS NOT NULL AND group_id NOT IN (SELECT group_id FROM prior))::int AS new_views,
 		       (SELECT COALESCE(SUM(n), 0) FROM (SELECT n FROM per ORDER BY n DESC LIMIT 3) t)::int AS top3,
 		       (SELECT AVG(CASE WHEN `+completedCond+` THEN 1.0 ELSE 0.0 END)::float8 FROM completion) AS completion
-		FROM acts`, p.Range.From)
+		FROM acts`, id, p.Range.From)
 	if v2Fail(c, h.raw(c, &prof, q, args...)) {
 		return
 	}

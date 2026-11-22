@@ -169,9 +169,9 @@ func (h *V2Handler) Library(c *gin.Context) {
 		),
 		eps AS (
 		  SELECT e."SeriesId" AS series_id, e."Id",
-		         ROW_NUMBER() OVER (PARTITION BY e."SeriesId" ORDER BY COALESCE(e."ParentIndexNumber", 0), e."IndexNumber" NULLS LAST, e."Id") AS rn,
+		         ROW_NUMBER() OVER (PARTITION BY e."SeriesId" ORDER BY `+episodeOrder+`) AS rn,
 		         COUNT(*) OVER (PARTITION BY e."SeriesId") AS n
-		  FROM jf_library_episodes e WHERE NOT e.archived
+		  FROM jf_library_episodes e WHERE NOT e.archived AND `+notSpecial+`
 		),
 		ret AS (
 		  SELECT series_id, MAX(COALESCE(epv.v, 0)) FILTER (WHERE rn = 1) AS first, MAX(COALESCE(epv.v, 0)) FILTER (WHERE rn = n) AS last
@@ -247,22 +247,23 @@ func (h *V2Handler) Library(c *gin.Context) {
 		Kind      string  `json:"kind"`
 		Name      string  `json:"name"`
 		DateAdded *string `json:"dateAdded"`
+		Total     int64   `json:"-"`
 	}
+	// One pass over the watched set: the window count gives the total.
 	var unCount int64
 	unList := []unwatchedItem{}
 	watched := acts().where(`a."IsView"`).where(`(`+libraryIdExpr+`) = ?`, id)
-	q, args = watched.sql(`SELECT COUNT(*) FROM jf_library_items i
-		WHERE i."ParentId" = ? AND i."Type" = ? AND NOT i.archived AND i."Id" NOT IN (SELECT group_id FROM acts WHERE group_id IS NOT NULL)`, id, itemType)
-	if v2Fail(c, h.raw(c, &unCount, q, args...)) {
-		return
-	}
 	q, args = watched.sql(`SELECT i."Id" AS id, ? AS kind, COALESCE(i."Name", '') AS name,
-		       to_char(NULLIF(i."DateCreated", '')::timestamptz, 'YYYY-MM-DD') AS date_added
+		       to_char(NULLIF(i."DateCreated", '')::timestamptz, 'YYYY-MM-DD') AS date_added,
+		       COUNT(*) OVER () AS total
 		FROM jf_library_items i
 		WHERE i."ParentId" = ? AND i."Type" = ? AND NOT i.archived AND i."Id" NOT IN (SELECT group_id FROM acts WHERE group_id IS NOT NULL)
 		ORDER BY NULLIF(i."DateCreated", '')::timestamptz DESC NULLS LAST, i."Name" LIMIT 20`, kind, id, itemType)
 	if v2Fail(c, h.raw(c, &unList, q, args...)) {
 		return
+	}
+	if len(unList) > 0 {
+		unCount = unList[0].Total
 	}
 
 	// Time to watch: days between catalog add and the first view (all users)

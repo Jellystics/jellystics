@@ -40,14 +40,21 @@ func (h *V2Handler) funnel(c *gin.Context, f *actFilter) (funnelStats, error) {
 	return out, err
 }
 
-// stopPositions histograms the stop position (completion ratio) of views over
-// `bins` equal slices of the runtime.
+// stopPositions histograms, over `bins` equal slices of the runtime, the
+// furthest stop position of each (user, item, local day) view unit (same unit
+// as the funnel). The stop position is PositionTicksEnd, or the start
+// position plus the watched duration when the end position is unknown.
 func (h *V2Handler) stopPositions(c *gin.Context, f *actFilter, bins int) ([]int, error) {
 	var rows []struct{ Bin, N int }
-	q, args := f.sql(fmt.Sprintf(`
+	q, args := f.sql(fmt.Sprintf(`,
+		units AS (
+		  SELECT LEAST(GREATEST(MAX(COALESCE(pos_end, COALESCE(pos_start, 0) + duration * 10000000))::float8
+		                        / NULLIF(MAX(runtime_ticks), 0)::float8, 0), 1) AS r
+		  FROM acts WHERE is_view AND runtime_ticks > 0
+		  GROUP BY user_id, item_id, local_ts::date
+		)
 		SELECT LEAST(FLOOR(r * %d), %d)::int AS bin, COUNT(*)::int AS n
-		FROM (SELECT %s AS r FROM acts WHERE is_view AND runtime_ticks > 0) s
-		WHERE r IS NOT NULL GROUP BY 1`, bins, bins-1, ratioExpr))
+		FROM units WHERE r IS NOT NULL GROUP BY 1`, bins, bins-1))
 	if err := h.raw(c, &rows, q, args...); err != nil {
 		return nil, err
 	}
@@ -211,6 +218,7 @@ type seriesEpisode struct {
 
 type seriesSeason struct {
 	Number   int             `json:"number"`
+	Special  bool            `json:"special,omitempty"` // season 0, always last
 	Episodes []seriesEpisode `json:"episodes"`
 }
 
@@ -251,7 +259,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 	}
 	if v2Fail(c, h.raw(c, &item, `
 		SELECT i."Id" AS id, i."Name" AS name, i."ProductionYear" AS year_from, i."EndDate" AS end_date, i."Genres"::text AS genres,
-		       (SELECT COUNT(DISTINCT COALESCE(e."ParentIndexNumber", 0)) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived)::int AS seasons,
+		       (SELECT COUNT(DISTINCT COALESCE(e."ParentIndexNumber", 1)) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived AND `+notSpecial+`)::int AS seasons,
 		       (SELECT COUNT(*) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived)::int AS episodes
 		FROM jf_library_items i WHERE i."Id" = ? AND i."Type" = 'Series'`, id)) {
 		return
@@ -273,6 +281,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 	var eps []struct {
 		ID            string
 		Season        int
+		Special       bool
 		Number        *int
 		Name          *string
 		Views         int
@@ -294,31 +303,43 @@ func (h *V2Handler) Series(c *gin.Context) {
 		  SELECT item_id, AVG(r)::float8 AS avg_completion, COUNT(*) FILTER (WHERE r < ?)::int AS abandons
 		  FROM units GROUP BY item_id
 		)
-		SELECT e."Id" AS id, COALESCE(e."ParentIndexNumber", 0) AS season, e."IndexNumber" AS number, e."Name" AS name,
+		SELECT e."Id" AS id, COALESCE(e."ParentIndexNumber", 0) AS season, COALESCE(e."ParentIndexNumber" = 0, false) AS special, e."IndexNumber" AS number, e."Name" AS name,
 		       COALESCE(ep.views, 0) AS views, COALESCE(ep.viewers, 0) AS viewers,
 		       comp.avg_completion, COALESCE(comp.abandons, 0) AS abandons
 		FROM jf_library_episodes e
 		LEFT JOIN ep ON ep.item_id = e."Id"
 		LEFT JOIN comp ON comp.item_id = e."Id"
 		WHERE e."SeriesId" = ? AND NOT e.archived
-		ORDER BY season, e."IndexNumber" NULLS LAST, e."Id"`, completionThreshold(), id)
+		ORDER BY `+episodeOrder, completionThreshold(), id)
 	if v2Fail(c, h.raw(c, &eps, q, args...)) {
 		return
 	}
 	seasons := []seriesSeason{}
 	retention := [][]int{}
 	for _, e := range eps {
-		if len(seasons) == 0 || seasons[len(seasons)-1].Number != e.Season {
-			seasons = append(seasons, seriesSeason{Number: e.Season, Episodes: []seriesEpisode{}})
+		if len(seasons) == 0 || seasons[len(seasons)-1].Number != e.Season || seasons[len(seasons)-1].Special != e.Special {
+			seasons = append(seasons, seriesSeason{Number: e.Season, Special: e.Special, Episodes: []seriesEpisode{}})
 			retention = append(retention, []int{})
 		}
 		s := &seasons[len(seasons)-1]
 		s.Episodes = append(s.Episodes, seriesEpisode{ID: e.ID, Number: e.Number, Name: strOrEmpty(e.Name), Views: e.Views, Viewers: e.Viewers, AvgCompletion: e.AvgCompletion, Abandons: e.Abandons})
 		retention[len(retention)-1] = append(retention[len(retention)-1], e.Viewers)
 	}
+	// Retention: viewers of the last regular episode / viewers of the first
+	// (specials excluded).
 	var retentionRatio *float64
-	if len(eps) > 0 && eps[0].Viewers > 0 {
-		r := float64(eps[len(eps)-1].Viewers) / float64(eps[0].Viewers)
+	first, last := -1, -1
+	for i, e := range eps {
+		if e.Special {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		last = i
+	}
+	if first >= 0 && eps[first].Viewers > 0 {
+		r := float64(eps[last].Viewers) / float64(eps[first].Viewers)
 		retentionRatio = &r
 	}
 
@@ -389,16 +410,18 @@ func (h *V2Handler) Series(c *gin.Context) {
 		return
 	}
 
-	// Release lag: first view of each (user, episode) minus its premiere date.
+	// Release lag: first view ever of each (user, episode) minus its premiere
+	// date, for first views falling in the range.
 	var lag []bucketCount
-	q, args = f.sql(`,
+	allTime := acts().forUser(p.UserID).where(`a."MediaType" = 'Episode' AND COALESCE(ce."SeriesId", a."NowPlayingItemId") = ?`, id)
+	q, args = allTime.sql(`,
 		firsts AS (
 		  SELECT user_id, item_id, MIN(started_at) AS first_view FROM acts WHERE is_view GROUP BY user_id, item_id
 		),
 		lags AS (
 		  SELECT GREATEST(EXTRACT(EPOCH FROM (fv.first_view - NULLIF(e."PremiereDate", '')::timestamptz)), 0) / 86400.0 AS d
 		  FROM firsts fv JOIN jf_library_episodes e ON e."Id" = fv.item_id
-		  WHERE NULLIF(e."PremiereDate", '') IS NOT NULL
+		  WHERE NULLIF(e."PremiereDate", '') IS NOT NULL AND fv.first_view >= ? AND fv.first_view < ?
 		)
 		SELECT CASE
 		         WHEN d < 1 THEN '<24h'
@@ -408,7 +431,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 		         WHEN d < 365 THEN '6-12m'
 		         ELSE '>1y'
 		       END AS bucket, COUNT(*)::int AS count
-		FROM lags GROUP BY 1`)
+		FROM lags GROUP BY 1`, p.Range.From, p.Range.To)
 	if v2Fail(c, h.raw(c, &lag, q, args...)) {
 		return
 	}
@@ -461,7 +484,7 @@ func (h *V2Handler) Episode(c *gin.Context) {
 		         LAG(e."Id") OVER w AS prev_id, LEAD(e."Id") OVER w AS next_id
 		  FROM jf_library_episodes e
 		  WHERE e."SeriesId" = (SELECT "SeriesId" FROM target) AND (NOT e.archived OR e."Id" = (SELECT "Id" FROM target))
-		  WINDOW w AS (ORDER BY COALESCE(e."ParentIndexNumber", 0), e."IndexNumber" NULLS LAST, e."Id")
+		  WINDOW w AS (ORDER BY `+episodeOrder+`)
 		)
 		SELECT t."Id" AS id, t."Name" AS name, t."SeriesId" AS series_id,
 		       COALESCE(s."Name", t."SeriesName") AS series_name,

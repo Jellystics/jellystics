@@ -87,11 +87,20 @@ func parseV2(c *gin.Context) (V2Params, error) {
 }
 
 func parseV2At(c *gin.Context, now time.Time) (V2Params, error) {
+	return parseV2With(c, now, false)
+}
+
+// parseV2With parses the contract; ignoreRange skips from/to/compare (default
+// range, never an error) for endpoints that do not use the period.
+func parseV2With(c *gin.Context, now time.Time, ignoreRange bool) (V2Params, error) {
 	loc := statsql.Location()
 	p := V2Params{Page: 1, PageSize: v2DefaultPageSize}
 
 	tomorrow := statsql.StartOfDay(now, loc).AddDate(0, 0, 1)
 	fromStr, toStr := strings.TrimSpace(c.Query("from")), strings.TrimSpace(c.Query("to"))
+	if ignoreRange {
+		fromStr, toStr = "", ""
+	}
 	var from, to time.Time
 	if toStr != "" {
 		t, ok := parseLocalDate(toStr, loc)
@@ -116,7 +125,7 @@ func parseV2At(c *gin.Context, now time.Time) (V2Params, error) {
 	}
 	p.Range = TimeRange{From: from, To: to}
 
-	if parseBool(c.Query("compare")) {
+	if !ignoreRange && parseBool(c.Query("compare")) {
 		days := calendarDays(from, to)
 		prev := TimeRange{From: from.AddDate(0, 0, -days), To: from}
 		p.Prev = &prev
@@ -195,8 +204,13 @@ func (h *V2Handler) raw(c *gin.Context, dest interface{}, q string, args ...inte
 }
 
 // v2Params parses the common contract; on error it writes a 400 and returns false.
-func v2Params(c *gin.Context) (V2Params, bool) {
-	p, err := parseV2(c)
+func v2Params(c *gin.Context) (V2Params, bool) { return v2ParamsWith(c, false) }
+
+// v2ParamsNoRange is v2Params for endpoints that ignore from/to/compare.
+func v2ParamsNoRange(c *gin.Context) (V2Params, bool) { return v2ParamsWith(c, true) }
+
+func v2ParamsWith(c *gin.Context, ignoreRange bool) (V2Params, bool) {
+	p, err := parseV2With(c, time.Now(), ignoreRange)
 	if err != nil {
 		var pe paramError
 		msg := "invalid parameters"

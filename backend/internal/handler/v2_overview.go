@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/statsql"
@@ -66,6 +67,7 @@ type onThisDayRow struct {
 }
 
 type overviewResponse struct {
+	Bucket          string         `json:"bucket"` // day | week (ranges > 400 days)
 	Totals          Totals         `json:"totals"`
 	Previous        *Totals        `json:"previous,omitempty"`
 	Daily           []dailyPoint   `json:"daily"`
@@ -91,7 +93,12 @@ func (h *V2Handler) Overview(c *gin.Context) {
 	if out.Totals, err = h.totals(c, f); v2Fail(c, err) {
 		return
 	}
-	if out.Daily, err = h.daily(c, f, p.Range); v2Fail(c, err) {
+	week := useWeeks(p.Range)
+	out.Bucket = "day"
+	if week {
+		out.Bucket = "week"
+	}
+	if out.Daily, err = h.daily(c, f, p.Range, week); v2Fail(c, err) {
 		return
 	}
 	if p.Prev != nil {
@@ -101,7 +108,7 @@ func (h *V2Handler) Overview(c *gin.Context) {
 			return
 		}
 		out.Previous = &prev
-		if out.PreviousDaily, err = h.daily(c, pf, *p.Prev); v2Fail(c, err) {
+		if out.PreviousDaily, err = h.daily(c, pf, *p.Prev, week); v2Fail(c, err) {
 			return
 		}
 	}
@@ -146,7 +153,7 @@ func (h *V2Handler) Overview(c *gin.Context) {
 	if out.WeekHour, err = h.weekHour(c, f); v2Fail(c, err) {
 		return
 	}
-	if out.ConcurrencyPeak, err = h.concurrencyPeak(c, f, p.Range); v2Fail(c, err) {
+	if out.ConcurrencyPeak, err = h.concurrencyPeak(c, p, week); v2Fail(c, err) {
 		return
 	}
 	if out.OnThisDay, err = h.onThisDay(c, p, time.Now()); v2Fail(c, err) {
@@ -155,8 +162,40 @@ func (h *V2Handler) Overview(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-// daily returns one point per local day of tr (zero-filled).
-func (h *V2Handler) daily(c *gin.Context, f *actFilter, tr TimeRange) ([]dailyPoint, error) {
+// weekBucketDays: ranges longer than this are bucketed by ISO week.
+const weekBucketDays = 400
+
+// useWeeks reports whether series over tr are bucketed by ISO week.
+func useWeeks(tr TimeRange) bool { return calendarDays(tr.From, tr.To) > weekBucketDays }
+
+// bucketExpr is the SQL label (YYYY-MM-DD: the day, or the Monday of its ISO
+// week) of acts.local_ts.
+func bucketExpr(week bool) string {
+	if week {
+		return `to_char(date_trunc('week', local_ts)::date, 'YYYY-MM-DD')`
+	}
+	return localDay
+}
+
+// weekStart returns the Monday (local midnight) of t's ISO week.
+func weekStart(t time.Time) time.Time {
+	t = statsql.StartOfDay(t, statsql.Location())
+	return t.AddDate(0, 0, -((int(t.Weekday()) + 6) % 7))
+}
+
+// eachBucket calls fn for every day (or ISO week, labelled by its Monday) of tr.
+func eachBucket(tr TimeRange, week bool, fn func(label string)) {
+	if !week {
+		eachDay(tr, fn)
+		return
+	}
+	for d := weekStart(tr.From); d.Before(tr.To); d = d.AddDate(0, 0, 7) {
+		fn(d.Format(v2DateLayout))
+	}
+}
+
+// daily returns one zero-filled point per local day (or ISO week) of tr.
+func (h *V2Handler) daily(c *gin.Context, f *actFilter, tr TimeRange, week bool) ([]dailyPoint, error) {
 	type row struct {
 		Date                                      string
 		WatchSeconds                              int64
@@ -167,7 +206,7 @@ func (h *V2Handler) daily(c *gin.Context, f *actFilter, tr TimeRange) ([]dailyPo
 	}
 	var rows []row
 	q, args := f.sql(`
-		SELECT ` + localDay + ` AS date, ` + aggSeconds + ` AS watch_seconds, ` + aggPlays + ` AS views, ` + aggClicks + ` AS clicks,
+		SELECT ` + bucketExpr(week) + ` AS date, ` + aggSeconds + ` AS watch_seconds, ` + aggPlays + ` AS views, ` + aggClicks + ` AS clicks,
 		  COALESCE(SUM(duration) FILTER (WHERE media_type = 'Movie'), 0)::bigint AS movie_seconds,
 		  COALESCE(SUM(duration) FILTER (WHERE media_type = 'Episode'), 0)::bigint AS series_seconds,
 		  COALESCE(SUM(duration) FILTER (WHERE media_type = 'Audio'), 0)::bigint AS music_seconds,
@@ -186,7 +225,7 @@ func (h *V2Handler) daily(c *gin.Context, f *actFilter, tr TimeRange) ([]dailyPo
 		byDate[r.Date] = r
 	}
 	out := []dailyPoint{}
-	eachDay(tr, func(d string) {
+	eachBucket(tr, week, func(d string) {
 		r := byDate[d]
 		out = append(out, dailyPoint{
 			Date: d, WatchSeconds: r.WatchSeconds, Views: r.Views, Clicks: r.Clicks,
@@ -219,9 +258,13 @@ func (h *V2Handler) weekHour(c *gin.Context, f *actFilter) ([][]int, error) {
 	return g, nil
 }
 
-// concurrencyPeak returns, per local day of tr, the maximum number of
-// playback rows running at the same time (zero-filled).
-func (h *V2Handler) concurrencyPeak(c *gin.Context, f *actFilter, tr TimeRange) ([]peakPoint, error) {
+// concurrencyPeak returns, per local day (or ISO week) of the range, the
+// maximum number of playback rows running at the same time (zero-filled).
+// Sessions started up to 24 h before the range are included so that a session
+// running across the range start is counted; at equal timestamps a start is
+// processed before an end (a zero-length row still counts as 1).
+func (h *V2Handler) concurrencyPeak(c *gin.Context, p V2Params, week bool) ([]peakPoint, error) {
+	f := p.filter(TimeRange{From: p.Range.From.Add(-24 * time.Hour), To: p.Range.To})
 	var rows []peakPoint
 	q, args := f.sql(`,
 		ev AS (
@@ -230,31 +273,53 @@ func (h *V2Handler) concurrencyPeak(c *gin.Context, f *actFilter, tr TimeRange) 
 		  SELECT GREATEST(ended_at, started_at), -1 FROM acts
 		),
 		run AS (
-		  SELECT ts, d, SUM(d) OVER (ORDER BY ts, d ROWS UNBOUNDED PRECEDING) AS n FROM ev
+		  SELECT ts, d, SUM(d) OVER (ORDER BY ts, d DESC ROWS UNBOUNDED PRECEDING) AS n FROM ev
 		)
-		SELECT to_char(` + statsql.AtLocal("ts") + `::date, 'YYYY-MM-DD') AS date, MAX(n)::int AS peak
-		FROM run WHERE d = 1 GROUP BY 1`)
+		SELECT to_char(`+statsql.AtLocal("ts")+`::date, 'YYYY-MM-DD') AS date, MAX(n)::int AS peak
+		FROM run WHERE d = 1 AND ts >= ? GROUP BY 1`, p.Range.From)
 	if err := h.raw(c, &rows, q, args...); err != nil {
 		return nil, err
 	}
-	byDate := make(map[string]int, len(rows))
+	byBucket := make(map[string]int, len(rows))
 	for _, r := range rows {
-		byDate[r.Date] = r.Peak
+		label := r.Date
+		if week {
+			if d, err := time.ParseInLocation(v2DateLayout, r.Date, statsql.Location()); err == nil {
+				label = weekStart(d).Format(v2DateLayout)
+			}
+		}
+		if r.Peak > byBucket[label] {
+			byBucket[label] = r.Peak
+		}
 	}
 	out := []peakPoint{}
-	eachDay(tr, func(d string) { out = append(out, peakPoint{Date: d, Peak: byDate[d]}) })
+	eachBucket(p.Range, week, func(d string) { out = append(out, peakPoint{Date: d, Peak: byBucket[d]}) })
 	return out, nil
 }
 
+// onThisDayYears bounds how many past years onThisDay looks at.
+const onThisDayYears = 30
+
 // onThisDay lists what was viewed on today's local month-day in earlier years
-// (user / type / library filters apply, the range does not).
+// (user / type / library filters apply, the range does not). It queries one
+// [day, day+1) StartedAt window per past year so the StartedAt index applies.
 func (h *V2Handler) onThisDay(c *gin.Context, p V2Params, now time.Time) ([]onThisDayRow, error) {
 	loc := statsql.Location()
 	today := statsql.StartOfDay(now, loc)
-	f := p.filter(TimeRange{AllTime: true}).
-		where(`to_char(`+statsql.LocalTS("a")+`, 'MM-DD') = ?`, today.Format("01-02")).
-		where(statsql.StartedAt("a")+` < ?`, today).
-		where(`a."IsView"`)
+	var windows []string
+	var wargs []interface{}
+	for y := 1; y <= onThisDayYears; y++ {
+		d := time.Date(today.Year()-y, today.Month(), today.Day(), 0, 0, 0, 0, loc)
+		if d.Month() != today.Month() { // Feb 29 in a non-leap year
+			continue
+		}
+		windows = append(windows, `(a."StartedAt" >= ? AND a."StartedAt" < ?)`)
+		wargs = append(wargs, d, d.AddDate(0, 0, 1))
+	}
+	if len(windows) == 0 {
+		return []onThisDayRow{}, nil
+	}
+	f := p.filter(TimeRange{AllTime: true}).where(`(`+strings.Join(windows, " OR ")+`)`, wargs...).where(`a."IsView"`)
 	var rows []struct {
 		ItemID string
 		Kind   string

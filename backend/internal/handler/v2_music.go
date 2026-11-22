@@ -163,16 +163,18 @@ func (h *V2Handler) Album(c *gin.Context) {
 		SkipRate         *float64 `json:"skipRate"`
 	}
 	// fullAlbumListens: (user, local day) on which every catalog track of the
-	// album was listened to.
+	// album (non-archived catalog tracks only) was listened to.
 	q, args := f.sql(`,
 		ud AS (
-		  SELECT user_id, local_ts::date AS day, COUNT(DISTINCT item_id) AS n FROM acts WHERE is_view GROUP BY 1, 2
+		  SELECT user_id, local_ts::date AS day, COUNT(DISTINCT item_id) AS n FROM acts
+		  WHERE is_view AND item_id IN (SELECT t."Id" FROM jf_music_tracks t WHERE t."AlbumId" = ? AND NOT t.archived)
+		  GROUP BY 1, 2
 		)
 		SELECT `+aggPlays+` AS listens,
 		       (COUNT(*) FILTER (WHERE is_view AND `+ratioExpr+` >= ?)::float8 / NULLIF(COUNT(*) FILTER (WHERE is_view), 0)) AS full_listen_ratio,
 		       (SELECT COUNT(*) FROM ud WHERE ? > 0 AND n >= ?)::int AS full_album_listens,
 		       COUNT(DISTINCT user_id) FILTER (WHERE is_view)::int AS listeners, `+aggSkipRate+` AS skip_rate
-		FROM acts`, completionThreshold(), item.Tracks, item.Tracks)
+		FROM acts`, id, completionThreshold(), item.Tracks, item.Tracks)
 	if v2Fail(c, h.raw(c, &totals, q, args...)) {
 		return
 	}

@@ -191,7 +191,7 @@ func (h *V2Handler) HistoryCSV(c *gin.Context) {
 	defer rows.Close()
 
 	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="history_`+localDate(p.Range.From)+`_`+localDate(p.Range.To)+`.csv"`)
+	c.Header("Content-Disposition", `attachment; filename="history_`+localDate(p.Range.From)+`_`+localDate(p.Range.To.In(statsql.Location()).AddDate(0, 0, -1))+`.csv"`)
 	c.Status(http.StatusOK)
 	w := csv.NewWriter(c.Writer)
 	_ = w.Write([]string{"startedAt", "endedAt", "userId", "userName", "itemId", "kind", "itemName", "parentId", "parentName", "season", "episode", "mediaType", "watchSeconds", "completion", "client", "device", "method", "isView", "pausedSeconds"})
@@ -213,10 +213,10 @@ func (h *V2Handler) HistoryCSV(c *gin.Context) {
 			comp = strconv.FormatFloat(*r.Completion, 'f', 4, 64)
 		}
 		_ = w.Write([]string{
-			r.StartedAt.Format(time.RFC3339), r.EndedAt.Format(time.RFC3339), r.User.ID, r.User.Name,
-			r.Item.ID, r.Item.Kind, r.Item.Name, strOrEmpty(r.Item.ParentID), strOrEmpty(r.Item.ParentName),
+			r.StartedAt.Format(time.RFC3339), r.EndedAt.Format(time.RFC3339), csvSafe(r.User.ID), csvSafe(r.User.Name),
+			csvSafe(r.Item.ID), r.Item.Kind, csvSafe(r.Item.Name), csvSafe(strOrEmpty(r.Item.ParentID)), csvSafe(strOrEmpty(r.Item.ParentName)),
 			optInt(r.Item.Season), optInt(r.Item.Episode), r.MediaType, strconv.FormatInt(r.WatchSeconds, 10), comp,
-			r.Client, r.Device, r.Method, strconv.FormatBool(r.IsView), strconv.FormatInt(r.PausedSeconds, 10),
+			csvSafe(r.Client), csvSafe(r.Device), csvSafe(r.Method), strconv.FormatBool(r.IsView), strconv.FormatInt(r.PausedSeconds, 10),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -243,7 +243,7 @@ type calendarDay struct {
 // Every day of the month is returned; items = up to 6 distinct titles viewed
 // that day (latest first).
 func (h *V2Handler) HistoryCalendar(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := v2ParamsNoRange(c)
 	if !ok {
 		return
 	}
@@ -307,4 +307,13 @@ func (h *V2Handler) HistoryCalendar(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// csvSafe neutralises spreadsheet formula injection: cells starting with
+// = + - @ get a leading apostrophe.
+func csvSafe(s string) string {
+	if s != "" && strings.ContainsRune("=+-@", rune(s[0])) {
+		return "'" + s
+	}
+	return s
 }

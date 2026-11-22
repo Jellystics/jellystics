@@ -112,3 +112,10 @@ func weekHourGrid() [][]int {
 var statsqlCompletion = statsql.CompletionRatio("MAX(pos_end)", "MAX(duration)", "MAX(runtime_ticks)")
 
 func completionThreshold() float64 { return statsql.CompletionThreshold }
+
+// episodeOrder is the catalog order of episodes aliased `e`: regular seasons
+// by number, then specials (season 0) last.
+const episodeOrder = `COALESCE(e."ParentIndexNumber" = 0, false), COALESCE(e."ParentIndexNumber", 0), e."IndexNumber" NULLS LAST, e."Id"`
+
+// notSpecial excludes specials (season 0) of episodes aliased `e`.
+const notSpecial = `COALESCE(e."ParentIndexNumber", -1) <> 0`
