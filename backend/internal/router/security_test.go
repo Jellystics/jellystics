@@ -103,3 +103,12 @@ func TestValidateSettings_RequiresAuthAfterSetup(t *testing.T) {
 		t.Fatalf("validateSettings without auth: status %d, want 401", w.Code)
 	}
 }
+
+func TestIsConfigured_ExposesTimezone(t *testing.T) {
+	t.Setenv("TZ", "Europe/Paris")
+	r, _ := fullRouter(t, true)
+	w := do(r, "GET", "/auth/isConfigured", "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"timezone":"Europe/Paris"`) {
+		t.Fatalf("isConfigured = %d %s, want timezone", w.Code, w.Body.String())
+	}
+}

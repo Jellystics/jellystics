@@ -11,6 +11,7 @@ import (
 	"github.com/Jellystics/Jellystics/internal/middleware"
 	"github.com/Jellystics/Jellystics/internal/repository"
 	"github.com/Jellystics/Jellystics/internal/service/auth"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,12 +27,13 @@ func NewFrontendAuthHandler(repos *repository.Container, cfg *config.Config, aut
 
 // GET /auth/isConfigured
 func (h *FrontendAuthHandler) IsConfigured(c *gin.Context) {
+	tz, _ := statsql.Timezone()
 	cfg, err := h.repos.Config.Get(c.Request.Context())
 	if err != nil || cfg.JFHost == nil || *cfg.JFHost == "" {
-		c.JSON(http.StatusOK, gin.H{"state": 0})
+		c.JSON(http.StatusOK, gin.H{"state": 0, "timezone": tz})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"state": 1, "jellyfinUrl": *cfg.JFHost})
+	c.JSON(http.StatusOK, gin.H{"state": 1, "jellyfinUrl": *cfg.JFHost, "timezone": tz})
 }
 
 // POST /auth/configSetup — protected by middleware.SetupOrAdmin.
