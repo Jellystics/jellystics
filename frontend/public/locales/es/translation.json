@@ -66,8 +66,6 @@
       "progress": "Progreso"
     },
     "chart": {
-      "chart": "Gráfico",
-      "table": "Tabla",
       "csv": "CSV",
       "total": "Total",
       "weekHeatmap": "Actividad por día y hora",

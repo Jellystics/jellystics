@@ -38,7 +38,8 @@ it('renders the retention matrix and each user’s share', async () => {
   renderPage(<UsersPage />, { path: '/users', route: '/users' })
   expect(await screen.findByText('app.users.retention.title')).toBeInTheDocument()
   expect(screen.getByText('app.users.share.title')).toBeInTheDocument()
-  expect(screen.getByText('62 %')).toBeInTheDocument()
+  // Visible in the matrix (not only in the chart's screen-reader table).
+  expect(screen.getAllByText('62 %').some((el) => !el.closest('.sr-only'))).toBe(true)
   expect(screen.getAllByRole('link', { name: 'Léa' }).some((a) => a.getAttribute('href') === '/users/u2')).toBe(true)
 })
 
