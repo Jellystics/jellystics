@@ -102,7 +102,7 @@ func TestV2LocalDaysParisDST(t *testing.T) {
 	if err := db.Create(&old).Error; err != nil {
 		t.Fatal(err)
 	}
-	v2JSON(t, db,"/api/v2/overview?from=2024-01-01&to=2026-03-31", &got)
+	v2JSON(t, db, "/api/v2/overview?from=2024-01-01&to=2026-03-31", &got)
 	if got.Bucket != "week" || got.Daily[0].Date != "2024-01-01" || got.Daily[len(got.Daily)-1].Date != "2026-03-30" {
 		t.Fatalf("weekly bucket %s first %v last %v", got.Bucket, got.Daily[0], got.Daily[len(got.Daily)-1])
 	}
