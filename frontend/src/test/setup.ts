@@ -16,3 +16,12 @@ vi.mock('react-i18next', () => ({
   Trans: ({ children }: { children: React.ReactNode }) => children,
   initReactI18next: { type: '3rdParty', init: () => {} },
 }))
+
+// jsdom's AbortSignal is rejected by Node's undici Request, which React Router builds on every
+// navigation. Drop the signal in tests (nothing here relies on request cancellation).
+const NativeRequest = globalThis.Request
+globalThis.Request = class extends NativeRequest {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    super(input, init ? { ...init, signal: undefined } : init)
+  }
+} as typeof Request

@@ -529,6 +529,37 @@
       },
       "settings": "Ajustes",
       "logout": "Cerrar sesión"
+    },
+    "login": {
+      "serverTitle": "Conectar Jellyfin",
+      "serverDescription": "Introduce la URL de tu servidor Jellyfin y su clave de API",
+      "jellyfinUrl": "URL de Jellyfin",
+      "jellyfinUrlHint": "p. ej. http://192.168.1.x:8096",
+      "apiKey": "Clave de API",
+      "apiKeyHint": "Genera una clave de API en Jellyfin Dashboard > Claves de API",
+      "connect": "Conectar",
+      "configError": "No se pudo conectar con Jellyfin",
+      "signIn": "Iniciar sesión",
+      "connectedTo": "Conectado a {{name}}",
+      "username": "Usuario",
+      "password": "Contraseña",
+      "invalidCredentials": "Usuario o contraseña no válidos",
+      "adminRequired": "Se requiere acceso de administrador",
+      "unreachable": "Servidor Jellyfin inaccesible",
+      "language": "Idioma",
+      "poweredBy": "Con tecnología de"
+    },
+    "notFound": {
+      "title": "Página no encontrada",
+      "description": "Esta página no existe o se ha movido.",
+      "home": "Volver al resumen"
+    },
+    "comingSoon": {
+      "title": "Próximamente",
+      "description": "Esta página forma parte del rediseño y aún no está disponible."
+    },
+    "error": {
+      "generic": "Algo salió mal"
     }
   }
 }
