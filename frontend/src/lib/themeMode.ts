@@ -21,8 +21,19 @@ function setMode(m: ThemeMode) {
   listeners.forEach((l) => l())
 }
 
+function subscribe(cb: () => void) {
+  listeners.add(cb)
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== null && e.key !== KEY) return // null = storage.clear()
+    current = null
+    cb()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => { listeners.delete(cb); window.removeEventListener('storage', onStorage) }
+}
+
 export function useThemeMode() {
-  const mode = useSyncExternalStore((cb) => { listeners.add(cb); return () => listeners.delete(cb) }, get, get)
+  const mode = useSyncExternalStore(subscribe, get, get)
   useEffect(() => { document.documentElement.dataset.theme = mode }, [mode])
   const toggle = useCallback(() => setMode(get() === 'dark' ? 'light' : 'dark'), [])
   return { mode, toggle, set: setMode }

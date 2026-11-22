@@ -1,12 +1,13 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { parsePeriod, serializePeriod, todayIn, PERIOD_PARAMS, type Period } from './period'
+import { parsePeriod, serializePeriod, PERIOD_PARAMS, type Period } from './period'
 import { useServerConfig } from './serverConfig'
+import { useToday } from './useToday'
 
 export function usePeriod(): [Period, (next: Partial<Period>) => void] {
   const [params, setParams] = useSearchParams()
   const tz = useServerConfig().data?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-  const today = todayIn(tz)
+  const today = useToday(tz)
   const period = useMemo(() => parsePeriod(params, today), [params, today])
   const update = useCallback((next: Partial<Period>) => {
     setParams((prev) => {

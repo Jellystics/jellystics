@@ -39,3 +39,7 @@ it('ignores compare for the "all" preset', () => {
   expect(parsePeriod(P('range=all&compare=1'), today).compare).toBe(false)
   expect(serializePeriod({ preset: 'all', from: '2000-01-01', to: '2026-11-23', compare: true })).toEqual({ range: 'all' })
 })
+it('previous period of "all" collapses and of a custom range has the same length', () => {
+  expect(previousPeriod({ preset: 'all', from: '2000-01-01', to: '2026-11-23', compare: false })).toEqual({ from: '2000-01-01', to: '2000-01-01' })
+  expect(previousPeriod({ preset: 'custom', from: '2026-10-10', to: '2026-10-20', compare: true })).toEqual({ from: '2026-09-30', to: '2026-10-10' })
+})

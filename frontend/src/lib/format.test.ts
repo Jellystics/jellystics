@@ -51,3 +51,13 @@ describe('formatDelta', () => {
     expect(formatDelta(0, 'fr').direction).toBe('flat')
   })
 })
+describe('rounding edge cases', () => {
+  it('decides decimals on the rounded value', () => {
+    expect(nb(formatPercent(0.0999, 'fr'))).toBe('10 %')
+    expect(nb(formatPercent(0.0949, 'fr'))).toBe('9,5 %')
+  })
+  it('a tiny ratio is flat, not +0,0 %', () => {
+    expect(formatDelta(0.0001, 'fr').direction).toBe('flat')
+    expect(formatDelta(-0.0001, 'fr').direction).toBe('flat')
+  })
+})

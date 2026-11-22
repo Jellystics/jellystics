@@ -21,8 +21,9 @@ export async function apiFetch<T>(path: string, opts: { method?: string; params?
   const res = await fetch(url, { method: opts.method ?? (body ? 'POST' : 'GET'), headers, body, signal: opts.signal })
   const text = await res.text()
   let data: unknown = undefined
-  try { data = text ? JSON.parse(text) : undefined } catch { data = text }
+  let parsed = true
+  try { data = text ? JSON.parse(text) : undefined } catch { data = text; parsed = false }
   if (res.status === 401) handleUnauthorized()
-  if (!res.ok) throw new ApiError(res.status, data)
+  if (!res.ok || !parsed) throw new ApiError(res.status, data) // a 2xx non-JSON body is a proxy page or misroute, not data
   return data as T
 }

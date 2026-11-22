@@ -27,4 +27,32 @@ describe('useThemeMode', () => {
     expect(localStorage.getItem('jellystics-theme-mode')).toBe('dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
   })
+
+  it('set() applies the mode and notifies every subscriber', () => {
+    const a = renderHook(() => useThemeMode())
+    const b = renderHook(() => useThemeMode())
+    act(() => a.result.current.set('dark'))
+    expect(a.result.current.mode).toBe('dark')
+    expect(b.result.current.mode).toBe('dark')
+  })
+
+  it('follows changes made in another tab', () => {
+    const { result } = renderHook(() => useThemeMode())
+    expect(result.current.mode).toBe('light')
+    act(() => {
+      localStorage.setItem('jellystics-theme-mode', 'dark')
+      window.dispatchEvent(new StorageEvent('storage', { key: 'jellystics-theme-mode', newValue: 'dark' }))
+    })
+    expect(result.current.mode).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
+  it('ignores storage events for other keys', () => {
+    const { result } = renderHook(() => useThemeMode())
+    act(() => {
+      localStorage.setItem('jellystics-theme-mode', 'dark')
+      window.dispatchEvent(new StorageEvent('storage', { key: 'other', newValue: 'x' }))
+    })
+    expect(result.current.mode).toBe('light')
+  })
 })

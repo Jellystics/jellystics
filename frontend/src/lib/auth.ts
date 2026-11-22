@@ -3,7 +3,9 @@ const TOKEN = 'jellystics-token', USER = 'jellystics-username'
 
 export function getToken(): string | null { try { return localStorage.getItem(TOKEN) } catch { return null } }
 export function getUsername(): string { try { return localStorage.getItem(USER) ?? '' } catch { return '' } }
-export function setSession(token: string, username: string) { localStorage.setItem(TOKEN, token); localStorage.setItem(USER, username) }
+export function setSession(token: string, username: string) {
+  try { localStorage.setItem(TOKEN, token); localStorage.setItem(USER, username) } catch { /* storage blocked: session lasts until reload */ }
+}
 export function clearSession() { try { localStorage.removeItem(TOKEN); localStorage.removeItem(USER) } catch { /* ignore */ } }
 export function getUserId(): string {
   const t = getToken(); if (!t) return ''

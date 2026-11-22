@@ -32,6 +32,16 @@ it('clears the session on 401', async () => {
   expect(assign).toHaveBeenCalledWith('/login?next=%2Fusers%3Frange%3D7d')
 })
 
+it('rejects a 2xx response whose body is not JSON', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html>oops</html>', { status: 200 }))
+  await expect(apiFetch('/x')).rejects.toBeInstanceOf(ApiError)
+})
+
+it('setSession survives blocked storage', () => {
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+  expect(() => setSession('tok', 'lea')).not.toThrow()
+})
+
 it('does not redirect when already on /login', async () => {
   const assign = vi.fn()
   Object.defineProperty(window, 'location', { value: { ...window.location, pathname: '/login', search: '', assign }, writable: true, configurable: true })

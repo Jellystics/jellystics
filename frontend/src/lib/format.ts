@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const nf = (locale: string, opts?: Intl.NumberFormatOptions) => new Intl.NumberFormat(locale, opts)
@@ -8,7 +9,8 @@ export function formatCompact(n: number, locale = 'fr'): string {
   return nf(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 }
 export function formatPercent(ratio: number, locale = 'fr'): string {
-  const digits = Math.abs(ratio) < 0.1 && ratio !== 0 ? 1 : 0
+  // Decide on the rounded value so 0.0999 reads "10 %", not "10,0 %".
+  const digits = ratio !== 0 && Math.abs(Math.round(ratio * 100)) < 10 ? 1 : 0
   return nf(locale, { style: 'percent', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(ratio)
 }
 export function formatDuration(seconds: number, locale = 'fr'): string {
@@ -39,7 +41,8 @@ export function formatRelative(date: Date, locale = 'fr', now = new Date()): str
   return rtf.format(Math.round(diff / 86400), 'day')
 }
 export function formatDelta(ratio: number, locale = 'fr'): { text: string; direction: 'up' | 'down' | 'flat' } {
-  if (ratio === 0) return { text: formatPercent(0, locale), direction: 'flat' }
+  // Anything below 0.05 % would display as "0,0 %": treat it as flat.
+  if (Math.abs(ratio) < 0.0005) return { text: formatPercent(0, locale), direction: 'flat' }
   const body = formatPercent(Math.abs(ratio), locale)
   return ratio > 0 ? { text: `+${body}`, direction: 'up' } : { text: `−${body}`, direction: 'down' }
 }
@@ -51,10 +54,10 @@ export function weekdayLabels(locale = 'fr'): string[] {
 export function useFormat() {
   const { i18n } = useTranslation()
   const l = i18n.resolvedLanguage || 'fr'
-  return {
+  return useMemo(() => ({
     duration: (s: number) => formatDuration(s, l), position: formatPosition, number: (n: number) => formatNumber(n, l),
     compact: (n: number) => formatCompact(n, l), percent: (r: number) => formatPercent(r, l), hour: formatHour,
     day: (d: Date) => formatDay(d, l), relative: (d: Date) => formatRelative(d, l), delta: (r: number) => formatDelta(r, l),
     weekdays: () => weekdayLabels(l), locale: l,
-  }
+  }), [l])
 }
