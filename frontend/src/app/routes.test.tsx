@@ -93,11 +93,15 @@ it('legacy dashboard is mounted at /', async () => { renderApp('/'); expect(awai
 it('history shows the timeline for ?view=calendar', async () => {
   renderApp('/history?view=calendar'); expect(await screen.findByText('legacy-timeline')).toBeInTheDocument()
 })
-it('legacy item page sees itemId (episode id wins)', async () => {
-  renderApp('/series/s1/episodes/e9'); expect(await screen.findByText('legacy-item:e9')).toBeInTheDocument()
+it('episode page fetches the episode id (not the series id)', async () => {
+  renderApp('/series/s1/episodes/e9')
+  expect(await screen.findByText('app.entity.notFound')).toBeInTheDocument()
+  expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).startsWith('/api/v2/episodes/e9'))).toBe(true)
 })
-it('legacy album page sees albumId', async () => {
-  renderApp('/albums/a7'); expect(await screen.findByText('legacy-album:a7')).toBeInTheDocument()
+it('album page fetches its album', async () => {
+  renderApp('/albums/a7')
+  expect(await screen.findByText('app.entity.notFound')).toBeInTheDocument()
+  expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).startsWith('/api/v2/albums/a7'))).toBe(true)
 })
 it('settings section renders the new page', async () => {
   renderApp('/settings/backup'); expect(await screen.findByText('settings:backup')).toBeInTheDocument()
