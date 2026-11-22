@@ -1,0 +1,1701 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jellystics Design System</title>
+<style>
+/* =====================================================================
+   JELLYSTICS · DIRECTION B « INSTRUMENT »
+   Tokens first. Every component below is written against these roles.
+   ===================================================================== */
+:root {
+  color-scheme: light;
+  /* Neutral scale (warm-neutral grey, low chroma) */
+  --n-0:   #ffffff;
+  --n-25:  #fcfcfb;   /* card / chart surface */
+  --n-50:  #f9f9f7;   /* page plane */
+  --n-100: #f0efec;
+  --n-150: #e8e7e2;
+  --n-200: #e1e0d9;   /* hairline grid */
+  --n-300: #c3c2b7;   /* axis / strong border */
+  --n-500: #898781;   /* muted ink */
+  --n-700: #52514e;   /* secondary ink */
+  --n-900: #0b0b0b;   /* primary ink */
+
+  /* Roles */
+  --bg:            var(--n-50);
+  --surface:       var(--n-25);
+  --surface-2:     var(--n-100);   /* hover, inset, track */
+  --surface-3:     var(--n-150);   /* pressed / selected neutral */
+  --border:        rgba(11,11,11,.10);
+  --border-strong: rgba(11,11,11,.18);
+  --grid:          var(--n-200);
+  --axis:          var(--n-300);
+  --ink:           var(--n-900);
+  --ink-2:         var(--n-700);
+  --ink-3:         var(--n-500);
+  --ink-on-accent: #ffffff;
+
+  /* Accent = data slot 1 (one accent only) */
+  --accent:        #2a78d6;
+  --accent-hover:  #256abf;
+  --accent-wash:   rgba(42,120,214,.10);
+  --accent-ring:   rgba(42,120,214,.35);
+
+  /* Media types (validated categorical slots 1-3, all-pairs) */
+  --t-movie:  #2a78d6;
+  --t-series: #eb6834;
+  --t-music:  #1baf7a;
+
+  /* Status (reserved, always icon + label) */
+  --good:     #0ca30c;  --good-ink: #006300;  --good-wash: rgba(12,163,12,.10);
+  --warning:  #fab219;  --warning-ink: #8a5a00; --warning-wash: rgba(250,178,25,.14);
+  --serious:  #ec835a;  --serious-ink: #a8431b; --serious-wash: rgba(236,131,90,.14);
+  --critical: #d03b3b;  --critical-ink: #b12a2a; --critical-wash: rgba(208,59,59,.10);
+
+  /* Play method: one-hue ordinal ramp (validated --ordinal). Status colors stay on badges only. */
+  --m-direct: #1c5cab; --m-stream: #3987e5; --m-transcode: #86b6ef;
+  --m-direct-ink: #ffffff; --m-stream-ink: #ffffff; --m-transcode-ink: #0b0b0b;
+
+  /* Sequential blue (heatmaps) */
+  --seq-0: #f0efec; --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5; --seq-5: #256abf; --seq-6: #184f95;
+
+  /* Shape — 3 radii, nothing else */
+  --r-sm: 4px;    /* badges, chips, inputs inside dense tables, bar data-ends */
+  --r-md: 6px;    /* buttons, inputs, segmented, menu items, tooltips */
+  --r-lg: 8px;    /* cards, panels, dialogs, posters */
+  --r-full: 999px;/* avatars, dots, toggles */
+
+  /* Spacing — 4px grid */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+
+  /* Type */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-base: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 24px; --fs-hero: 48px;
+  --lh-tight: 1.2; --lh: 1.45;
+
+  /* Elevation — borders, not shadows. Shadow only for floating layers. */
+  --shadow-pop: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.10);
+  --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-ring);
+
+  --dur: 120ms;
+  --sidebar-w: 224px;
+  --topbar-h: 52px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+    --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.18);
+    --grid: #2c2c2a; --axis: #383835;
+    --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #898781;
+    --accent: #3987e5; --accent-hover: #5598e7; --accent-wash: rgba(57,135,229,.16); --accent-ring: rgba(57,135,229,.45);
+    --t-movie: #3987e5; --t-series: #d95926; --t-music: #199e70;
+    --good-ink: #3ccf3c; --warning-ink: #fab219; --serious-ink: #f09a77; --critical-ink: #ec6b6b;
+    --good-wash: rgba(12,163,12,.16); --warning-wash: rgba(250,178,25,.14); --serious-wash: rgba(236,131,90,.16); --critical-wash: rgba(208,59,59,.18);
+    --seq-0: #232321; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
+    --m-direct: #9ec5f4; --m-stream: #5598e7; --m-transcode: #256abf; --m-direct-ink: #0b0b0b; --m-stream-ink: #0b0b0b; --m-transcode-ink: #ffffff;
+    --shadow-pop: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+  --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.18);
+  --grid: #2c2c2a; --axis: #383835;
+  --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #898781;
+  --accent: #3987e5; --accent-hover: #5598e7; --accent-wash: rgba(57,135,229,.16); --accent-ring: rgba(57,135,229,.45);
+  --t-movie: #3987e5; --t-series: #d95926; --t-music: #199e70;
+  --good-ink: #3ccf3c; --warning-ink: #fab219; --serious-ink: #f09a77; --critical-ink: #ec6b6b;
+  --good-wash: rgba(12,163,12,.16); --warning-wash: rgba(250,178,25,.14); --serious-wash: rgba(236,131,90,.16); --critical-wash: rgba(208,59,59,.18);
+  --seq-0: #232321; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
+    --m-direct: #9ec5f4; --m-stream: #5598e7; --m-transcode: #256abf; --m-direct-ink: #0b0b0b; --m-stream-ink: #0b0b0b; --m-transcode-ink: #ffffff;
+  --shadow-pop: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+}
+
+/* ---------- base ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: var(--fs-base)/var(--lh) var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; }
+h1,h2,h3,h4 { margin: 0; line-height: var(--lh-tight); font-weight: 600; letter-spacing: -.01em; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-3); } .ink2 { color: var(--ink-2); }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--r-md); }
+
+/* ---------- doc shell (the design-system site itself) ---------- */
+.doc-top { position: sticky; top: 0; z-index: 50; height: var(--topbar-h); display: flex; align-items: center; gap: var(--s-4); padding: 0 var(--s-5); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+.doc-brand { display: flex; align-items: center; gap: var(--s-2); font-weight: 650; white-space: nowrap; }
+.doc-brand .tag { font-weight: 500; font-size: var(--fs-xs); color: var(--ink-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1px 6px; }
+.doc-nav { display: flex; gap: 2px; overflow-x: auto; flex: 1; scrollbar-width: none; }
+.doc-nav a { padding: 6px 10px; border-radius: var(--r-md); color: var(--ink-2); font-size: var(--fs-md); white-space: nowrap; }
+.doc-nav a:hover { background: var(--surface-2); color: var(--ink); }
+.doc-nav a[aria-current="page"] { background: var(--surface-3); color: var(--ink); font-weight: 550; }
+.doc-main { max-width: 1240px; margin: 0 auto; padding: var(--s-8) var(--s-5) 96px; }
+.doc-section { display: none; }
+.doc-section.active { display: block; }
+.doc-h1 { font-size: var(--fs-2xl); margin-bottom: var(--s-2); }
+.doc-lead { color: var(--ink-2); max-width: 760px; margin-bottom: var(--s-8); }
+.doc-h2 { font-size: var(--fs-lg); margin: var(--s-10) 0 var(--s-1); }
+.doc-h2 + .doc-sub { color: var(--ink-3); font-size: var(--fs-md); margin-bottom: var(--s-4); max-width: 760px; }
+.doc-grid { display: grid; gap: var(--s-4); }
+.g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+.g6 { grid-template-columns: repeat(6, minmax(0,1fr)); }
+@media (max-width: 960px) { .g3, .g4, .g6 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 640px) { .g2, .g3, .g4, .g6 { grid-template-columns: minmax(0,1fr); } .doc-main { padding: var(--s-6) var(--s-4) 64px; } }
+.spec { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: var(--s-4); }
+.spec-title { font-size: var(--fs-sm); color: var(--ink-3); margin-bottom: var(--s-3); display: flex; justify-content: space-between; gap: var(--s-2); }
+.row { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.stack { display: flex; flex-direction: column; gap: var(--s-2); }
+.note { font-size: var(--fs-sm); color: var(--ink-3); margin-top: var(--s-2); }
+.rule-list { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: var(--fs-md); }
+.rule-list li { margin: 4px 0; }
+.dont { color: var(--critical-ink); } .do { color: var(--good-ink); }
+
+/* swatches */
+.sw { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); }
+.sw-chip { height: 56px; border-bottom: 1px solid var(--border); }
+.sw-meta { padding: var(--s-2) var(--s-3); font-size: var(--fs-sm); }
+.sw-meta b { display: block; font-weight: 550; font-size: var(--fs-md); }
+.sw-meta code { color: var(--ink-3); }
+
+/* =====================================================================
+   COMPONENTS
+   ===================================================================== */
+/* Button */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: var(--r-md); border: 1px solid transparent; font-size: var(--fs-md); font-weight: 550; cursor: pointer; transition: background var(--dur), border-color var(--dur), color var(--dur); white-space: nowrap; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn-sm { height: 26px; padding: 0 8px; font-size: var(--fs-sm); }
+.btn-lg { height: 38px; padding: 0 16px; font-size: var(--fs-base); }
+.btn-primary { background: var(--accent); color: var(--ink-on-accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--surface); border-color: var(--border-strong); color: var(--ink); }
+.btn-secondary:hover { background: var(--surface-2); }
+.btn-ghost { background: transparent; color: var(--ink-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn-danger { background: var(--surface); border-color: var(--border-strong); color: var(--critical-ink); }
+.btn-danger:hover { background: var(--critical-wash); }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+.btn-icon { width: 32px; padding: 0; }
+.btn-icon.btn-sm { width: 26px; }
+
+/* Inputs */
+.field { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-md); }
+.field label { color: var(--ink-2); font-weight: 500; font-size: var(--fs-sm); }
+.input, .select { height: 32px; border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); padding: 0 10px; font: inherit; font-size: var(--fs-md); color: var(--ink); width: 100%; }
+.input:hover, .select:hover { border-color: var(--axis); }
+.input:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.input-wrap { position: relative; }
+.input-wrap svg { position: absolute; left: 9px; top: 8px; width: 16px; height: 16px; color: var(--ink-3); }
+.input-wrap .input { padding-left: 32px; }
+.kbd { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--r-sm); padding: 0 5px; background: var(--surface); }
+
+/* Segmented control */
+.seg { display: inline-flex; padding: 2px; gap: 2px; background: var(--surface-2); border-radius: var(--r-md); border: 1px solid var(--border); }
+.seg button { height: 26px; padding: 0 10px; border: 0; background: transparent; border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--border), 0 1px 2px rgba(0,0,0,.06); }
+
+/* Tabs */
+.tabs { display: flex; gap: var(--s-4); border-bottom: 1px solid var(--border); }
+.tabs button { background: none; border: 0; padding: 10px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--ink-3); font-size: var(--fs-md); font-weight: 550; cursor: pointer; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--ink); }
+.tabs .count { font-weight: 500; color: var(--ink-3); margin-left: 4px; }
+
+/* Badges & chips */
+.badge { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 550; border: 1px solid var(--border); color: var(--ink-2); background: var(--surface); white-space: nowrap; }
+.badge .dot { width: 6px; height: 6px; border-radius: var(--r-full); }
+.badge svg { width: 12px; height: 12px; }
+/* Status badges: neutral surface + ink text; only the icon / dot carries the status color. */
+.badge.good svg, .badge.good .dot { color: var(--good-ink); background-color: currentColor; }
+.badge.warning svg, .badge.warning .dot { color: var(--warning-ink); }
+.badge.serious svg, .badge.serious .dot { color: var(--serious-ink); }
+.badge.critical svg, .badge.critical .dot, .badge.critical .live-dot { color: var(--critical-ink); }
+.badge svg { background-color: transparent !important; }
+.badge.good .dot { background: var(--good); } .badge.warning .dot { background: var(--warning); } .badge.serious .dot { background: var(--serious); } .badge.critical .dot { background: var(--critical); }
+.badge.accent .dot { background: var(--accent); }
+.badge.new { color: var(--ink); font-size: 10px; letter-spacing: .06em; font-weight: 650; }
+.badge.new .dot { background: var(--accent); }
+.doc-nav .newtag { font-size: 9px; font-weight: 650; letter-spacing: .06em; color: var(--accent); margin-left: 4px; vertical-align: 1px; }
+.ncard .card-b { overflow-x: auto; }
+.chart text.mx-t.lo { fill: var(--ink-2); } .chart text.mx-t.hi { fill: #fff; }
+:root[data-theme="dark"] .chart text.mx-t.lo { fill: #fff; } :root[data-theme="dark"] .chart text.mx-t.hi { fill: #0b0b0b; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .chart text.mx-t.lo { fill: #fff; } :root:where(:not([data-theme="light"])) .chart text.mx-t.hi { fill: #0b0b0b; } }
+@media (max-width: 640px) { .ncard { grid-column: auto !important; } }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-full); border: 1px solid var(--border-strong); font-size: var(--fs-sm); color: var(--ink-2); background: var(--surface); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.chip .x { opacity: .6; }
+.live-dot { width: 8px; height: 8px; border-radius: var(--r-full); background: var(--critical); box-shadow: 0 0 0 0 rgba(208,59,59,.5); animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(208,59,59,.45); } 70% { box-shadow: 0 0 0 6px rgba(208,59,59,0); } 100% { box-shadow: 0 0 0 0 rgba(208,59,59,0); } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+/* Card / panel */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-3) var(--s-4); min-height: 48px; }
+.card-h h3 { font-size: var(--fs-md); font-weight: 600; }
+.card-h .sub { font-size: var(--fs-sm); color: var(--ink-3); font-weight: 400; margin-top: 1px; }
+.card-b { padding: 0 var(--s-4) var(--s-4); }
+.card-b.flush { padding: 0; overflow-x: auto; }
+.card { min-width: 0; }
+.tree { max-width: 100%; }
+.card-f { border-top: 1px solid var(--border); padding: var(--s-2) var(--s-4); font-size: var(--fs-sm); color: var(--ink-3); display: flex; justify-content: space-between; }
+.card-f a { color: var(--accent); font-weight: 550; }
+
+/* Stat tile */
+.stat { padding: var(--s-4); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.stat-label { font-size: var(--fs-sm); color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.stat-value { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.stat-value small { font-size: var(--fs-md); font-weight: 500; color: var(--ink-3); margin-left: 2px; letter-spacing: 0; }
+.stat-foot { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--ink-3); white-space: nowrap; min-width: 0; }
+.stat-foot > svg { margin-left: auto; flex: none; }
+.stat-foot > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
+.delta { white-space: nowrap; flex: none; display: inline-flex; align-items: center; gap: 2px; font-weight: 550; font-size: var(--fs-sm); }
+.delta.up { color: var(--good-ink); } .delta.down { color: var(--critical-ink); } .delta.flat { color: var(--ink-3); }
+.stat.selectable { cursor: pointer; border-bottom: 2px solid transparent; }
+.stat.selectable:hover { background: var(--surface-2); }
+.stat.selected { border-bottom-color: var(--accent); }
+.stat-strip { display: grid; grid-template-columns: repeat(var(--n,4), minmax(0,1fr)); }
+.stat-strip > .stat + .stat { border-left: 1px solid var(--border); }
+@media (max-width: 800px) { .stat-strip { grid-template-columns: repeat(2, minmax(0,1fr)); } .stat-strip > .stat:nth-child(odd) { border-left: 0; } .stat-strip > .stat:nth-child(n+3) { border-top: 1px solid var(--border); } }
+
+/* Bar list (top-N rows with a background bar) */
+.barlist { display: flex; flex-direction: column; }
+.barlist-row { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: var(--s-3); height: 38px; padding: 0 var(--s-2); border-radius: var(--r-md); cursor: pointer; }
+.barlist-label .art.poster { width: 20px; } .barlist-label .art.square { width: 26px; } .barlist-label .art { font-size: 8px; }
+.barlist-row:hover { background: var(--surface-2); }
+.barlist-fill { position: absolute; left: 0; top: 4px; bottom: 4px; border-radius: var(--r-sm); background: var(--accent-wash); }
+.barlist-label { position: relative; display: flex; align-items: center; gap: var(--s-2); min-width: 0; font-size: var(--fs-md); }
+.barlist-label span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barlist-value { position: relative; font-size: var(--fs-md); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.barlist-head { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; padding: 0 var(--s-2) var(--s-1); }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
+.table th { text-align: left; font-weight: 550; font-size: var(--fs-sm); color: var(--ink-3); padding: 8px var(--s-4); border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface); position: sticky; top: 0; }
+.table th.sortable { cursor: pointer; } .table th.sortable:hover { color: var(--ink); }
+.table th .arrow { opacity: .6; margin-left: 2px; }
+.table td { padding: 0 var(--s-4); height: 44px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.table tr:last-child td { border-bottom: 0; }
+.table tbody tr { cursor: pointer; } .table tbody tr:hover td { background: var(--surface-2); }
+.table td.r, .table th.r { text-align: right; }
+.table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table .cell-media { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.table .cell-media .t { font-weight: 550; } .table .cell-media .s { font-size: var(--fs-sm); color: var(--ink-3); }
+.table-dense td { height: 36px; }
+
+/* Media art */
+.art { position: relative; flex: none; border-radius: var(--r-sm); overflow: hidden; background: var(--surface-3); display: grid; place-items: center; color: rgba(255,255,255,.9); font-weight: 650; font-size: 11px; letter-spacing: .02em; }
+.art.poster { width: 32px; aspect-ratio: 2/3; }
+.art.thumb { width: 64px; aspect-ratio: 16/9; }
+.art.square { width: 36px; aspect-ratio: 1; }
+.art.lg.poster { width: 120px; border-radius: var(--r-lg); font-size: 15px; }
+.art.lg.square { width: 132px; border-radius: var(--r-lg); font-size: 15px; }
+.art.md.poster { width: 80px; border-radius: var(--r-md); font-size: 13px; }
+.art.md.thumb { width: 160px; border-radius: var(--r-md); font-size: 13px; }
+.art::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+
+/* Avatar */
+.avatar { width: 28px; height: 28px; border-radius: var(--r-full); display: inline-grid; place-items: center; font-size: 11px; font-weight: 650; color: #fff; flex: none; }
+.avatar.sm { width: 20px; height: 20px; font-size: 9px; }
+.avatar.lg { width: 56px; height: 56px; font-size: 20px; }
+.avatar-stack { display: inline-flex; } .avatar-stack .avatar { box-shadow: 0 0 0 2px var(--surface); } .avatar-stack .avatar + .avatar { margin-left: -6px; }
+
+/* Media type key */
+.tkey { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--ink-2); }
+.tkey i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* Progress / meter */
+.meter { height: 6px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; position: relative; }
+.meter > span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-full); background: var(--accent); }
+.meter.thin { height: 4px; }
+
+/* Breadcrumb */
+.crumbs { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--ink-3); flex-wrap: wrap; }
+.crumbs a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.crumbs .sep { opacity: .5; }
+.crumbs .here { color: var(--ink-2); }
+
+/* Page header (in app) */
+.ph { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; margin-bottom: var(--s-5); }
+.ph h1 { font-size: var(--fs-xl); }
+.ph .sub { color: var(--ink-3); font-size: var(--fs-md); margin-top: 2px; }
+.ph-actions { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; }
+
+/* Entity header */
+.eh { display: flex; gap: var(--s-5); align-items: flex-end; margin-bottom: var(--s-5); }
+.eh .meta { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); color: var(--ink-3); font-size: var(--fs-md); margin-top: var(--s-2); align-items: center; }
+.eh h1 { font-size: var(--fs-2xl); }
+.eh .kicker { font-size: var(--fs-sm); color: var(--ink-3); margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
+@media (max-width: 640px) { .eh { flex-direction: column; align-items: flex-start; } }
+
+/* Empty state */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--s-2); padding: var(--s-10) var(--s-4); color: var(--ink-3); }
+.empty .ico { width: 40px; height: 40px; border-radius: var(--r-lg); border: 1px solid var(--border); display: grid; place-items: center; color: var(--ink-3); margin-bottom: var(--s-1); }
+.empty b { color: var(--ink); font-weight: 600; }
+
+/* Skeleton */
+.sk { background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%); background-size: 200% 100%; animation: sk 1.4s infinite linear; border-radius: var(--r-sm); }
+@keyframes sk { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+/* Menu / popover / tooltip */
+.pop { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); padding: 4px; min-width: 200px; }
+.pop-item { display: flex; align-items: center; gap: var(--s-2); height: 30px; padding: 0 var(--s-2); border-radius: var(--r-md); font-size: var(--fs-md); color: var(--ink); cursor: pointer; }
+.pop-item:hover { background: var(--surface-2); }
+.pop-item .art.poster { width: 16px; } .pop-item .art { font-size: 7px; }
+.pop > .input-wrap svg { left: 17px; top: 16px; }
+.pop-item .check { width: 16px; color: var(--accent); font-weight: 700; }
+.pop-item .hint { margin-left: auto; color: var(--ink-3); font-size: var(--fs-sm); }
+.pop-sep { height: 1px; background: var(--border); margin: 4px -4px; }
+.pop-label { font-size: var(--fs-xs); color: var(--ink-3); padding: 6px var(--s-2) 2px; text-transform: uppercase; letter-spacing: .04em; }
+.tip { position: fixed; z-index: 100; pointer-events: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-pop); border-radius: var(--r-md); padding: 8px 10px; font-size: var(--fs-sm); min-width: 140px; opacity: 0; transform: translateY(2px); transition: opacity 80ms, transform 80ms; }
+.tip.on { opacity: 1; transform: none; }
+.tip .tip-h { color: var(--ink-3); margin-bottom: 4px; }
+.tip .tip-r { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.tip .tip-r span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.tip .tip-r b { font-weight: 600; color: var(--ink); }
+.tip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* Dialog */
+.dialog { width: 420px; max-width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
+.dialog-h { padding: var(--s-4) var(--s-4) 0; } .dialog-h h3 { font-size: var(--fs-lg); }
+.dialog-b { padding: var(--s-2) var(--s-4) var(--s-4); color: var(--ink-2); font-size: var(--fs-md); }
+.dialog-f { display: flex; justify-content: flex-end; gap: var(--s-2); padding: var(--s-3) var(--s-4); border-top: 1px solid var(--border); background: var(--surface-2); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+
+/* Toast */
+.toast { display: flex; align-items: center; gap: var(--s-3); padding: 10px 12px; border-radius: var(--r-lg); background: var(--ink); color: var(--surface); font-size: var(--fs-md); box-shadow: var(--shadow-pop); width: max-content; max-width: 100%; }
+.toast .ok { color: #3ccf3c; }
+
+/* Switch */
+.switch { width: 32px; height: 18px; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--border-strong); position: relative; cursor: pointer; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: var(--r-full); background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: left var(--dur); }
+.switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"]::after { left: 16px; }
+.checkbox { width: 16px; height: 16px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); display: inline-grid; place-items: center; background: var(--surface); }
+.checkbox.on { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 11px; }
+
+/* Live session card */
+.session { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: var(--s-3); padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.session .art.thumb { width: 64px; }
+.session .art.poster { width: 44px; }
+.session-top { display: flex; justify-content: space-between; gap: var(--s-2); align-items: flex-start; }
+.session-title { font-weight: 600; font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-sub { font-size: var(--fs-sm); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-meta { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-top: var(--s-2); font-size: var(--fs-sm); color: var(--ink-2); }
+.session-progress { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.session-progress .meter { flex: 1; }
+
+/* =====================================================================
+   APP FRAME (mock pages)
+   ===================================================================== */
+.app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0,1fr); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--bg); min-height: 760px; }
+.side { background: var(--surface); border-right: 1px solid var(--border); padding: var(--s-3); display: flex; flex-direction: column; gap: 2px; }
+.side-brand { display: flex; align-items: center; gap: var(--s-2); padding: 6px var(--s-2) var(--s-4); font-weight: 650; }
+.logo { width: 22px; height: 22px; border-radius: var(--r-md); background: var(--ink); display: grid; place-items: center; }
+.logo svg { width: 14px; height: 14px; color: var(--surface); }
+.side-search { margin-bottom: var(--s-3); }
+.side-label { font-size: var(--fs-xs); color: var(--ink-3); padding: var(--s-3) var(--s-2) 4px; text-transform: uppercase; letter-spacing: .05em; }
+.nav-item { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 var(--s-2); border-radius: var(--r-md); color: var(--ink-2); font-size: var(--fs-md); cursor: pointer; }
+.nav-item svg { width: 16px; height: 16px; flex: none; }
+.nav-item:hover { background: var(--surface-2); color: var(--ink); }
+.nav-item.active { background: var(--surface-3); color: var(--ink); font-weight: 550; }
+.nav-item .cnt { margin-left: auto; font-size: var(--fs-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.nav-item .live-dot { margin-left: auto; }
+.side-foot { margin-top: auto; border-top: 1px solid var(--border); padding-top: var(--s-3); display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-md); }
+.app-main { min-width: 0; display: flex; flex-direction: column; }
+.app-top { height: 52px; display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-5); border-bottom: 1px solid var(--border); background: var(--surface); }
+.app-top .crumbs { flex: 1; min-width: 0; }
+.app-body { padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); }
+.url { font-family: var(--mono); font-size: var(--fs-xs); color: var(--ink-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46%; }
+@media (max-width: 900px) { .app { grid-template-columns: minmax(0,1fr); } .side { display: none; } .url { display: none; } }
+.page-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--s-4); }
+
+/* chart containers */
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--font); font-size: 11px; fill: var(--ink-3); }
+.chart .lbl { fill: var(--ink-2); font-size: 11.5px; }
+.chart .lbl-strong { fill: var(--ink); font-weight: 600; font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--fs-sm); color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend i.line { height: 2px; border-radius: 1px; width: 14px; }
+
+/* IA / sitemap */
+.tree { font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--ink-2); white-space: pre; overflow-x: auto; }
+.tree .new { color: var(--good-ink); } .tree .gone { color: var(--critical-ink); text-decoration: line-through; } .tree .chg { color: var(--warning-ink); } .tree .cm { color: var(--ink-3); }
+.decision { border-left: 2px solid var(--accent); padding: var(--s-2) var(--s-4); background: var(--surface); border-radius: 0 var(--r-lg) var(--r-lg) 0; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.decision h4 { font-size: var(--fs-md); margin-bottom: 4px; }
+.decision p { font-size: var(--fs-md); color: var(--ink-2); }
+.verdict { display: inline-flex; font-size: var(--fs-xs); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+
+/* audit annotations */
+.flag { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 600; color: var(--critical-ink); background: var(--critical-wash); border-radius: var(--r-sm); padding: 2px 6px; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); }
+@media (max-width: 800px) { .compare { grid-template-columns: 1fr; } }
+.compare > div > .spec-title b { color: var(--ink); }
+.compare > *, .doc-grid > *, .spec { min-width: 0; }
+</style>
+</head>
+<body>
+<header class="doc-top">
+  <div class="doc-brand"><span class="logo"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3c3.5 0 6 3.5 6 7.5S15 20 12 20s-6-5.5-6-9.5S8.5 3 12 3z"/><path d="M9.5 11.5h5"/></svg></span>Jellystics <span class="tag">Design system · B « Instrument »</span></div>
+  <nav class="doc-nav" aria-label="Sections">
+    <a href="#audit">Aujourd’hui</a>
+    <a href="#foundations">Fondations</a>
+    <a href="#components">Composants</a>
+    <a href="#charts">Graphiques</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#new">Nouveautés<span class="newtag">NEW</span></a>
+    <a href="#pages/overview">Pages</a>
+  </nav>
+  <button class="btn btn-ghost btn-icon" id="theme" aria-label="Basculer clair / sombre" title="Clair / sombre"></button>
+</header>
+<main class="doc-main">
+  <section class="doc-section" id="s-audit"></section>
+  <section class="doc-section" id="s-foundations"></section>
+  <section class="doc-section" id="s-components"></section>
+  <section class="doc-section" id="s-charts"></section>
+  <section class="doc-section" id="s-architecture"></section>
+  <section class="doc-section" id="s-new"></section>
+  <section class="doc-section" id="s-pages"></section>
+</main>
+<script>
+/* =====================================================================
+   LIB — icons, data, formatting, charts, tooltip. No dependencies.
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- icons (1.6 stroke, 24 grid, rendered 16/20px) ---------- */
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  live: '<circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  library: '<path d="M4 4h4v16H4zM10 4h4v16h-4zM16.5 4.5l3.6 1 -4 15-3.6-1z"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6 6 0 0 1 3.5 6"/>',
+  insights: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+  discover: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+  gauge: '<path d="M4 18a8 8 0 1 1 16 0"/><path d="m12 18 4-6"/><circle cx="12" cy="18" r="1"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  tv: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="m8 2 4 4 4-4"/>',
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  chevR: '<path d="m9 6 6 6-6 6"/>', chevD: '<path d="m6 9 6 6 6-6"/>', chevL: '<path d="m15 6-6 6 6 6"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>', down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  pause: '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>',
+  play: '<path d="M7 4.5v15l12-7.5z"/>',
+  check: '<path d="m5 12 5 5 9-10"/>',
+  alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>',
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  filter: '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5M4 20h16"/>',
+  refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.7L20 8.5"/><path d="M20 3v5.5h-5.5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+  sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  inbox: '<path d="M3 13h5l2 3h4l2-3h5"/><path d="M5 5h14l2 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/>',
+  logo: '<path d="M12 3c3.5 0 6 3.5 6 7.5S15 20 12 20s-6-5.5-6-9.5S8.5 3 12 3z"/><path d="M9.5 11.5h5"/>',
+  share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  skip: '<path d="M5 5v14l10-7zM19 5v14"/>',
+  flame: '<path d="M12 21c4 0 7-2.7 7-6.5 0-3-2-5.5-4-7.5 0 2.5-1.5 4-3 4 0-3-1-6-4-8 .5 3-3 6-3 11 0 4 3 7 7 7z"/>',
+};
+const ic = (name, size = 16) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+
+/* ---------- seeded random ---------- */
+let _seed = 7;
+const rnd = () => { _seed = (_seed * 16807) % 2147483647; return (_seed - 1) / 2147483646; };
+const ri = (a, b) => Math.floor(a + rnd() * (b - a + 1));
+const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+
+/* ---------- formatting (fr-FR) ---------- */
+const NF = new Intl.NumberFormat('fr-FR');
+const fmtN = (n) => NF.format(Math.round(n));
+const fmtCompact = (n) => n >= 10000 ? new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(n) : fmtN(n);
+// durations from SECONDS: "45 s", "12 min", "1 h 05", "1 248 h"
+const fmtDur = (s) => {
+  s = Math.round(s);
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h >= 100) return `${fmtN(h)} h`;
+  return `${h} h ${String(mm).padStart(2, '0')}`;
+};
+const fmtHours = (s) => `${fmtN(s / 3600)} h`;
+const fmtPct = (x, d = 0) => `${(x * 100).toFixed(d).replace('.', ',')} %`;
+const DAYS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+const DAYS_FULL = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const fmtDay = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+const fmtHour = (h) => `${String(h).padStart(2, '0')} h`;
+const fmtClock = (s) => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+
+/* ---------- fake data ---------- */
+const TYPE = {
+  movie: { label: 'Film', color: 'var(--t-movie)', icon: 'film' },
+  series: { label: 'Série', color: 'var(--t-series)', icon: 'tv' },
+  music: { label: 'Musique', color: 'var(--t-music)', icon: 'music' },
+};
+const USERS = [
+  { id: 'celine', name: 'Céline', color: '#6250d6' },
+  { id: 'marc', name: 'Marc', color: '#2a78d6' },
+  { id: 'lea', name: 'Léa', color: '#d55181' },
+  { id: 'hugo', name: 'Hugo', color: '#1baf7a' },
+  { id: 'ines', name: 'Inès', color: '#eb6834' },
+  { id: 'paul', name: 'Paul', color: '#52514e' },
+];
+const ART = ['#3b4a63', '#5b3f4f', '#2f5a54', '#5a4a2f', '#3f3b5e', '#4d5a2f', '#5e3b3b', '#2f4f5e', '#4a3b5e', '#3d5a45'];
+const MOVIES = ['Les Rivages', 'Orbital', 'Nuit blanche', 'Le Dernier Phare', 'Kilomètre zéro', 'Sous la glace', 'Atlas', 'La Grande Marée'];
+const SERIES = [
+  { name: 'Station Nord', seasons: [8, 8, 10], color: ART[2] },
+  { name: 'Les Héritiers', seasons: [6, 6], color: ART[1] },
+  { name: 'Cartographes', seasons: [10], color: ART[4] },
+  { name: 'Brigade 9', seasons: [12, 12, 12, 10], color: ART[6] },
+];
+const ARTISTS = [
+  { name: 'Lune Pâle', albums: ['Halo', 'Rivière noire'] },
+  { name: 'Les Satellites', albums: ['Orbites'] },
+  { name: 'Mira Okafor', albums: ['Sel', 'Basse saison'] },
+];
+const CLIENTS = [['Jellyfin Web', 'Chrome'], ['Jellyfin Android TV', 'Shield'], ['Swiftfin', 'Apple TV'], ['Jellyfin Android', 'Pixel 8'], ['Finamp', 'iPhone'], ['Jellyfin Media Player', 'PC salon']];
+const art = (title, kind = 'poster', size = '', color) => {
+  const c = color || ART[[...title].reduce((a, ch) => a + ch.charCodeAt(0), 0) % ART.length];
+  const ini = title.split(/\s+/).filter((w) => w.length > 2 || /^[A-Z0-9]/.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  return `<div class="art ${kind} ${size}" style="background:linear-gradient(160deg, ${c}, color-mix(in srgb, ${c} 55%, #000))" aria-hidden="true">${ini}</div>`;
+};
+const avatar = (u, cls = '') => `<span class="avatar ${cls}" style="background:${u.color}" title="${esc(u.name)}">${esc(u.name[0])}</span>`;
+const tkey = (t) => `<span class="tkey"><i style="background:${TYPE[t].color}"></i>${TYPE[t].label}</span>`;
+
+// 30 days of daily totals (seconds) per type
+_seed = 11;
+const TODAY = new Date(2026, 10, 22);
+const DAYS30 = Array.from({ length: 30 }, (_, i) => { const d = new Date(TODAY); d.setDate(d.getDate() - 29 + i); return d; });
+const daily = DAYS30.map((d) => {
+  const we = d.getDay() === 0 || d.getDay() === 6 ? 1.6 : 1;
+  return {
+    movie: Math.round((3000 + rnd() * 9000) * we),
+    series: Math.round((6000 + rnd() * 10000) * we),
+    music: Math.round(2500 + rnd() * 5000),
+  };
+});
+const dailyPrev = DAYS30.map((d) => ({ total: Math.round((10000 + rnd() * 16000) * (d.getDay() % 6 === 0 ? 1.5 : 1)) }));
+const dailyViews = daily.map((x) => Math.round((x.movie / 5400) + (x.series / 2400) + (x.music / 200)));
+const dailyClicks = dailyViews.map((v) => Math.round(v * (1.25 + rnd() * 0.25)));
+const weekHour = Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => {
+  const evening = Math.exp(-((h - 21) ** 2) / 6) * 10;
+  const noon = Math.exp(-((h - 13) ** 2) / 5) * (d >= 5 ? 5 : 2);
+  const night = h < 2 ? 3 : 0;
+  return Math.max(0, Math.round((evening + noon + night) * (d >= 4 ? 1.35 : 1) + rnd() * 2 - 0.5));
+}));
+const year = Array.from({ length: 52 * 7 }, (_, i) => { const r = rnd(); return r < 0.18 ? 0 : Math.round(r * r * 6 * 3600 * (i > 250 ? 1.4 : 1)); });
+
+/* ---------- tooltip ---------- */
+const tip = document.createElement('div'); tip.className = 'tip'; tip.setAttribute('role', 'tooltip');
+document.addEventListener('DOMContentLoaded', () => document.body.appendChild(tip));
+const tipData = (h, rows) => esc(JSON.stringify({ h, rows }));
+function showTip(el, x, y) {
+  let d; try { d = JSON.parse(el.getAttribute('data-tip')); } catch { return; }
+  tip.innerHTML = (d.h ? `<div class="tip-h">${esc(d.h)}</div>` : '') + d.rows.map((r) => `<div class="tip-r"><span>${r[0] ? `<i style="background:${r[0]}"></i>` : ''}${esc(r[1])}</span><b>${esc(r[2])}</b></div>`).join('');
+  tip.classList.add('on');
+  const w = tip.offsetWidth, hgt = tip.offsetHeight;
+  let left = x + 14, top = y + 14;
+  if (left + w > innerWidth - 8) left = x - w - 14;
+  if (top + hgt > innerHeight - 8) top = y - hgt - 14;
+  tip.style.left = left + 'px'; tip.style.top = top + 'px';
+}
+document.addEventListener('mousemove', (e) => {
+  const el = e.target.closest('[data-tip]');
+  $$('.xhair.on').forEach((l) => { if (!el || l.dataset.for !== el.dataset.x) l.classList.remove('on'); });
+  if (!el) { tip.classList.remove('on'); $$('[data-hl]').forEach((n) => n.removeAttribute('data-hl')); return; }
+  showTip(el, e.clientX, e.clientY);
+  if (el.dataset.x !== undefined) {
+    const svg = el.closest('svg');
+    const line = svg && svg.querySelector('.xhair');
+    if (line) { line.setAttribute('x1', el.dataset.cx); line.setAttribute('x2', el.dataset.cx); line.classList.add('on'); line.dataset.for = el.dataset.x; }
+    if (svg) svg.querySelectorAll('.pt').forEach((p) => p.style.opacity = p.dataset.x === el.dataset.x ? 1 : 0);
+  }
+});
+document.addEventListener('mouseleave', () => tip.classList.remove('on'));
+document.addEventListener('focusin', (e) => { const el = e.target.closest('[data-tip]'); if (el) { const r = el.getBoundingClientRect(); showTip(el, r.right, r.top); } });
+document.addEventListener('focusout', () => tip.classList.remove('on'));
+
+/* ---------- chart helpers ---------- */
+const niceMax = (v) => { if (v <= 0) return 1; const p = 10 ** Math.floor(Math.log10(v)); const n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; };
+// rounded-top bar path (4px data-end, square baseline)
+const barPath = (x, y, w, h, r = 4) => { if (h <= 0) return ''; r = Math.min(r, h, w / 2); return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; };
+const barPathH = (x, y, w, h, r = 4) => { if (w <= 0) return ''; r = Math.min(r, w, h / 2); return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`; };
+
+/* Line / area over time. series: [{name,color,values,dash?}] */
+function lineChart({ labels, series, height = 220, yFmt = fmtN, area = true, width = 720, xEvery = 5, compare }) {
+  const m = { t: 10, r: 12, b: 26, l: 46 };
+  const iw = width - m.l - m.r, ih = height - m.t - m.b;
+  const all = series.flatMap((s) => s.values).concat(compare ? compare.values : []);
+  const ymax = niceMax(Math.max(...all) * 1.05);
+  const x = (i) => m.l + (labels.length === 1 ? iw / 2 : (i * iw) / (labels.length - 1));
+  const y = (v) => m.t + ih - (v / ymax) * ih;
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = (ymax * k) / 4, yy = y(v); g += `<line x1="${m.l}" x2="${width - m.r}" y1="${yy}" y2="${yy}" stroke="var(--grid)" stroke-width="1"/><text x="${m.l - 8}" y="${yy + 3.5}" text-anchor="end">${yFmt(v)}</text>`; }
+  g += `<line x1="${m.l}" x2="${width - m.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--axis)"/>`;
+  labels.forEach((l, i) => { if (i % xEvery === 0 || (i === labels.length - 1 && i % xEvery >= xEvery / 2)) g += `<text x="${x(i)}" y="${height - 8}" text-anchor="middle">${esc(l)}</text>`; });
+  const path = (vals) => vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  if (compare) g += `<path d="${path(compare.values)}" fill="none" stroke="var(--axis)" stroke-width="1.5"/>`;
+  series.forEach((s) => {
+    if (area) g += `<path d="${path(s.values)}L${x(s.values.length - 1)},${y(0)}L${x(0)},${y(0)}Z" fill="${s.color}" opacity=".10"/>`;
+    g += `<path d="${path(s.values)}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.values.forEach((v, i) => { g += `<circle class="pt" data-x="${i}" cx="${x(i)}" cy="${y(v)}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2" style="opacity:0"/>`; });
+    const last = s.values.length - 1;
+    g += `<circle cx="${x(last)}" cy="${y(s.values[last])}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`;
+  });
+  g += `<line class="xhair" x1="0" x2="0" y1="${m.t}" y2="${y(0)}" stroke="var(--axis)" stroke-width="1"/>`;
+  const step = iw / Math.max(1, labels.length - 1);
+  labels.forEach((l, i) => {
+    const rows = series.map((s) => [s.color, s.name, yFmt(s.values[i])]);
+    if (compare) rows.push(['var(--axis)', compare.name, yFmt(compare.values[i])]);
+    g += `<rect data-x="${i}" data-cx="${x(i)}" x="${x(i) - step / 2}" y="${m.t}" width="${step}" height="${ih}" fill="transparent" data-tip="${tipData(l, rows)}"/>`;
+  });
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(series.map((s) => s.name).join(', '))}">${g}</svg></div><style>.xhair{opacity:0}.xhair.on{opacity:1}</style>`;
+}
+
+/* Stacked columns. series: [{name,color,values}] */
+function stackedColumns({ labels, series, height = 220, width = 720, yFmt = fmtN, xEvery = 5 }) {
+  const m = { t: 10, r: 8, b: 26, l: 46 };
+  const iw = width - m.l - m.r, ih = height - m.t - m.b;
+  const totals = labels.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
+  const ymax = niceMax(Math.max(...totals) * 1.05);
+  const band = iw / labels.length, bw = Math.min(24, band - 2);
+  const y = (v) => m.t + ih - (v / ymax) * ih;
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = (ymax * k) / 4, yy = y(v); g += `<line x1="${m.l}" x2="${width - m.r}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/><text x="${m.l - 8}" y="${yy + 3.5}" text-anchor="end">${yFmt(v)}</text>`; }
+  labels.forEach((l, i) => {
+    const cx = m.l + band * i + band / 2, x0 = cx - bw / 2;
+    let acc = 0;
+    series.forEach((s, si) => {
+      const v = s.values[i]; if (!v) return;
+      const top = si === series.length - 1;
+      const y1 = y(acc + v), y0 = y(acc), h = y0 - y1 - (acc > 0 ? 2 : 0);
+      g += top ? `<path d="${barPath(x0, y1, bw, h)}" fill="${s.color}"/>` : `<rect x="${x0}" y="${y1}" width="${bw}" height="${Math.max(0, h)}" fill="${s.color}"/>`;
+      acc += v;
+    });
+    g += `<rect x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih}" fill="transparent" data-tip="${tipData(l, series.map((s) => [s.color, s.name, yFmt(s.values[i])]).concat([[null, 'Total', yFmt(totals[i])]]))}"/>`;
+    if (i % xEvery === 0 || (i === labels.length - 1 && i % xEvery >= xEvery / 2)) g += `<text x="${cx}" y="${height - 8}" text-anchor="middle">${esc(l)}</text>`;
+  });
+  g += `<line x1="${m.l}" x2="${width - m.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--axis)"/>`;
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img">${g}</svg></div>`;
+}
+
+/* Simple columns, one series. highlight index gets accent, others muted when emphasis=true */
+function columns({ labels, values, height = 180, width = 720, color = 'var(--accent)', yFmt = fmtN, xEvery = 1, emphasis = -1, tipFmt, name = 'Valeur', ticks = true }) {
+  const m = { t: 18, r: 8, b: 24, l: ticks ? 40 : 8 };
+  const iw = width - m.l - m.r, ih = height - m.t - m.b;
+  const ymax = niceMax(Math.max(...values) * 1.05);
+  const band = iw / values.length, bw = Math.min(24, band - 2);
+  const y = (v) => m.t + ih - (v / ymax) * ih;
+  let g = '';
+  if (ticks) for (let k = 0; k <= 5; k++) { const v = (ymax * k) / 5, yy = y(v); g += `<line x1="${m.l}" x2="${width - m.r}" y1="${yy}" y2="${yy}" stroke="var(--grid)"/><text x="${m.l - 8}" y="${yy + 3.5}" text-anchor="end">${yFmt(v)}</text>`; }
+  values.forEach((v, i) => {
+    const cx = m.l + band * i + band / 2;
+    const c = emphasis >= 0 && i !== emphasis ? 'color-mix(in srgb, var(--accent) 35%, var(--surface-3))' : color;
+    g += `<path d="${barPath(cx - bw / 2, y(v), bw, y(0) - y(v))}" fill="${c}"/>`;
+    if (i === emphasis) g += `<text class="lbl-strong" x="${cx}" y="${y(v) - 6}" text-anchor="middle">${yFmt(v)}</text>`;
+    g += `<rect x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih}" fill="transparent" data-tip="${tipData(labels[i], [[c, name, (tipFmt || yFmt)(v)]])}"/>`;
+    if (i % xEvery === 0) g += `<text x="${cx}" y="${height - 6}" text-anchor="middle">${esc(labels[i])}</text>`;
+  });
+  g += `<line x1="${m.l}" x2="${width - m.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--axis)"/>`;
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img">${g}</svg></div>`;
+}
+
+/* Weekday × hour heatmap (sequential blue) */
+function weekHeatmap(matrix, { width = 720, unit = 'vues' } = {}) {
+  const m = { t: 4, r: 4, b: 22, l: 40 }, gap = 2;
+  const cw = (width - m.l - m.r) / 24, ch = 18;
+  const height = m.t + ch * 7 + m.b;
+  const max = Math.max(...matrix.flat());
+  const steps = ['var(--seq-0)', 'var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'var(--seq-4)', 'var(--seq-5)', 'var(--seq-6)'];
+  let g = '';
+  matrix.forEach((row, d) => {
+    g += `<text x="${m.l - 8}" y="${m.t + d * ch + ch / 2 + 3.5}" text-anchor="end">${DAYS[d]}</text>`;
+    row.forEach((v, h) => {
+      const idx = v === 0 ? 0 : Math.min(6, 1 + Math.floor((v / max) * 5.999));
+      g += `<rect x="${m.l + h * cw}" y="${m.t + d * ch}" width="${cw - gap}" height="${ch - gap}" rx="2" fill="${steps[idx]}" data-tip="${tipData(`${DAYS_FULL[d]} · ${fmtHour(h)}`, [[null, unit, fmtN(v)]])}"/>`;
+    });
+  });
+  [0, 6, 12, 18, 23].forEach((h) => { g += `<text x="${m.l + h * cw + cw / 2}" y="${height - 6}" text-anchor="middle">${fmtHour(h)}</text>`; });
+  const legend = `<div class="row" style="gap:6px;font-size:var(--fs-xs);color:var(--ink-3);justify-content:flex-end;margin-top:6px">Moins ${steps.map((s) => `<span style="width:12px;height:12px;border-radius:2px;background:${s};display:inline-block"></span>`).join('')} Plus</div>`;
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Activité par jour et heure">${g}</svg></div>${legend}`;
+}
+
+/* Calendar heatmap (52 weeks) with streak */
+function calendarHeatmap(values, { width = 720 } = {}) {
+  const weeks = Math.ceil(values.length / 7), m = { t: 16, l: 28, b: 4 }, gap = 2;
+  const cw = (width - m.l) / weeks;
+  const height = m.t + cw * 7 + m.b;
+  const max = Math.max(...values);
+  const steps = ['var(--seq-0)', 'var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'var(--seq-4)', 'var(--seq-5)'];
+  let g = '';
+  const start = new Date(TODAY); start.setDate(start.getDate() - values.length + 1);
+  values.forEach((v, i) => {
+    const w = Math.floor(i / 7), d = i % 7;
+    const day = new Date(start); day.setDate(start.getDate() + i);
+    const idx = v === 0 ? 0 : Math.min(5, 1 + Math.floor((v / max) * 4.999));
+    g += `<rect x="${m.l + w * cw}" y="${m.t + d * cw}" width="${cw - gap}" height="${cw - gap}" rx="2" fill="${steps[idx]}" data-tip="${tipData(`${DAYS_FULL[d]} ${fmtDay(day)}`, [[null, 'Temps de lecture', v ? fmtDur(v) : '—']])}"/>`;
+    if (d === 0 && day.getDate() <= 7) g += `<text x="${m.l + w * cw}" y="${m.t - 5}">${MONTHS[day.getMonth()]}</text>`;
+  });
+  [0, 2, 4].forEach((d) => { g += `<text x="${m.l - 6}" y="${m.t + d * cw + cw - 4}" text-anchor="end">${DAYS[d]}</text>`; });
+  return `<div class="chart"><svg viewBox="0 0 ${m.l + weeks * cw} ${height}" role="img" aria-label="Calendrier d'activité">${g}</svg></div>`;
+}
+
+/* Thin horizontal bars ranked (bar list HTML, the workhorse) */
+function barList(rows, { head = ['', ''], fmt = fmtN, color = 'var(--accent-wash)', max } = {}) {
+  const mx = max || Math.max(...rows.map((r) => r.value));
+  return `<div class="barlist">${head[0] ? `<div class="barlist-head"><span>${head[0]}</span><span>${head[1]}</span></div>` : ''}${rows.map((r) => `<a class="barlist-row" href="${r.href || 'javascript:void 0'}" tabindex="0" data-tip="${tipData(r.label, [[null, head[1] || 'Valeur', fmt(r.value)]].concat(r.extra || []))}"><span class="barlist-fill" style="width:${Math.max(2, (r.value / mx) * 100)}%;background:${r.fill || color}"></span><span class="barlist-label">${r.lead || ''}<span class="t">${esc(r.label)}</span>${r.badge || ''}</span><span class="barlist-value">${fmt(r.value)}</span></a>`).join('')}</div>`;
+}
+
+/* Tall segmented bar (one whole split in parts) */
+function segBar(parts, { thin = false } = {}) {
+  const tot = parts.reduce((a, p) => a + p.value, 0);
+  if (thin) return `<div style="display:flex;gap:2px;height:8px">${parts.map((p) => `<span style="flex:${p.value};background:${p.color};border-radius:999px" data-tip="${tipData(p.label, [[p.color, 'Part', fmtPct(p.value / tot)], [null, 'Valeur', p.fmt || fmtN(p.value)]])}"></span>`).join('')}</div>`;
+  return `<div style="display:flex;gap:2px;height:28px">${parts.map((p) => { const share = p.value / tot; return `<span tabindex="0" style="flex:${p.value};background:${p.color};border-radius:4px;color:${p.ink || '#fff'};font-size:12px;font-weight:600;display:flex;align-items:center;padding:0 8px;min-width:0;overflow:visible;white-space:nowrap" data-tip="${tipData(p.label, [[p.color, 'Part', fmtPct(share)], [null, 'Valeur', p.fmt || fmtN(p.value)]])}">${share > 0.09 ? fmtPct(share) : ''}</span>`; }).join('')}</div><div class="legend" style="margin-top:8px">${parts.map((p) => `<span><i style="background:${p.color}"></i>${esc(p.label)}</span>`).join('')}</div>`;
+}
+
+/* Sparkline */
+function spark(values, { width = 96, height = 28, color = 'var(--accent)' } = {}) {
+  const max = Math.max(...values), min = Math.min(...values);
+  const x = (i) => (i * (width - 4)) / (values.length - 1) + 2, y = (v) => height - 3 - ((v - min) / (max - min || 1)) * (height - 6);
+  const d = values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  return `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" aria-hidden="true"><path d="${d}" fill="none" stroke="color-mix(in srgb, ${color} 45%, var(--surface-3))" stroke-width="1.5"/><path d="${d.split('L').slice(-6).join('L').replace(/^/, 'M').replace('MM', 'M')}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/><circle cx="${x(values.length - 1)}" cy="${y(values[values.length - 1])}" r="2.5" fill="${color}"/></svg>`;
+}
+
+/* Funnel (ordinal ramp, horizontal) */
+function funnel(stages, { width = 720 } = {}) {
+  const ramp = ['var(--seq-6)', 'var(--seq-5)', 'var(--seq-4)', 'var(--seq-3)'];
+  const max = stages[0].value, rowH = 34, lw = 150, height = stages.length * rowH;
+  let g = '';
+  stages.forEach((s, i) => {
+    const w = ((width - lw - 90) * s.value) / max, yy = i * rowH + 6;
+    g += `<text class="lbl" x="0" y="${yy + 15}">${esc(s.label)}</text>`;
+    g += `<path d="${barPathH(lw, yy, Math.max(2, w), 22)}" fill="${ramp[i] || ramp[3]}" data-tip="${tipData(s.label, [[ramp[i], 'Lectures', fmtN(s.value)], [null, 'vs étape 1', fmtPct(s.value / max)]])}"/>`;
+    g += `<text class="lbl-strong" x="${lw + w + 8}" y="${yy + 15}">${fmtN(s.value)}</text><text x="${lw + w + 8 + String(fmtN(s.value)).length * 7 + 8}" y="${yy + 15}">${i ? fmtPct(s.value / max) : ''}</text>`;
+  });
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Entonnoir de complétion">${g}</svg></div>`;
+}
+
+/* Episode drop-off: viewers per episode, season separators */
+function dropoff(seasons, { width = 720, height = 200 } = {}) {
+  const m = { t: 18, r: 12, b: 28, l: 40 };
+  const pts = []; seasons.forEach((s, si) => s.forEach((v, ei) => pts.push({ v, si, ei })));
+  const iw = width - m.l - m.r, ih = height - m.t - m.b, ymax = niceMax(Math.max(...pts.map((p) => p.v)));
+  const x = (i) => m.l + (i * iw) / (pts.length - 1), y = (v) => m.t + ih - (v / ymax) * ih;
+  let g = '';
+  for (let k = 0; k <= 3; k++) { const v = (ymax * k) / 3; g += `<line x1="${m.l}" x2="${width - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${m.l - 8}" y="${y(v) + 3.5}" text-anchor="end">${fmtN(v)}</text>`; }
+  let idx = 0;
+  seasons.forEach((s, si) => {
+    const x0 = x(idx), x1 = x(idx + s.length - 1);
+    if (si) g += `<line x1="${x0 - (iw / (pts.length - 1)) / 2}" x2="${x0 - (iw / (pts.length - 1)) / 2}" y1="${m.t}" y2="${y(0)}" stroke="var(--axis)"/>`;
+    g += `<text x="${(x0 + x1) / 2}" y="${height - 8}" text-anchor="middle">Saison ${si + 1}</text>`;
+    idx += s.length;
+  });
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.v)}`).join('');
+  g += `<path d="${d}L${x(pts.length - 1)},${y(0)}L${x(0)},${y(0)}Z" fill="var(--t-series)" opacity=".10"/><path d="${d}" fill="none" stroke="var(--t-series)" stroke-width="2" stroke-linejoin="round"/>`;
+  g += `<line class="xhair" x1="0" x2="0" y1="${m.t}" y2="${y(0)}" stroke="var(--axis)"/>`;
+  const step = iw / (pts.length - 1);
+  pts.forEach((p, i) => {
+    g += `<circle class="pt" data-x="${i}" cx="${x(i)}" cy="${y(p.v)}" r="4" fill="var(--t-series)" stroke="var(--surface)" stroke-width="2" style="opacity:0"/>`;
+    g += `<rect data-x="${i}" data-cx="${x(i)}" x="${x(i) - step / 2}" y="${m.t}" width="${step}" height="${ih}" fill="transparent" data-tip="${tipData(`S${p.si + 1} · É${p.ei + 1}`, [['var(--t-series)', 'Spectateurs', fmtN(p.v)], [null, 'vs S1É1', fmtPct(p.v / pts[0].v)]])}"/>`;
+  });
+  const last = pts.length - 1;
+  g += `<circle cx="${x(last)}" cy="${y(pts[last].v)}" r="4" fill="var(--t-series)" stroke="var(--surface)" stroke-width="2"/><text class="lbl-strong" x="${width - m.r}" y="${m.t - 4}" text-anchor="end">${fmtPct(pts[last].v / pts[0].v)} de rétention</text>`;
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Rétention par épisode">${g}</svg></div>`;
+}
+
+/* Stop-position histogram over a runtime (where people quit) */
+function stopHistogram(bins, runtimeMin, { width = 720, height = 160 } = {}) {
+  const labels = bins.map((_, i) => `${Math.round((i * runtimeMin) / bins.length)} min`);
+  return columns({ labels, values: bins, height, width, color: 'var(--accent)', xEvery: Math.ceil(bins.length / 6), name: 'Arrêts', emphasis: bins.length - 1 });
+}
+/* =====================================================================
+   DOC SECTIONS
+   ===================================================================== */
+const DAYLBL = DAYS30.map(fmtDay);
+const sum = (a) => a.reduce((x, y) => x + y, 0);
+const card = (title, sub, body, { action = '', flush = false, foot = '' } = {}) => `<section class="card">${title || action ? `<div class="card-h"><div><h3>${title}</h3>${sub ? `<div class="sub">${sub}</div>` : ''}</div>${action}</div>` : ''}<div class="card-b ${flush ? 'flush' : ''}">${body}</div>${foot ? `<div class="card-f">${foot}</div>` : ''}</section>`;
+const spec = (title, body, right = '') => `<div class="spec"><div class="spec-title"><span>${title}</span><span>${right}</span></div>${body}</div>`;
+const seg = (opts, sel = 0, attr = '') => `<div class="seg" role="group" ${attr}>${opts.map((o, i) => `<button type="button" aria-pressed="${i === sel}">${o}</button>`).join('')}</div>`;
+const tabs = (opts, sel = 0) => `<div class="tabs" role="tablist">${opts.map((o, i) => `<button role="tab" aria-selected="${i === sel}">${o}</button>`).join('')}</div>`;
+const statTile = ({ label, value, unit = '', delta, up = true, spark: sp, icon, selected, selectable, foot }) => `<div class="stat ${selectable ? 'selectable' : ''} ${selected ? 'selected' : ''}" ${selectable ? 'tabindex="0" role="button"' : ''}><div class="stat-label">${icon ? ic(icon, 14) : ''}${label}</div><div class="stat-value">${value}${unit ? `<small>${unit}</small>` : ''}</div><div class="stat-foot">${delta !== undefined ? `<span class="delta ${delta === 0 ? 'flat' : up ? 'up' : 'down'}">${ic(delta === 0 ? 'chevR' : /^[−-]/.test(String(delta)) ? 'down' : 'up', 12)}${delta === 0 ? '0 %' : delta}</span><span>vs préc.</span>` : `<span>${foot || ''}</span>`}${sp ? spark(sp, { width: 64, height: 24 }) : ''}</div></div>`;
+const methodBadge = (m) => m === 'direct' ? `<span class="badge good">${ic('check', 12)}Direct</span>` : m === 'stream' ? `<span class="badge warning">${ic('zap', 12)}Direct stream</span>` : `<span class="badge serious">${ic('cpu', 12)}Transcodage</span>`;
+const typeBadge = (t) => `<span class="badge"><span class="dot" style="background:${TYPE[t].color}"></span>${TYPE[t].label}</span>`;
+const viewBadge = (v) => v ? `<span class="badge accent"><span class="dot"></span>Vue</span>` : `<span class="badge"><span class="dot" style="background:var(--axis)"></span>Clic</span>`;
+const sw = (name, varName, hex, sub = '') => `<div class="sw"><div class="sw-chip" style="background:var(${varName})"></div><div class="sw-meta"><b>${name}</b><code>${varName}</code>${hex ? ` · <code>${hex}</code>` : ''}${sub ? `<div class="muted">${sub}</div>` : ''}</div></div>`;
+
+/* ---------------- AUDIT ---------------- */
+function renderAudit() {
+  const L = 'class="legacy"';
+  const radius = [['12 px (sx 1)', 33], ['24 px (sx 2)', 22], ['50 %', 13], ['6 px (sx 0.5)', 8], ['9 px (sx 0.75)', 2], ['18 px (sx 1.5)', 2], ['36 px (sx 3)', 2], ['90 px (pilule sidebar)', 1]];
+  const fonts = [['11 px', 37], ['12 px', 20], ['13 px', 18], ['10 px', 12], ['14 px', 5], ['9 px', 2]];
+  const issues = [
+    ['La palette choisie ne thème pas l’UI', 'Primary est figé à #64748b (theme.ts:5) ; seuls les charts suivent la palette, avec une teinte re-saturée (#3266ae).'],
+    ['Radius : 8 valeurs rendues', '6, 9, 12, 18, 24, 36 px, 50 % et 90 px, à cause du multiplicateur ×12 de MUI.'],
+    ['4 patterns d’en-tête de carte', 'ChartCard + divider, CardHeader, CardContent + titre, Card p:2 ; 5 styles de titre (subtitle1 600/700, h6 600/700, h5 700).'],
+    ['Contrôles de période dupliqués', '1 sélecteur global (7/14/30/90/perso) + 19 sélecteurs par carte (7/30/90/tout) qui écrivent le même état, avec des presets différents.'],
+    ['Typographie hors échelle', '11 px ×37, 13 px ×18, 10 px, 9 px ; graisses 600 et 700 utilisées pour le même rôle. Inter déclaré mais jamais chargé → rendu en Helvetica/Arial.'],
+    ['Mode clair cassé', '7 fonds rgba(255,255,255,.04–.07) invisibles sur blanc ; item actif de la sidebar #37404c dans les deux modes.'],
+    ['Posters : 8+ tailles, 4 radius', 'MediaPoster + 7 copies maison ; 36×52, 52×78, 45×30, 40×40, 28×40, 24×34, 40×56…'],
+    ['Formats de valeurs', '4 formats de durée, 3 formats de date, « 0h » vs « 00h », semaine dim.→sam. vs lun.→dim., hauteurs de charts de 180 à 320.'],
+    ['États vides', 'EmptyState partagé utilisé 2 fois ; ~15 versions texte ; TopUsers n’affiche rien.'],
+    ['Tuiles de chiffres', 'StatCard, mini-boîtes, grille au survol ; cartes imbriquées ; icônes fausses (étoile ×2, clap pour « utilisateurs »).'],
+    ['Lignes de classement', 'Le poster est avant le titre sur l’Accueil, après sur Statistiques ; padding et bordure varient.'],
+    ['Avatars', '4 implémentations, 9 tailles, 2 couleurs de fond.'],
+    ['Taille des contrôles', 'Toggles 32 px ou auto, 12 ou 13 px ; « Annuler » outlined ou text ; chips 18/20/22/24 px.'],
+    ['Élévation', 'Card sans ombre, Paper patché à la main ×5, menus élévation 3, 0 ou 8.'],
+    ['Accessibilité', '3 attributs aria dans toute l’app, ~20 éléments cliquables sans rôle ni clavier, aucun focus visible.'],
+  ];
+  return `
+  <h1 class="doc-h1">Aujourd’hui</h1>
+  <p class="doc-lead">L’existant reproduit avec ses vraies valeurs (relevées dans <code>frontend/src</code>), pour voir d’un coup d’œil pourquoi l’interface ne paraît pas cohérente. Chaque bloc « Avant » est rendu avec les tokens actuels ; à droite, le même composant dans la direction B.</p>
+
+  <div class="card"><div class="stat-strip" style="--n:6">
+    ${statTile({ label: 'Radius différents', value: '8', foot: 'cible : 3' })}
+    ${statTile({ label: 'Styles d’en-tête de carte', value: '4', foot: 'cible : 1' })}
+    ${statTile({ label: 'Formats de durée', value: '4', foot: 'cible : 1' })}
+    ${statTile({ label: 'Tailles de texte hors échelle', value: '6', foot: '9, 10, 11, 13 px…' })}
+    ${statTile({ label: 'Tailles d’avatar', value: '9', foot: 'cible : 3' })}
+    ${statTile({ label: 'Police réellement chargée', value: '0', foot: 'Inter jamais importé' })}
+  </div></div>
+
+  <h2 class="doc-h2">Recensement des radius et des tailles de texte</h2><p class="doc-sub">Nombre d’occurrences dans le code (sx, styles inline). Les valeurs MUI par défaut s’y ajoutent : chips 16 px, boutons/cartes 12 px.</p>
+  <div class="doc-grid g2">
+    ${card('borderRadius rendu', 'occurrences', barList(radius.map(([label, value]) => ({ label, value })), { head: ['Valeur', 'Occurrences'] }))}
+    ${card('fontSize en dur', 'hors variantes MUI', barList(fonts.map(([label, value]) => ({ label, value })), { head: ['Taille', 'Occurrences'] }))}
+  </div>
+
+  <h2 class="doc-h2">Couleurs : la palette choisie ne s’applique pas</h2><p class="doc-sub">L’utilisateur choisit une palette (8 presets + perso), mais <code>buildTheme</code> utilise toujours le gris ardoise. Les charts, eux, dérivent une autre teinte.</p>
+  <div class="doc-grid g4">
+    <div class="sw"><div class="sw-chip" style="background:#64748b"></div><div class="sw-meta"><b>primary.main (toujours)</b><code>#64748b</code></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#3266ae"></div><div class="sw-meta"><b>Couleur chart n°0 (« slate »)</b><code>#3266ae</code></div></div>
+    <div class="sw"><div class="sw-chip" style="background:#37404c"></div><div class="sw-meta"><b>Item actif sidebar (2 modes)</b><code>#37404c</code></div></div>
+    <div class="sw"><div class="sw-chip" style="background:linear-gradient(90deg,#64748b,#2563eb,#059669,#ea580c,#db2777,#7c3aed,#0284c7,#16a34a)"></div><div class="sw-meta"><b>8 presets utilisateur</b>sans effet sur l’UI</div></div>
+  </div>
+
+  <h2 class="doc-h2">Avant / après</h2><p class="doc-sub">À gauche le rendu actuel (valeurs exactes), à droite le même composant dans la DA proposée.</p>
+  <div class="stack" style="gap:var(--s-4)">
+    <div class="compare">
+      <div>${spec('<b>Avant</b> · StatCard (Paper p 2.5, avatar 44, valeur h6/600)', `<div ${L} style="display:flex;gap:16px;align-items:center;padding:20px;border-radius:12px;border:1px solid var(--lg-div);background:var(--lg-paper);font-family:Helvetica,Arial,sans-serif"><span style="width:44px;height:44px;border-radius:50%;background:rgba(100,116,139,.12);display:grid;place-items:center;color:#64748b">${ic('clock', 22)}</span><div><div style="font-size:14px;color:var(--lg-ink2)">Temps de lecture</div><div style="font-size:20px;font-weight:600;color:var(--lg-ink)">1 248h 32m</div></div></div>`)}</div>
+      <div>${spec('<b>Après</b> · tuile de chiffre (label, valeur, delta, tendance)', `<div class="card">${statTile({ label: 'Temps de lecture', value: '1 248', unit: 'h', delta: '+12 %', spark: daily.map((d) => d.movie + d.series + d.music) })}</div>`)}</div>
+    </div>
+    <div class="compare">
+      <div>${spec('<b>Avant</b> · 4 en-têtes de carte coexistent', `<div class="stack legacy" style="font-family:Helvetica,Arial,sans-serif">
+        <div style="border:1px solid var(--lg-div);border-radius:12px;background:var(--lg-paper)"><div style="padding:20px 24px 12px;font-size:16px;font-weight:600;color:var(--lg-ink)">Plays over time</div><div style="height:1px;background:var(--lg-div)"></div><div style="height:18px"></div></div>
+        <div style="border:1px solid var(--lg-div);border-radius:12px;background:var(--lg-paper);padding:16px;font-size:16px;font-weight:600;color:var(--lg-ink)">Live sessions</div>
+        <div style="border:1px solid var(--lg-div);border-radius:12px;background:var(--lg-paper);padding:16px;font-size:20px;font-weight:700;color:var(--lg-ink)">Who watched</div>
+        <div style="border:1px solid var(--lg-div);border-radius:24px;background:var(--lg-paper);padding:16px;font-size:16px;font-weight:700;color:var(--lg-ink)">Time to watch</div></div>`)}</div>
+      <div>${spec('<b>Après</b> · un seul en-tête : titre 13/600, sous-titre, action à droite', card('Temps de lecture', '30 derniers jours · tous les utilisateurs', '<div style="height:18px"></div>', { action: seg(['Temps', 'Vues', 'Clics']) }))}</div>
+    </div>
+    <div class="compare">
+      <div>${spec('<b>Avant</b> · chips 18 → 24 px, play method tout en « primary »', `<div class="row legacy" style="font-family:Helvetica,Arial,sans-serif">${['DirectPlay', 'Transcode', 'DirectStream'].map((x) => `<span style="height:20px;padding:0 8px;border-radius:16px;background:#64748b;color:#fff;font-size:11px;display:inline-flex;align-items:center">${x}</span>`).join('')}<span style="height:24px;padding:0 10px;border-radius:16px;border:1px solid var(--lg-div);color:var(--lg-ink);font-size:13px;display:inline-flex;align-items:center">Movie</span><span style="height:18px;padding:0 6px;border-radius:16px;background:var(--lg-hover);color:var(--lg-ink);font-size:10px;display:inline-flex;align-items:center">12 plays</span></div>`)}</div>
+      <div>${spec('<b>Après</b> · badges 20 px, radius 4, fond neutre ; seule l’icône porte la couleur du statut', `<div class="row">${methodBadge('direct')}${methodBadge('stream')}${methodBadge('transcode')}${typeBadge('movie')}${viewBadge(true)}${viewBadge(false)}</div>`)}</div>
+    </div>
+    <div class="compare">
+      <div>${spec('<b>Avant</b> · posters : 8 tailles, radius 6 → 24', `<div class="row" style="align-items:flex-end">${[[36, 52, 12], [52, 78, 12], [45, 30, 9], [40, 40, 6], [28, 40, 12], [24, 34, 6], [40, 56, 6], [80, 120, 24]].map(([w, h, r]) => `<span style="width:${w}px;height:${h}px;border-radius:${r}px;background:#3b4a63;display:inline-block"></span>`).join('')}</div>`)}</div>
+      <div>${spec('<b>Après</b> · 3 formats × 3 tailles, radius selon la taille', `<div class="row" style="align-items:flex-end">${art('Les Rivages', 'poster')}${art('Les Rivages', 'poster', 'md')}${art('Les Rivages', 'poster', 'lg')}${art('Station Nord', 'thumb')}${art('Station Nord', 'thumb', 'md')}${art('Halo', 'square')}${art('Halo', 'square', 'lg')}</div>`)}</div>
+    </div>
+    <div class="compare">
+      <div>${spec('<b>Avant</b> · boutons : contained ardoise, pilules 24 px en Réglages', `<div class="row legacy" style="font-family:Helvetica,Arial,sans-serif"><span style="height:36px;padding:0 16px;border-radius:12px;background:#64748b;color:#fff;display:inline-flex;align-items:center;font-size:14px;font-weight:500">Run sync</span><span style="height:36px;padding:0 16px;border-radius:24px;background:#64748b;color:#fff;display:inline-flex;align-items:center;font-size:14px;font-weight:500">Save</span><span style="height:36px;padding:0 16px;border-radius:12px;border:1px solid rgba(100,116,139,.5);color:#64748b;display:inline-flex;align-items:center;font-size:14px;font-weight:500">Cancel</span><span style="height:36px;padding:0 8px;color:#64748b;display:inline-flex;align-items:center;font-size:14px;font-weight:500">Cancel</span></div>`)}</div>
+      <div>${spec('<b>Après</b> · 4 variantes, 3 tailles, radius 6', `<div class="row"><button class="btn btn-primary">Lancer la synchro</button><button class="btn btn-secondary">Annuler</button><button class="btn btn-ghost">Plus tard</button><button class="btn btn-danger">Supprimer</button></div>`)}</div>
+    </div>
+  </div>
+
+  <h2 class="doc-h2">Les 15 incohérences, par impact visuel</h2><p class="doc-sub">Issues de l’inventaire du code. Chacune est résolue par un token ou un composant de la DA.</p>
+  ${card('', '', `<table class="table table-dense"><thead><tr><th style="width:36px">#</th><th>Problème</th><th>Détail</th></tr></thead><tbody>${issues.map(([a, b], i) => `<tr style="cursor:default"><td class="num muted">${i + 1}</td><td style="font-weight:550;white-space:normal;min-width:200px">${a}</td><td style="white-space:normal;color:var(--ink-2);padding-top:8px;padding-bottom:8px">${b}</td></tr>`).join('')}</tbody></table>`, { flush: true })}
+  <style>
+    .legacy { --lg-paper:#ffffff; --lg-ink:#111827; --lg-ink2:#6b7280; --lg-div:rgba(0,0,0,.08); --lg-hover:rgba(0,0,0,.04); }
+    :root[data-theme="dark"] .legacy { --lg-paper:#18181f; --lg-ink:#e8e8f0; --lg-ink2:#8b8b9e; --lg-div:rgba(255,255,255,.08); --lg-hover:rgba(255,255,255,.08); }
+    @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .legacy { --lg-paper:#18181f; --lg-ink:#e8e8f0; --lg-ink2:#8b8b9e; --lg-div:rgba(255,255,255,.08); --lg-hover:rgba(255,255,255,.08); } }
+  </style>`;
+}
+
+/* ---------------- FOUNDATIONS ---------------- */
+function renderFoundations() {
+  const typeScale = [['Hero', '--fs-hero', '48 / 600', '1 248 h', 'Un seul chiffre héros par vue (récap, page d’entité).'], ['Titre de page', '--fs-xl', '20 / 600', 'Vue d’ensemble', 'h1 de page.'], ['Valeur de tuile', '--fs-2xl', '24 / 600', '312', 'Chiffres des tuiles et en-têtes d’entité.'], ['Titre de section', '--fs-lg', '16 / 600', 'Saisons', 'Titres h2 dans une page.'], ['Corps', '--fs-base', '14 / 400', 'Texte courant, champs de saisie.', ''], ['Interface', '--fs-md', '13 / 400–550', 'Lignes de tableau, titres de carte, boutons.', 'La taille par défaut de l’UI dense.'], ['Secondaire', '--fs-sm', '12 / 400', 'Sous-titres, légendes, deltas.', ''], ['Micro', '--fs-xs', '11 / 550', 'BADGES, AXES, EN-TÊTES DE LISTE', 'Plus petit que 11 px : interdit.']];
+  const fmtRules = [['Durée', '45 s · 12 min · 1 h 05 · 1 248 h', 'Toujours depuis des secondes ; jamais « 65 min » ni « 1:05:00 » hors lecteur.'], ['Position dans un média', '1:05:12', 'Format horloge réservé aux positions (reprise, arrêt).'], ['Nombre', '12 480 · 12,5 k au-delà de 10 000', 'Espace fine insécable (fr-FR) ; compact seulement sur axes et tuiles.'], ['Pourcentage', '87 % · 4,2 %', '0 décimale sauf < 10 %.'], ['Date', '22 nov. · 22 nov. 2025', 'Année seulement si ≠ année courante. Relatif (« il y a 3 h ») dans les listes live/récent.'], ['Heure', '21 h · 00 h', 'Toujours 2 chiffres.'], ['Semaine', 'lun. → dim.', 'Partout : heatmaps, calendriers, graphiques par jour.'], ['Delta', '▲ +12 % vs 30 j préc.', 'Couleur = sens × « est-ce bien ». La période comparée est toujours nommée.']];
+  return `
+  <h1 class="doc-h1">Fondations</h1>
+  <p class="doc-lead">Direction B « Instrument » : une app de données, dense et précise. Gris neutres à faible chroma, un seul accent, des bordures fines plutôt que des ombres, trois radius, et des chiffres toujours alignés. La donnée est la seule chose qui a le droit d’être bruyante.</p>
+  <div class="doc-grid g3">
+    ${spec('Principe 1', '<b>Un seul accent.</b><p class="note">Le bleu porte l’action et la série unique. Tout le reste est en niveaux de gris.</p>')}
+    ${spec('Principe 2', '<b>Bordures, pas d’ombres.</b><p class="note">1 px à 10 % d’encre. L’ombre est réservée à ce qui flotte (menus, dialogues, infobulles).</p>')}
+    ${spec('Principe 3', '<b>Chaque chiffre a un contexte.</b><p class="note">Une unité, une période nommée, et si possible une comparaison.</p>')}
+  </div>
+
+  <h2 class="doc-h2">Neutres</h2><p class="doc-sub">Gris chaud très peu saturé. Les rôles (fond, surface, bordure, encre) pointent vers ces pas ; le mode sombre a ses propres pas, pas une inversion automatique.</p>
+  <div class="doc-grid g6">${sw('Page', '--bg', '')}${sw('Surface', '--surface', '')}${sw('Survol', '--surface-2', '')}${sw('Sélection', '--surface-3', '')}${sw('Grille', '--grid', '')}${sw('Axe', '--axis', '')}</div>
+  <div class="doc-grid g6" style="margin-top:var(--s-4)">${sw('Encre', '--ink', '')}${sw('Encre 2', '--ink-2', '')}${sw('Encre 3', '--ink-3', '')}${sw('Bordure', '--border', '')}${sw('Bordure forte', '--border-strong', '')}${sw('Accent', '--accent', '')}</div>
+
+  <h2 class="doc-h2">Types de média</h2><p class="doc-sub">Les 3 premières couleurs catégorielles, validées pour le daltonisme sur toutes les paires (ΔE ≥ 9,2) en clair et en sombre. Elles identifient le type <b>partout</b> : badges, graphiques empilés, légendes. Toujours accompagnées d’un libellé (l’aqua est sous 3:1 en mode clair).</p>
+  <div class="doc-grid g3">${sw('Film', '--t-movie', '#2a78d6 / #3987e5')}${sw('Série', '--t-series', '#eb6834 / #d95926')}${sw('Musique', '--t-music', '#1baf7a / #199e70')}</div>
+
+  <h2 class="doc-h2">Statut</h2><p class="doc-sub">Réservé au sens « bon / attention / grave ». Jamais pour une série de données. Toujours avec une icône et un libellé.</p>
+  <div class="doc-grid g4">${sw('Bon', '--good', '#0ca30c', 'Direct play, delta positif')}${sw('Attention', '--warning', '#fab219', 'Direct stream')}${sw('Sérieux', '--serious', '#ec835a', 'Transcodage')}${sw('Critique', '--critical', '#d03b3b', 'Erreur, live, delta négatif')}</div>
+
+  <h2 class="doc-h2">Méthode de lecture</h2><p class="doc-sub">Dans les graphiques, la méthode de lecture est une échelle ordonnée d’une seule teinte (la plus foncée = direct play). Les couleurs de statut restent réservées aux badges et aux alertes, jamais en grands blocs.</p>
+  <div class="doc-grid g3">${sw('Direct play', '--m-direct', '#1c5cab / #9ec5f4')}${sw('Direct stream', '--m-stream', '#3987e5 / #5598e7')}${sw('Transcodage', '--m-transcode', '#86b6ef / #256abf')}</div>
+
+  <h2 class="doc-h2">Échelle séquentielle</h2><p class="doc-sub">Une seule teinte, du clair au foncé, pour l’intensité (heatmaps, calendrier). Pas d’arc-en-ciel.</p>
+  <div class="spec"><div style="display:flex;gap:2px">${[0, 1, 2, 3, 4, 5, 6].map((i) => `<div style="flex:1;height:36px;border-radius:4px;background:var(--seq-${i})"></div>`).join('')}</div><div class="row" style="justify-content:space-between;margin-top:6px;font-size:var(--fs-xs);color:var(--ink-3)"><span>0</span><span>max</span></div></div>
+
+  <h2 class="doc-h2">Typographie</h2><p class="doc-sub">La police système de chaque OS (San Francisco, Segoe UI, Roboto) : nette, rapide, zéro chargement. Chiffres tabulaires dans les colonnes et les axes, proportionnels pour les gros chiffres isolés.</p>
+  ${card('', '', `<table class="table" style="cursor:default"><thead><tr><th>Rôle</th><th>Token</th><th>Taille / graisse</th><th>Exemple</th></tr></thead><tbody>${typeScale.map(([r, t, s, ex, n]) => `<tr style="cursor:default"><td>${r}${n ? `<div class="muted" style="font-size:var(--fs-sm);white-space:normal">${n}</div>` : ''}</td><td><code>${t}</code></td><td class="num">${s}</td><td style="font-size:var(${t});font-weight:${s.includes('600') ? 600 : s.includes('550') ? 550 : 400};${t === '--fs-xs' ? 'letter-spacing:.04em' : ''};white-space:normal">${ex}</td></tr>`).join('')}</tbody></table>`, { flush: true })}
+
+  <h2 class="doc-h2">Forme, espacement, élévation</h2><p class="doc-sub">Trois radius seulement. Grille de 4 px. La hauteur standard d’un contrôle est 32 px (26 px en dense, 38 px en grand).</p>
+  <div class="doc-grid g4">
+    ${spec('<code>--r-sm</code> · 4 px', '<div style="height:56px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--border-strong)"></div><p class="note">Badges, chips de tableau, extrémités de barres, posters &lt; 40 px.</p>')}
+    ${spec('<code>--r-md</code> · 6 px', '<div style="height:56px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--border-strong)"></div><p class="note">Boutons, champs, segmented, items de menu, infobulles.</p>')}
+    ${spec('<code>--r-lg</code> · 8 px', '<div style="height:56px;border-radius:var(--r-lg);background:var(--surface-2);border:1px solid var(--border-strong)"></div><p class="note">Cartes, panneaux, dialogues, menus, grands posters.</p>')}
+    ${spec('<code>--r-full</code>', '<div style="height:56px;width:56px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border-strong)"></div><p class="note">Avatars, pastilles, interrupteurs, chips de filtre.</p>')}
+  </div>
+  <div class="doc-grid g2" style="margin-top:var(--s-4)">
+    ${spec('Espacement (4 px)', `<div class="stack">${[1, 2, 3, 4, 5, 6, 8, 10, 12].map((n) => `<div class="row" style="gap:12px;font-size:var(--fs-sm)"><code style="width:44px">--s-${n}</code><span style="height:10px;width:${n * 4 * 2}px;background:var(--accent);border-radius:2px;opacity:.6"></span><span class="muted">${n * 4} px</span></div>`).join('')}</div><p class="note">Entre cartes : 16 px. Padding de carte : 16 px. Entre sections de page : 24 px.</p>`)}
+    ${spec('Élévation', `<div class="stack" style="gap:12px"><div class="card" style="padding:12px;font-size:var(--fs-md)">Niveau 0 · surface + bordure 1 px (cartes, tableaux)</div><div class="pop" style="padding:12px;font-size:var(--fs-md)">Niveau 1 · ombre « pop » (menus, popovers, infobulles, dialogues)</div><p class="note">Aucun autre niveau. Pas d’ombre au survol d’une carte : le survol change le fond (<code>--surface-2</code>).</p></div>`)}
+  </div>
+
+  <h2 class="doc-h2">Iconographie & mouvement</h2><p class="doc-sub">Un seul jeu d’icônes à trait (1,6 px), 16 px dans l’UI dense, 20 px dans la navigation. Les icônes accompagnent un libellé ; seules les actions courantes (recherche, filtre, plus) peuvent être seules, avec une infobulle.</p>
+  <div class="spec"><div class="row" style="gap:18px;color:var(--ink-2)">${Object.keys(ICONS).filter((k) => k !== 'logo').map((k) => `<span title="${k}" style="display:inline-flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--ink-3);width:44px">${ic(k, 20)}${k}</span>`).join('')}</div><p class="note">Mouvement : 120 ms, ease-out, pour les changements d’état (fond, couleur). Pas d’animation d’entrée des graphiques. <code>prefers-reduced-motion</code> coupe le pulse live et les skeletons.</p></div>
+
+  <h2 class="doc-h2">Formats</h2><p class="doc-sub">Une seule façon d’écrire chaque type de valeur, dans toute l’app (fr-FR ; les autres langues suivent leur locale).</p>
+  ${card('', '', `<table class="table" style="cursor:default"><thead><tr><th>Valeur</th><th>Format</th><th>Règle</th></tr></thead><tbody>${fmtRules.map(([a, b, c]) => `<tr style="cursor:default"><td style="font-weight:550">${a}</td><td class="num">${b}</td><td style="white-space:normal;color:var(--ink-2);padding-top:8px;padding-bottom:8px">${c}</td></tr>`).join('')}</tbody></table>`, { flush: true })}
+  `;
+}
+
+/* ---------------- COMPONENTS ---------------- */
+function renderComponents() {
+  _seed = 21;
+  const topRows = [
+    { label: 'Station Nord', value: 412, lead: art('Station Nord', 'poster'), badge: typeBadge('series') },
+    { label: 'Les Rivages', value: 288, lead: art('Les Rivages', 'poster'), badge: typeBadge('movie') },
+    { label: 'Halo — Lune Pâle', value: 241, lead: art('Halo', 'square'), badge: typeBadge('music') },
+    { label: 'Brigade 9', value: 198, lead: art('Brigade 9', 'poster'), badge: typeBadge('series') },
+    { label: 'Orbital', value: 133, lead: art('Orbital', 'poster'), badge: typeBadge('movie') },
+  ];
+  return `
+  <h1 class="doc-h1">Composants</h1>
+  <p class="doc-lead">Chaque composant existe en une seule version, écrite contre les tokens. Les états (survol, sélection, focus clavier, désactivé) sont visibles : passe la souris ou utilise Tab.</p>
+
+  <h2 class="doc-h2">Boutons</h2><p class="doc-sub">4 variantes × 3 tailles. Un seul bouton primaire par zone. Le bouton danger est neutre au repos : le rouge n’apparaît qu’au survol et dans la confirmation.</p>
+  <div class="doc-grid g2">
+    ${spec('Variantes', `<div class="row"><button class="btn btn-primary">${ic('refresh')}Synchroniser</button><button class="btn btn-secondary">${ic('download')}Exporter</button><button class="btn btn-ghost">Annuler</button><button class="btn btn-danger">Supprimer</button></div>`)}
+    ${spec('Tailles & icône seule', `<div class="row"><button class="btn btn-primary btn-sm">Petit</button><button class="btn btn-primary">Moyen</button><button class="btn btn-primary btn-lg">Grand</button><button class="btn btn-secondary btn-icon" aria-label="Filtrer" title="Filtrer">${ic('filter')}</button><button class="btn btn-ghost btn-icon" aria-label="Plus" title="Plus">${ic('more')}</button><button class="btn btn-primary" disabled>Désactivé</button></div>`)}
+  </div>
+
+  <h2 class="doc-h2">Saisie & sélection</h2><p class="doc-sub">Hauteur 32 px, radius 6, focus = bordure accent + halo. Le segmented control remplace tous les ToggleButtonGroup (métrique, vue, période locale).</p>
+  <div class="doc-grid g3">
+    ${spec('Recherche globale', `<div class="input-wrap">${ic('search')}<input class="input" placeholder="Rechercher un film, une série, un utilisateur…"></div><div class="row" style="margin-top:8px"><span class="note" style="margin:0">Raccourci</span><span class="kbd">⌘</span><span class="kbd">K</span></div>`)}
+    ${spec('Champ & liste', `<div class="stack"><div class="field"><label>URL Jellyfin</label><input class="input" value="http://192.168.1.10:8096"></div><div class="field"><label>Fuseau horaire</label><select class="select"><option>Europe/Paris</option></select></div></div>`)}
+    ${spec('Segmented, interrupteur, case', `<div class="stack" style="gap:12px">${seg(['Temps', 'Vues', 'Clics'])}${seg([ic('grid', 14), ic('list', 14)], 1)}<div class="row" style="gap:16px;font-size:var(--fs-md)"><span class="row"><span class="switch" role="switch" aria-checked="true" tabindex="0"></span>Suivre ce compte</span><span class="row"><span class="checkbox on">✓</span>Films</span><span class="row"><span class="checkbox"></span>Musique</span></div></div>`)}
+  </div>
+
+  <h2 class="doc-h2">Période (le seul contrôle de temps)</h2><p class="doc-sub">Un seul sélecteur, dans la barre du haut, synchronisé avec l’URL (<code>?range=30d</code> ou <code>?from=…&to=…</code>). Il s’applique à toute la page, pages de détail comprises. Plus aucun sélecteur par carte.</p>
+  <div class="doc-grid g2">
+    ${spec('Déclencheur', `<div class="row"><button class="btn btn-secondary">${ic('calendar')}30 derniers jours${ic('chevD', 14)}</button><span class="muted" style="font-size:var(--fs-sm)">vs 23 sept. – 22 oct.</span></div>`)}
+    ${spec('Menu', `<div class="pop" style="width:260px">${['Aujourd’hui', '7 derniers jours', '30 derniers jours', '90 derniers jours', 'Ce mois-ci', 'Cette année', 'Depuis le début'].map((x, i) => `<div class="pop-item"><span class="check">${i === 2 ? '✓' : ''}</span>${x}<span class="hint">${['', '7j', '30j', '90j', 'mtd', 'ytd', 'all'][i]}</span></div>`).join('')}<div class="pop-sep"></div><div class="pop-item"><span class="check"></span>Période personnalisée…</div><div class="pop-item"><span class="check">✓</span>Comparer à la période précédente</div></div>`)}
+  </div>
+
+  <h2 class="doc-h2">Badges, chips, onglets</h2><p class="doc-sub">Badge = information (20 px, radius 4). Chip = filtre actif (26 px, pilule, retirable). Onglets = sous-vues d’une page, synchronisés avec l’URL (<code>?tab=</code>).</p>
+  <div class="doc-grid g3">
+    ${spec('Badges', `<div class="stack"><div class="row">${typeBadge('movie')}${typeBadge('series')}${typeBadge('music')}</div><div class="row">${methodBadge('direct')}${methodBadge('stream')}${methodBadge('transcode')}</div><div class="row">${viewBadge(true)}${viewBadge(false)}<span class="badge critical"><span class="live-dot" style="width:6px;height:6px"></span>En direct</span><span class="badge">4K HDR</span><span class="badge">H.265 → H.264</span></div></div>`)}
+    ${spec('Chips de filtre', `<div class="row"><span class="chip" aria-pressed="true">Séries</span><span class="chip">Films</span><span class="chip">Musique</span><span class="chip">Utilisateur : Léa <span class="x">${ic('x', 12)}</span></span><span class="chip">Transcodage <span class="x">${ic('x', 12)}</span></span></div><p class="note">Les chips actifs s’affichent dans une seule rangée au-dessus du contenu qu’ils filtrent.</p>`)}
+    ${spec('Onglets', `${tabs(['Aperçu', 'Épisodes <span class="count">30</span>', 'Spectateurs <span class="count">5</span>', 'Historique'], 1)}`)}
+  </div>
+
+  <h2 class="doc-h2">Tuiles de chiffres</h2><p class="doc-sub">Libellé · valeur · delta vs période nommée · tendance. Dans la vue d’ensemble, la rangée de tuiles pilote le graphique principal (cliquer une tuile change la métrique, à la Plausible).</p>
+  <div class="card"><div class="stat-strip" style="--n:5">
+    ${statTile({ label: 'Temps de lecture', value: '1 248', unit: 'h', delta: '+12 %', spark: daily.map((d) => d.movie + d.series + d.music), selectable: true, selected: true })}
+    ${statTile({ label: 'Vues', value: '3 412', delta: '+8 %', spark: dailyViews, selectable: true })}
+    ${statTile({ label: 'Clics', value: '4 507', delta: '+9 %', spark: dailyClicks, selectable: true })}
+    ${statTile({ label: 'Utilisateurs actifs', value: '6', delta: 0, selectable: true })}
+    ${statTile({ label: 'Complétion', value: '71', unit: '%', delta: '−3 pts', up: false, selectable: true })}
+  </div></div>
+
+  <h2 class="doc-h2">Listes classées & tableaux</h2><p class="doc-sub">La liste à barre de fond (bar list) remplace les camemberts et la plupart des barres horizontales : lisible, cliquable, compacte. Les tableaux ont des chiffres tabulaires alignés à droite, des lignes de 44 px (36 en dense), et chaque ligne mène à une page.</p>
+  <div class="doc-grid g2">
+    ${card('Top contenus', 'vues · 30 derniers jours', barList(topRows, { head: ['Contenu', 'Vues'] }), { action: seg(['Tout', 'Films', 'Séries', 'Musique']), foot: '<span>5 sur 248</span><a href="#pages/overview">Tout voir →</a>' })}
+    ${card('Utilisateurs', 'temps de lecture · 30 derniers jours', `<div class="table-wrap"><table class="table"><thead><tr><th class="sortable">Utilisateur</th><th class="num sortable">Temps <span class="arrow">↓</span></th><th class="num">Vues</th><th class="r">Tendance</th></tr></thead><tbody>${USERS.slice(0, 5).map((u, i) => { const v = [312, 248, 190, 121, 64][i]; return `<tr><td><div class="cell-media">${avatar(u)}<span class="t">${u.name}</span></div></td><td class="num">${fmtN(v)} h</td><td class="num">${fmtN(v * 3.1)}</td><td class="r">${spark(Array.from({ length: 14 }, () => ri(2, 12)), { width: 72, height: 22 })}</td></tr>`; }).join('')}</tbody></table></div>`, { flush: true })}
+  </div>
+
+  <h2 class="doc-h2">Session en direct</h2><p class="doc-sub">Une carte par lecture en cours : contenu (lien), utilisateur (lien), appareil, méthode de lecture, et progression avec le temps réellement regardé.</p>
+  <div class="doc-grid g3">
+    ${[['Station Nord', 'S2 · É5 — La Fracture', USERS[2], 'Android TV · Shield', 'direct', 0.62, false, 'series'], ['Les Rivages', '2024 · 2 h 08', USERS[1], 'Jellyfin Web · Chrome', 'transcode', 0.31, true, 'movie'], ['Halo', 'Lune Pâle — Piste 3', USERS[3], 'Finamp · iPhone', 'direct', 0.8, false, 'music']].map(([t, s, u, dev, m, p, paused, ty]) => `<div class="session">${art(t, ty === 'music' ? 'square' : 'thumb')}<div style="min-width:0"><div class="session-top"><div style="min-width:0"><a class="session-title" href="javascript:void 0">${t}</a><div class="session-sub">${s}</div></div>${paused ? `<span class="badge">${ic('pause', 12)}Pause</span>` : ''}</div><div class="session-meta">${avatar(u, 'sm')}<span>${u.name}</span><span class="muted">·</span><span>${dev}</span>${methodBadge(m)}</div></div><div class="session-progress"><span>${fmtClock(p * 3600)}</span><div class="meter thin"><span style="width:${p * 100}%;background:${paused ? 'var(--ink-3)' : 'var(--accent)'}"></span></div><span>${ty === 'music' ? '3:42' : '1:00:00'}</span></div></div>`).join('')}
+  </div>
+
+  <h2 class="doc-h2">Médias & avatars</h2><p class="doc-sub">Trois formats : poster 2:3 (films, séries), vignette 16:9 (épisodes), carré 1:1 (albums). Trois tailles chacun. Repli : dégradé + initiales, jamais un fond blanc transparent.</p>
+  <div class="doc-grid g2">
+    ${spec('Formats', `<div class="row" style="align-items:flex-end;gap:14px">${art('Les Rivages', 'poster')}${art('Les Rivages', 'poster', 'md')}${art('Les Rivages', 'poster', 'lg')}${art('La Fracture', 'thumb')}${art('La Fracture', 'thumb', 'md')}${art('Halo', 'square')}${art('Halo', 'square', 'lg')}</div>`)}
+    ${spec('Avatars', `<div class="row" style="gap:14px">${avatar(USERS[0], 'sm')}${avatar(USERS[1])}${avatar(USERS[2], 'lg')}<span class="avatar-stack">${USERS.slice(0, 4).map((u) => avatar(u)).join('')}</span></div><p class="note">20 · 28 · 56 px. Couleur stable par utilisateur (dérivée de l’id).</p>`)}
+  </div>
+
+  <h2 class="doc-h2">Navigation & en-têtes</h2><p class="doc-sub">Fil d’Ariane partout sous la barre du haut (plus de bouton « Retour » en <code>navigate(-1)</code>). En-tête de page simple pour les vues de liste, en-tête d’entité pour les pages de détail.</p>
+  <div class="stack" style="gap:var(--s-4)">
+    ${spec('Fil d’Ariane', `<nav class="crumbs"><a href="#">Bibliothèques</a><span class="sep">/</span><a href="#">Séries</a><span class="sep">/</span><a href="#">Station Nord</a><span class="sep">/</span><a href="#">Saison 2</a><span class="sep">/</span><span class="here">É5 · La Fracture</span></nav>`)}
+    ${spec('En-tête d’entité', `<div class="eh" style="margin:0">${art('Station Nord', 'poster', 'lg')}<div style="flex:1;min-width:0"><div class="kicker">${typeBadge('series')}<span>Bibliothèque Séries</span></div><h1>Station Nord</h1><div class="meta"><span>2022 – 2025</span><span>·</span><span>3 saisons · 26 épisodes</span><span>·</span><span>Drame, Science-fiction</span></div></div><div class="ph-actions"><button class="btn btn-secondary btn-icon" title="Ouvrir dans Jellyfin">${ic('ext')}</button></div></div>`)}
+  </div>
+
+  <h2 class="doc-h2">États</h2><p class="doc-sub">Un seul état vide (icône, titre, explication, action éventuelle). Chargement = squelette à la forme du contenu ; au rafraîchissement, on garde l’ancien rendu à opacité réduite (pas de flash).</p>
+  <div class="doc-grid g3">
+    ${spec('Vide', `<div class="empty"><div class="ico">${ic('inbox', 20)}</div><b>Aucune lecture sur cette période</b><span style="font-size:var(--fs-sm)">Élargis la période ou retire un filtre.</span><button class="btn btn-secondary btn-sm" style="margin-top:6px">Voir les 90 derniers jours</button></div>`)}
+    ${spec('Chargement', `<div class="stack" style="gap:10px;padding:8px 0">${[0, 1, 2, 3].map((i) => `<div class="row" style="gap:10px"><div class="sk" style="width:32px;height:48px"></div><div style="flex:1" class="stack"><div class="sk" style="height:10px;width:${70 - i * 10}%"></div><div class="sk" style="height:8px;width:30%"></div></div><div class="sk" style="width:40px;height:10px"></div></div>`).join('')}</div>`)}
+    ${spec('Erreur', `<div class="empty"><div class="ico" style="color:var(--critical-ink)">${ic('alert', 20)}</div><b>Jellyfin ne répond pas</b><span style="font-size:var(--fs-sm)">Les données affichées datent de 14:02.</span><button class="btn btn-secondary btn-sm" style="margin-top:6px">${ic('refresh', 14)}Réessayer</button></div>`)}
+  </div>
+
+  <h2 class="doc-h2">Surfaces flottantes</h2><p class="doc-sub">Menus, dialogues, notifications : radius 8, bordure + ombre « pop ». Les confirmations destructrices nomment l’objet et l’effet.</p>
+  <div class="doc-grid g3">
+    ${spec('Menu', `<div class="pop"><div class="pop-label">Exporter</div><div class="pop-item">${ic('download')}CSV</div><div class="pop-item">${ic('download')}JSON</div><div class="pop-sep"></div><div class="pop-item">${ic('share')}Copier le lien<span class="hint">⌘L</span></div></div>`)}
+    ${spec('Dialogue', `<div class="dialog"><div class="dialog-h"><h3>Supprimer la sauvegarde ?</h3></div><div class="dialog-b">« backup_2026-11-22 03-00-00.json » sera supprimée définitivement. Les données de lecture ne sont pas affectées.</div><div class="dialog-f"><button class="btn btn-ghost">Annuler</button><button class="btn btn-primary" style="background:var(--critical)">Supprimer</button></div></div>`)}
+    ${spec('Notification', `<div class="stack"><div class="toast"><span class="ok">${ic('check')}</span>Synchronisation terminée · 1 248 éléments</div><div class="toast">${ic('alert')}Échec de la sauvegarde<button class="btn btn-sm" style="background:transparent;color:inherit;border:1px solid rgba(255,255,255,.3)">Détails</button></div></div>`)}
+  </div>`;
+}
+
+/* ---------------- CHARTS ---------------- */
+function renderCharts() {
+  const tot = daily.map((d) => (d.movie + d.series + d.music) / 3600);
+  const hours = Array.from({ length: 24 }, (_, h) => sum(weekHour.map((r) => r[h])));
+  const peak = hours.indexOf(Math.max(...hours));
+  _seed = 33;
+  const stops = Array.from({ length: 24 }, (_, i) => i < 2 ? ri(18, 26) : i > 21 ? ri(60, 80) : ri(3, 9));
+  stops[23] = 92;
+  return `
+  <h1 class="doc-h1">Graphiques</h1>
+  <p class="doc-lead">Le type de graphique se choisit selon la question, la couleur vient en dernier. Marques fines (barres ≤ 24 px, extrémité arrondie 4 px, lignes 2 px), grille en filets pleins, une seule échelle par graphique, une infobulle sur chaque marque, et une légende dès qu’il y a deux séries.</p>
+  <div class="doc-grid g3">
+    ${spec('Règles fixes', `<ul class="rule-list"><li>Barres ≤ 24 px, arrondi 4 px côté valeur, carré côté base.</li><li>Écart de 2 px (couleur de fond) entre segments empilés.</li><li>Lignes 2 px ; aire à 10 % d’opacité.</li><li>Grille 1 px pleine, jamais pointillée.</li><li>Texte en encre, jamais dans la couleur de la série.</li></ul>`)}
+    ${spec('Interdits', `<ul class="rule-list"><li class="dont">Double axe Y (vu dans « Activity combined »).</li><li class="dont">Camembert pour comparer &gt; 3 valeurs proches.</li><li class="dont">Une valeur sur chaque point.</li><li class="dont">Couleurs régénérées par rotation de teinte.</li><li class="dont">Animation d’entrée.</li></ul>`)}
+    ${spec('Couleur selon le rôle', `<ul class="rule-list"><li><b>1 série</b> → accent.</li><li><b>Type de média</b> → film / série / musique, partout identiques.</li><li><b>Intensité</b> → échelle séquentielle bleue.</li><li><b>Statut</b> → bon / attention / sérieux, avec libellé.</li><li><b>Mise en avant</b> → une barre accent, les autres atténuées.</li></ul>`)}
+  </div>
+
+  <h2 class="doc-h2">Évolution dans le temps</h2><p class="doc-sub">Ligne + aire pour une métrique continue ; la période précédente en filet gris pour comparer. Survole pour le réticule.</p>
+  ${card('Temps de lecture', '30 derniers jours, en heures · période précédente en gris', lineChart({ labels: DAYLBL, series: [{ name: 'Temps de lecture', color: 'var(--accent)', values: tot }], compare: { name: '30 j précédents', values: dailyPrev.map((d) => d.total / 3600) }, yFmt: (v) => `${fmtN(v)} h`, width: 1160 }), { action: `<div class="legend"><span><i class="line" style="background:var(--accent)"></i>Cette période</span><span><i class="line" style="background:var(--axis)"></i>Précédente</span></div>` })}
+
+  <div class="doc-grid g2" style="margin-top:var(--s-4)">
+    ${card('Par type de média', 'heures par jour, empilées', stackedColumns({ labels: DAYLBL, series: [{ name: 'Films', color: 'var(--t-movie)', values: daily.map((d) => d.movie / 3600) }, { name: 'Séries', color: 'var(--t-series)', values: daily.map((d) => d.series / 3600) }, { name: 'Musique', color: 'var(--t-music)', values: daily.map((d) => d.music / 3600) }], yFmt: (v) => `${fmtN(v)} h`, xEvery: 7, width: 560 }), { action: `<div class="legend">${['movie', 'series', 'music'].map((t) => `<span><i style="background:${TYPE[t].color}"></i>${TYPE[t].label}</span>`).join('')}</div>` })}
+    ${card('Heure de la journée', `pic à ${fmtHour(peak)} · vues, 30 derniers jours`, columns({ labels: hours.map((_, h) => fmtHour(h)), values: hours, emphasis: peak, xEvery: 3, width: 560, name: 'Vues' }))}
+  </div>
+
+  <h2 class="doc-h2">Rythmes</h2><p class="doc-sub">Heatmap jour × heure et calendrier annuel : une seule teinte, du clair au foncé, avec une légende d’échelle. La semaine commence le lundi.</p>
+  <div class="doc-grid g2">
+    ${card('Jour × heure', 'vues, 30 derniers jours', weekHeatmap(weekHour, { width: 560 }))}
+    ${card('Calendrier', '12 derniers mois · série en cours : 9 jours', calendarHeatmap(year, { width: 560 }))}
+  </div>
+
+  <h2 class="doc-h2">Parts d’un tout</h2><p class="doc-sub">Barre segmentée (≤ 6 parts) au lieu du camembert ; bar list pour un classement.</p>
+  <div class="doc-grid g2">
+    ${card('Méthode de lecture', '% des vues, 30 derniers jours', segBar([{ label: 'Direct play', value: 68, color: 'var(--m-direct)', ink: 'var(--m-direct-ink)' }, { label: 'Direct stream', value: 14, color: 'var(--m-stream)', ink: 'var(--m-stream-ink)' }, { label: 'Transcodage', value: 18, color: 'var(--m-transcode)', ink: 'var(--m-transcode-ink)' }]))}
+    ${card('Clients', 'vues, 30 derniers jours', barList(CLIENTS.map(([c, d], i) => ({ label: c, value: [980, 712, 455, 301, 188, 76][i], lead: `<span class="muted">${ic('monitor')}</span>` })), { head: ['Client', 'Vues'] }))}
+  </div>
+
+  <h2 class="doc-h2">Spécifiques à Jellystics</h2><p class="doc-sub">Les graphiques que permettent les nouvelles données (vue/clic, position de départ et d’arrêt, temps réel).</p>
+  <div class="doc-grid g2">
+    ${card('Entonnoir de complétion', 'Les Rivages · tous les utilisateurs', funnel([{ label: 'Clics', value: 61 }, { label: 'Vues (≥ 30 s)', value: 48 }, { label: 'Moitié atteinte', value: 37 }, { label: 'Terminé (≥ 90 %)', value: 29 }], { width: 560 }))}
+    ${card('Rétention par épisode', 'Station Nord · spectateurs uniques', dropoff([[6, 6, 5, 5, 5, 5, 4, 5], [4, 4, 4, 3, 4, 3, 3, 3], [3, 3, 3, 2, 3, 2, 2, 2, 2, 2]], { width: 560 }))}
+    ${card('Où les gens s’arrêtent', 'Les Rivages · position d’arrêt (2 h 08)', stopHistogram(stops, 128, { width: 560 }))}
+    ${card('Tendance dans une tuile', 'sparkline : 30 points, la fin en accent', `<div class="row" style="gap:24px;padding:12px 0">${spark(dailyViews, { width: 160, height: 40 })}${spark(dailyClicks, { width: 160, height: 40, color: 'var(--t-music)' })}</div><p class="note">Toujours sans axe ; la valeur et le delta sont écrits à côté.</p>`)}
+  </div>`;
+}
+
+/* ---------------- ARCHITECTURE ---------------- */
+function renderArchitecture() {
+  const cur = `<span class="cm"># Aujourd’hui</span>
+/                          Dashboard
+/activity                  Activité (tableau)
+/activity/timeline         Timeline (calendrier)        <span class="cm">← entrée séparée</span>
+/libraries                 Bibliothèques
+/libraries/:id             Bibliothèque
+/libraries/:lib/items/:id  Item      <span class="cm">← :lib jamais lu</span>
+/libraries/:lib/albums/:id Album     <span class="cm">← 2e page album</span>
+/items/:id                 Item (film, série, épisode, album, piste)
+/users                     Utilisateurs
+/users/:id                 Utilisateur (?view=)
+/statistics                Statistiques <span class="cm">← 7/9 widgets en double</span>
+/settings                  Réglages (?view=)
+/about                     À propos
+/setup                     <span class="cm">← inatteignable</span>`;
+  const next = `<span class="cm"># Proposé</span>
+/                                   Vue d’ensemble
+/live                               <span class="new">En direct</span>
+/history                            Historique <span class="chg">?view=table|calendar</span>   <span class="cm">(fusion activity + timeline)</span>
+/libraries                          Bibliothèques
+/libraries/:libraryId               Bibliothèque <span class="chg">?tab=items|stats|activity</span>
+/movies/:id                         <span class="new">Film</span>
+/series/:id                         <span class="new">Série</span> <span class="chg">?season=2&amp;tab=episodes|viewers|history</span>
+/series/:id/episodes/:episodeId     <span class="new">Épisode</span>   <span class="cm">(page légère)</span>
+/artists/:id                        <span class="new">Artiste</span>
+/albums/:id                         <span class="new">Album</span>     <span class="cm">(une seule page)</span>
+<span class="cm">  pistes                            → lignes dans album / artiste, pas de page</span>
+/users                              Utilisateurs
+/users/:id                          Utilisateur <span class="chg">?tab=overview|history|taste</span>
+/users/:id/recap/:period            <span class="new">Récap</span>   <span class="cm">(2026, 2026-11)</span>
+/insights                           <span class="new">Insights</span>  <span class="cm">(remplace /statistics)</span>
+/discover                           <span class="new">Découverte</span>
+/playback                           <span class="new">Lecture & transcodage</span>
+/settings/:section                  Réglages
+<span class="gone">/statistics  /items/:id  /libraries/:lib/items/:id  /activity/timeline  /setup</span>  <span class="cm">→ redirections</span>
+
+<span class="cm"># Paramètres globaux, conservés d’une page à l’autre</span>
+?range=7d|30d|90d|mtd|ytd|all   ou   ?from=2026-10-01&amp;to=2026-10-31
+?compare=1   ?user=:id   ?type=movie|series|music`;
+  const decisions = [
+    ['Épisode', 'Oui, page légère', 'good', 'Son contenu propre existe grâce aux nouvelles données : entonnoir clics → vues → 50 % → 90 %, histogramme des positions d’arrêt, qui a regardé et quand, épisodes précédent/suivant. Sans ça, ce serait une ligne de tableau. Dans la page série, chaque ligne d’épisode montre déjà vues, spectateurs et complétion ; on n’ouvre la page que pour le détail.'],
+    ['Piste (musique)', 'Non : des colonnes', 'critical', 'L’écoute est volumineuse et répétitive : une page par piste serait presque vide. Les pistes vivent en lignes dans les pages album et artiste, avec vues, clics, <b>taux de skip</b> (clics − vues) et auditeurs. Un clic sur une ligne ouvre un panneau latéral (historique de la piste) au lieu d’une page.'],
+    ['Saison', 'Non : un filtre', 'critical', 'Une saison est un regroupement d’épisodes, pas une entité qu’on consulte. <code>/series/:id?season=2</code> filtre la page série (onglets de saison).'],
+    ['Artiste', 'Oui', 'good', 'Aujourd’hui sans URL (simple dépliage local). Une vraie page : albums, top pistes avec skip, auditeurs, évolution. C’est l’équivalent musical de la série.'],
+    ['Album', 'Oui, une seule page', 'good', 'Il existe deux pages album au contenu différent selon le point d’entrée. On fusionne : pistes + auditeurs + historique.'],
+    ['Client / appareil', 'Non : un filtre', 'warning', 'Pas de page dédiée : la page Lecture & transcodage les classe, et chaque ligne mène à <code>/history?client=…</code>.'],
+    ['Statistiques', 'Supprimée', 'critical', '7 de ses 9 widgets sont déjà sur l’Accueil. Ce qui lui est propre (complétion, binge, rythmes, pauses) part dans <b>Insights</b>.'],
+    ['Activité + Timeline', 'Fusionnées', 'warning', 'Mêmes données, deux vues : <code>/history?view=table|calendar</code>, une seule entrée dans la navigation.'],
+  ];
+  const links = [['Tout nom de contenu', 'sa page (film, série, épisode, artiste, album)'], ['Tout avatar / nom d’utilisateur', '/users/:id (période conservée)'], ['Session en direct', 'contenu, utilisateur, et /history filtré sur la session'], ['Barre / point d’un graphique', 'la vue filtrée correspondante (ex. jour → /history?from=…&to=…)'], ['Ligne de client, appareil, méthode', '/history?client=… / ?method=transcode'], ['Épisode', 'sa série (fil d’Ariane) + précédent / suivant'], ['Piste', 'son album et son artiste'], ['Tuile de chiffre', 'change la métrique du graphique (vue d’ensemble) ou ouvre la liste détaillée']];
+  return `
+  <h1 class="doc-h1">Architecture</h1>
+  <p class="doc-lead">Une URL par entité, des URL lisibles par type (<code>/series/:id</code> plutôt que <code>/items/:id</code>), la période et les filtres dans l’URL (partageables, compatibles avec le bouton retour), un fil d’Ariane partout, et aucun cul-de-sac : chaque nom affiché est un lien.</p>
+  <div class="compare">
+    ${spec('Plan actuel', `<div class="tree">${cur}</div>`)}
+    ${spec('Plan proposé', `<div class="tree">${next}</div>`)}
+  </div>
+
+  <h2 class="doc-h2">Navigation principale</h2><p class="doc-sub">Deux groupes : observer (ce qui se passe) et comprendre (analyses). La recherche globale (⌘K) donne accès à toute entité.</p>
+  <div class="doc-grid g3">
+    ${spec('Observer', `<div class="stack">${[['home', 'Vue d’ensemble', '/'], ['live', 'En direct', '/live'], ['history', 'Historique', '/history']].map(([i, l, p]) => `<div class="nav-item">${ic(i)}${l}<span class="cnt mono">${p}</span></div>`).join('')}</div>`)}
+    ${spec('Explorer', `<div class="stack">${[['library', 'Bibliothèques', '/libraries'], ['users', 'Utilisateurs', '/users']].map(([i, l, p]) => `<div class="nav-item">${ic(i)}${l}<span class="cnt mono">${p}</span></div>`).join('')}</div>`)}
+    ${spec('Comprendre', `<div class="stack">${[['insights', 'Insights', '/insights'], ['discover', 'Découverte', '/discover'], ['gauge', 'Lecture & transcodage', '/playback']].map(([i, l, p]) => `<div class="nav-item">${ic(i)}${l}<span class="cnt mono">${p}</span></div>`).join('')}</div>`)}
+  </div>
+
+  <h2 class="doc-h2">Décisions par entité</h2><p class="doc-sub">Ta question : les pages par épisode ou par morceau sont-elles utiles ? Réponse au cas par cas.</p>
+  <div class="doc-grid g2">${decisions.map(([e, v, s, t]) => `<div class="decision"><span class="verdict" style="color:var(--${s}-ink)">${v}</span><h4>${e}</h4><p>${t}</p></div>`).join('')}</div>
+
+  <h2 class="doc-h2">Règles de liens</h2><p class="doc-sub">Aujourd’hui : aucun <code>&lt;a&gt;</code> (tout en <code>navigate()</code>, pas d’ouverture dans un nouvel onglet), sessions live, « qui a regardé », graphiques et appareils sans lien.</p>
+  ${card('', '', `<table class="table" style="cursor:default"><thead><tr><th>Élément</th><th>Mène à</th></tr></thead><tbody>${links.map(([a, b]) => `<tr style="cursor:default"><td style="font-weight:550">${a}</td><td class="ink2" style="white-space:normal">${b}</td></tr>`).join('')}</tbody></table>`, { flush: true })}
+  <p class="note">Tous les liens sont de vrais <code>&lt;a href&gt;</code> : clic molette / ⌘-clic pour un nouvel onglet, focus clavier, et la période courante est conservée dans l’URL de destination.</p>`;
+}
+/* =====================================================================
+   PAGE MOCKS — rendered inside the app frame
+   ===================================================================== */
+const NAV = [
+  ['Observer', [['overview', 'home', 'Vue d’ensemble'], ['live', 'live', 'En direct', 'live'], ['history', 'history', 'Historique']]],
+  ['Explorer', [['library', 'library', 'Bibliothèques'], ['users', 'users', 'Utilisateurs']]],
+  ['Comprendre', [['insights', 'insights', 'Insights'], ['discover', 'discover', 'Découverte'], ['playback', 'gauge', 'Lecture & transcodage']]],
+];
+const PAGES = {};
+const range = `<button class="btn btn-secondary btn-sm">${ic('calendar', 14)}30 derniers jours${ic('chevD', 12)}</button>`;
+const crumbs = (items) => `<nav class="crumbs">${items.map((x, i) => i === items.length - 1 ? `<span class="here">${x[0]}</span>` : `<a href="#pages/${x[1]}">${x[0]}</a><span class="sep">/</span>`).join('')}</nav>`;
+const sessionCard = ([t, s, u, dev, m, p, paused, ty]) => `<div class="session">${art(t, ty === 'music' ? 'square' : 'thumb')}<div style="min-width:0"><div class="session-top"><div style="min-width:0"><a class="session-title" href="#pages/${ty === 'series' ? 'series' : ty === 'music' ? 'album' : 'movie'}">${t}</a><div class="session-sub">${s}</div></div>${paused ? `<span class="badge">${ic('pause', 12)}Pause</span>` : ''}</div><div class="session-meta">${avatar(u, 'sm')}<a href="#pages/user">${u.name}</a><span class="muted">·</span><span>${dev}</span>${methodBadge(m)}</div></div><div class="session-progress"><span>${fmtClock(p * (ty === 'music' ? 222 : 3600))}</span><div class="meter thin"><span style="width:${p * 100}%;background:${paused ? 'var(--ink-3)' : 'var(--accent)'}"></span></div><span>${ty === 'music' ? '3:42' : '1:00:00'}</span></div></div>`;
+const SESSIONS = [['Station Nord', 'S2 · É5 — La Fracture', USERS[2], 'Android TV · Shield', 'direct', 0.62, false, 'series'], ['Les Rivages', '2024 · 2 h 08', USERS[1], 'Jellyfin Web · Chrome', 'transcode', 0.31, true, 'movie'], ['Halo', 'Lune Pâle — Piste 3', USERS[3], 'Finamp · iPhone', 'direct', 0.8, false, 'music'], ['Brigade 9', 'S4 · É2 — Garde à vue', USERS[4], 'Swiftfin · Apple TV', 'stream', 0.12, false, 'series']];
+const totDaily = daily.map((d) => d.movie + d.series + d.music);
+
+PAGES.overview = {
+  nav: 'overview', crumbs: [['Vue d’ensemble']], url: '/?range=30d', title: 'Vue d’ensemble',
+  body: () => {
+    const metrics = {
+      time: { label: 'Temps de lecture', values: totDaily.map((v) => v / 3600), prev: dailyPrev.map((d) => d.total / 3600), fmt: (v) => `${fmtN(v)} h` },
+      views: { label: 'Vues', values: dailyViews, prev: dailyViews.map((v) => v * (0.8 + Math.sin(v) * 0.1)), fmt: fmtN },
+      clicks: { label: 'Clics', values: dailyClicks, prev: dailyClicks.map((v) => v * 0.9), fmt: fmtN },
+    };
+    window.__ovMetrics = metrics;
+    const topRows = [
+      { label: 'Station Nord', value: 412, lead: art('Station Nord', 'poster'), badge: typeBadge('series'), href: '#pages/series' },
+      { label: 'Les Rivages', value: 288, lead: art('Les Rivages', 'poster'), badge: typeBadge('movie'), href: '#pages/movie' },
+      { label: 'Halo', value: 241, lead: art('Halo', 'square'), badge: typeBadge('music'), href: '#pages/album' },
+      { label: 'Brigade 9', value: 198, lead: art('Brigade 9', 'poster'), badge: typeBadge('series'), href: '#pages/series' },
+      { label: 'Orbital', value: 133, lead: art('Orbital', 'poster'), badge: typeBadge('movie'), href: '#pages/movie' },
+      { label: 'Lune Pâle', value: 96, lead: art('Lune Pâle', 'square'), badge: typeBadge('music'), href: '#pages/artist' },
+    ];
+    return `
+    <div class="card"><div class="stat-strip" style="--n:5" id="ov-tiles">
+      <div data-metric="time">${statTile({ label: 'Temps de lecture', value: '1 248', unit: 'h', delta: '+12 %', spark: metrics.time.values, selectable: true, selected: true })}</div>
+      <div data-metric="views">${statTile({ label: 'Vues', value: fmtN(sum(dailyViews)), delta: '+8 %', spark: dailyViews, selectable: true })}</div>
+      <div data-metric="clicks">${statTile({ label: 'Clics', value: fmtN(sum(dailyClicks)), delta: '+9 %', spark: dailyClicks, selectable: true })}</div>
+      <div>${statTile({ label: 'Utilisateurs actifs', value: '6', delta: 0 })}</div>
+      <div>${statTile({ label: 'Complétion moyenne', value: '71', unit: '%', delta: '−3 pts', up: false })}</div>
+    </div><div style="padding:0 var(--s-4) var(--s-4)" id="ov-chart"></div></div>
+    <div class="doc-grid" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)">
+      ${card('Top contenus', 'vues · clic = page du contenu', barList(topRows, { head: ['Contenu', 'Vues'] }), { action: seg(['Tout', 'Films', 'Séries', 'Musique']), foot: '<span>6 sur 248</span><a href="#pages/library">Tout voir →</a>' })}
+      ${card('En direct', '4 lectures · 2 transcodages', `<div class="stack">${SESSIONS.slice(0, 2).map(sessionCard).join('')}</div>`, { action: '<span class="badge critical"><span class="live-dot" style="width:6px;height:6px"></span>Live</span>', foot: '<span>Mis à jour il y a 3 s</span><a href="#pages/live">Voir tout →</a>' })}
+    </div>
+    <div class="doc-grid g3">
+      ${card('Utilisateurs', 'temps de lecture', barList(USERS.map((u, i) => ({ label: u.name, value: [312, 248, 190, 121, 64, 21][i] * 3600, lead: avatar(u, 'sm'), href: '#pages/user' })), { head: ['Utilisateur', 'Temps'], fmt: fmtHours }))}
+      ${card('Par type', 'part du temps de lecture', segBar([{ label: 'Séries', value: sum(daily.map((d) => d.series)), color: 'var(--t-series)', fmt: '' }, { label: 'Films', value: sum(daily.map((d) => d.movie)), color: 'var(--t-movie)' }, { label: 'Musique', value: sum(daily.map((d) => d.music)), color: 'var(--t-music)' }].map((p) => ({ ...p, fmt: fmtHours(p.value) }))) + `<div style="height:16px"></div>` + segBar([{ label: 'Direct play', value: 68, color: 'var(--m-direct)', ink: 'var(--m-direct-ink)' }, { label: 'Direct stream', value: 14, color: 'var(--m-stream)', ink: 'var(--m-stream-ink)' }, { label: 'Transcodage', value: 18, color: 'var(--m-transcode)', ink: 'var(--m-transcode-ink)' }]))}
+      ${card('Quand', 'vues par jour et heure', weekHeatmap(weekHour, { width: 300 }))}
+    </div>`;
+  },
+  after: () => {
+    const draw = (k) => {
+      const m = window.__ovMetrics[k];
+      $('#ov-chart').innerHTML = `<div class="row" style="justify-content:space-between;margin:4px 0 8px"><span style="font-size:var(--fs-sm);color:var(--ink-3)">${m.label} par jour</span><div class="legend"><span><i class="line" style="background:var(--accent)"></i>30 derniers jours</span><span><i class="line" style="background:var(--axis)"></i>Période précédente</span></div></div>` + lineChart({ labels: DAYLBL, series: [{ name: m.label, color: 'var(--accent)', values: m.values }], compare: { name: 'Période précédente', values: m.prev }, yFmt: m.fmt, height: 200, width: 940 });
+    };
+    draw('time');
+    $$('#ov-tiles [data-metric]').forEach((w) => w.addEventListener('click', () => {
+      $$('#ov-tiles .stat').forEach((s) => s.classList.remove('selected'));
+      w.querySelector('.stat').classList.add('selected');
+      draw(w.dataset.metric);
+    }));
+  },
+};
+
+PAGES.live = {
+  nav: 'live', crumbs: [['En direct']], url: '/live', title: 'En direct', sub: '4 lectures en cours · mis à jour en temps réel',
+  body: () => `
+    <div class="card"><div class="stat-strip" style="--n:4">${statTile({ label: 'Lectures en cours', value: '4' })}${statTile({ label: 'Transcodages', value: '1', foot: '1 CPU · H.265 → H.264' })}${statTile({ label: 'Débit sortant', value: '38', unit: 'Mb/s' })}${statTile({ label: 'Pic du jour', value: '6', foot: 'à 21:14' })}</div></div>
+    <div class="doc-grid g2">${SESSIONS.map(sessionCard).join('')}</div>
+    ${card('Lectures simultanées', 'aujourd’hui, par tranche de 15 min', columns({ labels: Array.from({ length: 64 }, (_, i) => fmtHour(Math.floor(i / 4) + 8)), values: Array.from({ length: 64 }, (_, i) => Math.max(0, Math.round(Math.sin(i / 10) * 2 + (i > 44 ? 3 : 1) + rnd()))), xEvery: 8, height: 140, name: 'Lectures', width: 940 }))}`,
+};
+
+PAGES.history = {
+  nav: 'history', crumbs: [['Historique']], url: '/history?view=table&type=series', title: 'Historique', sub: '3 412 vues · 4 507 clics sur la période',
+  actions: `${seg([ic('list', 14) + ' Tableau', ic('calendar', 14) + ' Calendrier'])}<button class="btn btn-secondary btn-sm">${ic('download', 14)}Exporter</button>`,
+  body: () => {
+    _seed = 5;
+    const rows = Array.from({ length: 9 }, (_, i) => {
+      const ty = pick(['series', 'series', 'movie', 'music']); const u = pick(USERS);
+      const title = ty === 'series' ? pick(SERIES).name : ty === 'movie' ? pick(MOVIES) : pick(['Halo', 'Orbites', 'Sel']);
+      const sub = ty === 'series' ? `S${ri(1, 3)} · É${ri(1, 8)}` : ty === 'music' ? pick(ARTISTS).name : `${ri(2019, 2025)}`;
+      const dur = ty === 'music' ? ri(8, 240) : ri(20, 7200); const comp = ty === 'music' ? Math.min(1, dur / 220) : rnd();
+      const [c, d] = pick(CLIENTS);
+      return { ty, u, title, sub, dur, comp, client: c, dev: d, m: pick(['direct', 'direct', 'direct', 'transcode', 'stream']), view: dur >= 30, when: `${22 - Math.floor(i / 3)} nov. · ${String(23 - i * 2).padStart(2, '0')}:${String(ri(0, 59)).padStart(2, '0')}` };
+    });
+    return `
+    <div class="row"><div class="input-wrap" style="width:280px">${ic('search')}<input class="input" placeholder="Rechercher dans l’historique"></div><span class="chip" aria-pressed="true">Séries ${ic('x', 12)}</span><span class="chip">+ Utilisateur</span><span class="chip">+ Client</span><span class="chip">+ Méthode</span><span class="chip">+ Vues seulement</span></div>
+    ${card('', '', `<div class="table-wrap"><table class="table"><thead><tr><th class="sortable">Date <span class="arrow">↓</span></th><th>Utilisateur</th><th>Contenu</th><th class="num sortable">Regardé</th><th>Complétion</th><th>Appareil</th><th>Lecture</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr><td class="num muted">${r.when}</td><td><div class="cell-media">${avatar(r.u, 'sm')}<a href="#pages/user">${r.u.name}</a></div></td><td><div class="cell-media">${art(r.title, r.ty === 'music' ? 'square' : 'poster')}<div><a class="t" href="#pages/${r.ty === 'series' ? 'episode' : r.ty === 'music' ? 'album' : 'movie'}">${r.title}</a><div class="s"><span class="tkey"><i style="background:${TYPE[r.ty].color}"></i>${r.sub}</span></div></div></div></td><td class="num">${fmtDur(r.dur)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="meter thin" style="width:64px"><span style="width:${r.comp * 100}%"></span></div><span class="num muted" style="font-size:var(--fs-sm)">${fmtPct(r.comp)}</span></div></td><td><div style="font-size:var(--fs-md)">${r.client}</div><div class="muted" style="font-size:var(--fs-sm)">${r.dev}</div></td><td>${methodBadge(r.m)}</td><td>${viewBadge(r.view)}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, foot: '<span>1–9 sur 3 412</span><span class="row" style="gap:4px"><button class="btn btn-ghost btn-sm btn-icon">' + ic('chevL', 14) + '</button><button class="btn btn-ghost btn-sm btn-icon">' + ic('chevR', 14) + '</button></span>' })}`;
+  },
+};
+
+PAGES.library = {
+  nav: 'library', crumbs: [['Bibliothèques', 'library'], ['Séries']], url: '/libraries/a1b2?tab=items', title: 'Séries', sub: '4 séries · 98 épisodes · 412 Go',
+  body: () => `
+    <div class="card"><div class="stat-strip" style="--n:4">${statTile({ label: 'Temps de lecture', value: '612', unit: 'h', delta: '+18 %' })}${statTile({ label: 'Vues', value: '1 804', delta: '+11 %' })}${statTile({ label: 'Jamais vus', value: '22', unit: 'épisodes', foot: '22 % du catalogue' })}${statTile({ label: 'Complétion', value: '78', unit: '%', delta: '+2 pts' })}</div></div>
+    ${tabs(['Contenus <span class="count">4</span>', 'Statistiques', 'Activité'])}
+    ${card('', '', `<div class="table-wrap"><table class="table"><thead><tr><th>Série</th><th class="num sortable">Vues <span class="arrow">↓</span></th><th class="num">Spectateurs</th><th class="num">Temps</th><th>Rétention S1É1 → fin</th><th class="r">30 jours</th></tr></thead><tbody>${SERIES.map((s, i) => `<tr onclick="location.hash='#pages/series'"><td><div class="cell-media">${art(s.name, 'poster', '', s.color)}<div><a class="t" href="#pages/series">${s.name}</a><div class="s">${s.seasons.length} saison${s.seasons.length > 1 ? 's' : ''} · ${sum(s.seasons)} épisodes</div></div></div></td><td class="num">${fmtN([412, 198, 140, 96][i])}</td><td class="num">${[6, 4, 3, 2][i]}</td><td class="num">${fmtN([288, 141, 98, 85][i])} h</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="meter thin" style="width:90px"><span style="width:${[33, 50, 66, 20][i]}%;background:var(--t-series)"></span></div><span class="num muted" style="font-size:var(--fs-sm)">${[33, 50, 66, 20][i]} %</span></div></td><td class="r">${spark(Array.from({ length: 14 }, () => ri(1, 9)), { width: 72, height: 22, color: 'var(--t-series)' })}</td></tr>`).join('')}</tbody></table></div>`, { flush: true })}`,
+};
+
+PAGES.series = {
+  nav: 'library', crumbs: [['Bibliothèques', 'library'], ['Séries', 'library'], ['Station Nord']], url: '/series/f3c9?season=2&tab=episodes',
+  body: () => {
+    const eps = [['Le Signal', 6, 6, .94], ['Dérive', 6, 5, .88], ['Les Glaces', 5, 5, .91], ['Hivernage', 5, 4, .72], ['La Fracture', 5, 5, .86], ['Nuit polaire', 4, 4, .9], ['Silence radio', 4, 3, .61], ['Retour', 5, 4, .95]];
+    return `
+    <div class="eh">${art('Station Nord', 'poster', 'lg', ART[2])}<div style="flex:1;min-width:0"><div class="kicker">${typeBadge('series')}<a href="#pages/library">Bibliothèque Séries</a></div><h1>Station Nord</h1><div class="meta"><span>2022 – 2025</span><span>·</span><span>3 saisons · 26 épisodes</span><span>·</span><span>Drame, Science-fiction</span><span>·</span><span class="avatar-stack">${USERS.slice(0, 5).map((u) => avatar(u, 'sm')).join('')}</span><span>5 spectateurs</span></div></div><div class="ph-actions"><button class="btn btn-secondary btn-sm">${ic('ext', 14)}Jellyfin</button></div></div>
+    <div class="card"><div class="stat-strip" style="--n:5">${statTile({ label: 'Temps de lecture', value: '288', unit: 'h', delta: '+21 %' })}${statTile({ label: 'Vues', value: '412' })}${statTile({ label: 'Clics', value: '497', foot: '17 % de clics sans vue' })}${statTile({ label: 'Rétention', value: '33', unit: '%', foot: 'S1É1 → dernier épisode' })}${statTile({ label: 'Binges', value: '14', foot: '≥ 3 épisodes le même jour' })}</div></div>
+    ${card('Rétention par épisode', 'spectateurs uniques par épisode · une baisse = des gens qui décrochent', dropoff([[6, 6, 5, 5, 5, 5, 4, 5], [4, 4, 4, 3, 4, 3, 3, 3], [3, 3, 3, 2, 3, 2, 2, 2, 2, 2]], { width: 940 }))}
+    ${tabs(['Épisodes <span class="count">26</span>', 'Spectateurs <span class="count">5</span>', 'Historique'])}
+    <div class="row">${seg(['Saison 1', 'Saison 2', 'Saison 3'], 1)}</div>
+    ${card('', '', `<div class="table-wrap"><table class="table"><thead><tr><th style="width:44px">É</th><th>Titre</th><th class="num">Vues</th><th class="num">Spectateurs</th><th>Complétion moyenne</th><th class="num">Abandons</th></tr></thead><tbody>${eps.map(([t, v, s, c], i) => `<tr onclick="location.hash='#pages/episode'"><td class="num muted">${i + 1}</td><td><div class="cell-media">${art(t, 'thumb')}<a class="t" href="#pages/episode">${t}</a></div></td><td class="num">${v}</td><td class="num">${s}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="meter thin" style="width:90px"><span style="width:${c * 100}%;background:${c < .7 ? 'var(--serious)' : 'var(--accent)'}"></span></div><span class="num muted" style="font-size:var(--fs-sm)">${fmtPct(c)}</span></div></td><td class="num">${c < .7 ? `<span class="badge serious">${ic('alert', 12)}${Math.round((1 - c) * s)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`, { flush: true })}`;
+  },
+};
+
+PAGES.episode = {
+  nav: 'library', crumbs: [['Bibliothèques', 'library'], ['Séries', 'library'], ['Station Nord', 'series'], ['Saison 2', 'series'], ['É5 · La Fracture']], url: '/series/f3c9/episodes/9e01',
+  body: () => {
+    _seed = 77;
+    const stops = Array.from({ length: 20 }, (_, i) => i < 2 ? ri(1, 3) : i > 17 ? ri(3, 5) : ri(0, 1)); stops[19] = 6;
+    return `
+    <div class="eh">${art('La Fracture', 'thumb', 'md')}<div style="flex:1;min-width:0"><div class="kicker">${typeBadge('series')}<a href="#pages/series">Station Nord</a><span>·</span><span>Saison 2, épisode 5</span></div><h1>La Fracture</h1><div class="meta"><span>48 min</span><span>·</span><span>diffusé le 3 mars 2024</span></div></div><div class="ph-actions"><a class="btn btn-secondary btn-sm" href="#pages/episode">${ic('chevL', 14)}É4</a><a class="btn btn-secondary btn-sm" href="#pages/episode">É6${ic('chevR', 14)}</a></div></div>
+    <div class="card"><div class="stat-strip" style="--n:4">${statTile({ label: 'Vues', value: '5' })}${statTile({ label: 'Spectateurs', value: '5', foot: 'sur 5 de l’épisode précédent' })}${statTile({ label: 'Complétion moyenne', value: '86', unit: '%' })}${statTile({ label: 'Pauses', value: '4', unit: 'min', foot: 'en moyenne par vue' })}</div></div>
+    <div class="doc-grid g2">
+      ${card('Entonnoir', 'clics → vues → moitié → fin', funnel([{ label: 'Clics', value: 7 }, { label: 'Vues (≥ 30 s)', value: 5 }, { label: 'Moitié atteinte', value: 5 }, { label: 'Terminé (≥ 90 %)', value: 4 }], { width: 440 }))}
+      ${card('Positions d’arrêt', 'pic final = générique', stopHistogram(stops, 48, { width: 440, height: 150 }))}
+    </div>
+    ${card('Qui a regardé', '', `<table class="table"><thead><tr><th>Utilisateur</th><th>Quand</th><th class="num">Regardé</th><th>Complétion</th><th>Appareil</th></tr></thead><tbody>${USERS.slice(0, 5).map((u, i) => `<tr><td><div class="cell-media">${avatar(u, 'sm')}<a href="#pages/user">${u.name}</a></div></td><td class="num muted">${20 - i} nov. · 21:${10 + i * 7}</td><td class="num">${fmtDur([2810, 2790, 2400, 1500, 2850][i])}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="meter thin" style="width:72px"><span style="width:${[98, 97, 83, 52, 99][i]}%"></span></div><span class="num muted" style="font-size:var(--fs-sm)">${[98, 97, 83, 52, 99][i]} %</span></div></td><td class="ink2">${CLIENTS[i][1]}</td></tr>`).join('')}</tbody></table>`, { flush: true })}`;
+  },
+};
+
+PAGES.movie = {
+  nav: 'library', crumbs: [['Bibliothèques', 'library'], ['Films', 'library'], ['Les Rivages']], url: '/movies/7a2d',
+  body: () => {
+    _seed = 33;
+    const stops = Array.from({ length: 24 }, (_, i) => i < 2 ? ri(18, 26) : i > 21 ? ri(60, 80) : ri(3, 9)); stops[23] = 92;
+    return `
+    <div class="eh">${art('Les Rivages', 'poster', 'lg')}<div style="flex:1;min-width:0"><div class="kicker">${typeBadge('movie')}<a href="#pages/library">Bibliothèque Films</a></div><h1>Les Rivages</h1><div class="meta"><span>2024</span><span>·</span><span>2 h 08</span><span>·</span><span>Drame</span><span>·</span><span>4K HDR · 18,2 Go</span></div></div></div>
+    <div class="card"><div class="stat-strip" style="--n:4">${statTile({ label: 'Vues', value: '48', delta: '+6' })}${statTile({ label: 'Spectateurs', value: '5' })}${statTile({ label: 'Terminé', value: '60', unit: '%', foot: '29 vues sur 48' })}${statTile({ label: 'Transcodé', value: '21', unit: '%', foot: 'HDR → SDR principalement' })}</div></div>
+    <div class="doc-grid g2">
+      ${card('Entonnoir de complétion', '', funnel([{ label: 'Clics', value: 61 }, { label: 'Vues (≥ 30 s)', value: 48 }, { label: 'Moitié atteinte', value: 37 }, { label: 'Terminé (≥ 90 %)', value: 29 }], { width: 440 }))}
+      ${card('Où les gens s’arrêtent', 'beaucoup d’abandons dans les 10 premières minutes', stopHistogram(stops, 128, { width: 440, height: 150 }))}
+    </div>`;
+  },
+};
+
+PAGES.artist = {
+  nav: 'library', crumbs: [['Bibliothèques', 'library'], ['Musique', 'library'], ['Lune Pâle']], url: '/artists/c41e',
+  body: () => {
+    const tr = [['Rivière noire', 'Rivière noire', 182, 214, 4], ['Halo', 'Halo', 141, 160, 5], ['Basse lumière', 'Halo', 96, 151, 3], ['Sel de mer', 'Rivière noire', 77, 84, 3], ['Minuit', 'Halo', 41, 92, 2]];
+    return `
+    <div class="eh">${art('Lune Pâle', 'square', 'lg')}<div style="flex:1;min-width:0"><div class="kicker">${typeBadge('music')}<a href="#pages/library">Bibliothèque Musique</a></div><h1>Lune Pâle</h1><div class="meta"><span>2 albums · 23 pistes</span><span>·</span><span>Indie, Dream pop</span></div></div></div>
+    <div class="card"><div class="stat-strip" style="--n:4">${statTile({ label: 'Écoutes', value: '612', delta: '+40 %' })}${statTile({ label: 'Temps d’écoute', value: '37', unit: 'h' })}${statTile({ label: 'Auditeurs', value: '3' })}${statTile({ label: 'Taux de skip', value: '19', unit: '%', foot: 'clics sans écoute ≥ 30 s' })}</div></div>
+    ${card('Top pistes', 'skip = clics − écoutes', `<table class="table"><thead><tr><th style="width:36px">#</th><th>Piste</th><th>Album</th><th class="num">Écoutes</th><th class="num">Clics</th><th>Skip</th><th class="num">Auditeurs</th></tr></thead><tbody>${tr.map(([t, a, v, c, l], i) => { const sk = 1 - v / c; return `<tr><td class="num muted">${i + 1}</td><td style="font-weight:550">${t}</td><td><a href="#pages/album" class="ink2">${a}</a></td><td class="num">${v}</td><td class="num muted">${c}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="meter thin" style="width:64px"><span style="width:${sk * 100}%;background:${sk > .3 ? 'var(--serious)' : 'var(--ink-3)'}"></span></div><span class="num muted" style="font-size:var(--fs-sm)">${fmtPct(sk)}</span></div></td><td class="num">${l}</td></tr>`; }).join('')}</tbody></table>`, { flush: true })}
+    <div class="doc-grid g2">${['Halo', 'Rivière noire'].map((a, i) => `<a class="card row" style="padding:var(--s-3);gap:var(--s-3)" href="#pages/album">${art(a, 'square', 'md')}<div><div style="font-weight:600">${a}</div><div class="muted" style="font-size:var(--fs-sm)">${[2023, 2025][i]} · ${[11, 12][i]} pistes · ${[341, 271][i]} écoutes</div></div></a>`).join('')}</div>`;
+  },
+};
+
+PAGES.album = {
+  nav: 'library', crumbs: [['Bibliothèques', 'library'], ['Musique', 'library'], ['Lune Pâle', 'artist'], ['Halo']], url: '/albums/88f0',
+  body: () => `
+    <div class="eh">${art('Halo', 'square', 'lg')}<div style="flex:1;min-width:0"><div class="kicker">${typeBadge('music')}<a href="#pages/artist">Lune Pâle</a></div><h1>Halo</h1><div class="meta"><span>2023</span><span>·</span><span>11 pistes · 42 min</span></div></div></div>
+    <div class="card"><div class="stat-strip" style="--n:4">${statTile({ label: 'Écoutes', value: '341' })}${statTile({ label: 'Écoutes complètes', value: '62', unit: '%', foot: 'album en entier : 9 fois' })}${statTile({ label: 'Auditeurs', value: '3' })}${statTile({ label: 'Taux de skip', value: '16', unit: '%' })}</div></div>
+    ${card('Pistes', 'clic sur une ligne = panneau d’historique (pas de page piste)', `<table class="table table-dense"><thead><tr><th style="width:36px">#</th><th>Titre</th><th class="num">Durée</th><th class="num">Écoutes</th><th>Skip</th><th class="num">Auditeurs</th></tr></thead><tbody>${['Aube', 'Halo', 'Basse lumière', 'Minuit', 'Verre', 'Lent'].map((t, i) => { const v = [44, 141, 96, 41, 12, 7][i], c = [51, 160, 151, 92, 20, 18][i]; return `<tr><td class="num muted">${i + 1}</td><td style="font-weight:550">${t}</td><td class="num muted">${['3:12', '4:01', '3:42', '5:10', '2:58', '6:20'][i]}</td><td class="num">${v}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="meter thin" style="width:64px"><span style="width:${(1 - v / c) * 100}%;background:${1 - v / c > .3 ? 'var(--serious)' : 'var(--ink-3)'}"></span></div><span class="num muted" style="font-size:var(--fs-sm)">${fmtPct(1 - v / c)}</span></div></td><td class="num">${[3, 3, 2, 2, 1, 1][i]}</td></tr>`; }).join('')}</tbody></table>`, { flush: true })}`,
+};
+
+PAGES.users = {
+  nav: 'users', crumbs: [['Utilisateurs']], url: '/users', title: 'Utilisateurs', sub: '6 comptes suivis · 6 actifs sur la période',
+  body: () => card('', '', `<div class="table-wrap"><table class="table"><thead><tr><th>Utilisateur</th><th class="num sortable">Temps <span class="arrow">↓</span></th><th class="num">Vues</th><th>Répartition</th><th>Dernière activité</th><th class="r">30 jours</th></tr></thead><tbody>${USERS.map((u, i) => `<tr onclick="location.hash='#pages/user'"><td><div class="cell-media">${avatar(u)}<a class="t" href="#pages/user">${u.name}</a></div></td><td class="num">${fmtN([312, 248, 190, 121, 64, 21][i])} h</td><td class="num">${fmtN([980, 812, 601, 402, 188, 70][i])}</td><td style="width:160px">${segBar([{ label: 'Séries', value: ri(30, 60), color: 'var(--t-series)' }, { label: 'Films', value: ri(10, 30), color: 'var(--t-movie)' }, { label: 'Musique', value: ri(5, 40), color: 'var(--t-music)' }], { thin: true })}</td><td class="muted">${['il y a 3 min', 'il y a 1 h', 'hier', 'il y a 3 j', 'il y a 6 j', 'il y a 21 j'][i]}</td><td class="r">${spark(Array.from({ length: 14 }, () => ri(1, 9)), { width: 72, height: 22 })}</td></tr>`).join('')}</tbody></table></div>`, { flush: true }),
+};
+
+PAGES.user = {
+  nav: 'users', crumbs: [['Utilisateurs', 'users'], ['Léa']], url: '/users/lea?tab=overview&range=30d',
+  body: () => {
+    const hours = Array.from({ length: 24 }, (_, h) => Math.round(Math.exp(-((h - 22) ** 2) / 5) * 30 + Math.exp(-((h - 8) ** 2) / 3) * 8));
+    return `
+    <div class="eh">${avatar(USERS[2], 'lg')}<div style="flex:1;min-width:0"><h1>Léa</h1><div class="meta"><span>Membre depuis mars 2023</span><span>·</span><span>Appareil favori : Android TV</span><span>·</span><span class="badge critical"><span class="live-dot" style="width:6px;height:6px"></span>Regarde Station Nord</span></div></div><div class="ph-actions"><a class="btn btn-secondary btn-sm" href="#pages/recap">${ic('sparkle', 14)}Récap 2026</a></div></div>
+    ${tabs(['Aperçu', 'Historique', 'Goûts'])}
+    <div class="card"><div class="stat-strip" style="--n:5">${statTile({ label: 'Temps de lecture', value: '190', unit: 'h', delta: '+4 %' })}${statTile({ label: 'Vues', value: '601' })}${statTile({ label: 'Jours actifs', value: '26', unit: '/ 30' })}${statTile({ label: 'Série en cours', value: '9', unit: 'jours', foot: 'record : 23' })}${statTile({ label: 'Complétion', value: '82', unit: '%' })}</div></div>
+    ${card('Activité sur 12 mois', 'temps de lecture par jour', calendarHeatmap(year, { width: 940 }))}
+    <div class="doc-grid g2">
+      ${card('En cours', 'séries commencées, pas terminées', `<div class="stack">${[['Station Nord', 'S2 · É6 à suivre', .62, 'il y a 3 min'], ['Les Héritiers', 'S1 · É4 à suivre', .5, 'il y a 12 j'], ['Cartographes', 'É2 à suivre', .1, 'il y a 41 j']].map(([t, s, p, w]) => `<a class="row" style="gap:12px;padding:6px;border-radius:var(--r-md)" href="#pages/series">${art(t, 'poster')}<div style="flex:1;min-width:0"><div style="font-weight:550">${t}</div><div class="muted" style="font-size:var(--fs-sm)">${s} · ${w}</div><div class="meter thin" style="margin-top:6px"><span style="width:${p * 100}%;background:var(--t-series)"></span></div></div></a>`).join('')}</div>`)}
+      ${card('Horloge', 'pic à 22 h · vues par heure', columns({ labels: hours.map((_, h) => fmtHour(h)), values: hours, emphasis: 22, xEvery: 6, width: 440, height: 170, name: 'Vues' }))}
+    </div>
+    ${card('Profil', 'scores sur la période', `<div class="doc-grid g4">${[['Régularité', .87, 'jours actifs'], ['Découverte', .34, 'premières vues'], ['Concentration', .61, 'part du top 3'], ['Complétion', .82, 'vues terminées']].map(([l, v, s]) => `<div><div class="row" style="justify-content:space-between;font-size:var(--fs-md)"><span>${l}</span><b class="num">${fmtPct(v)}</b></div><div class="meter" style="margin:6px 0"><span style="width:${v * 100}%"></span></div><div class="muted" style="font-size:var(--fs-sm)">${s}</div></div>`).join('')}</div>`)}`;
+  },
+};
+
+PAGES.insights = {
+  nav: 'insights', crumbs: [['Insights']], url: '/insights?range=90d', title: 'Insights', sub: 'Comment on regarde : complétion, binge, rythmes, pauses',
+  body: () => `
+    <div class="doc-grid g2">
+      ${card('Distribution de complétion', 'vues par % atteint · le pic à 100 % = terminés', columns({ labels: ['0–10', '10–20', '20–30', '30–40', '40–50', '50–60', '60–70', '70–80', '80–90', '90–100'].map((x) => x + ' %'), values: [210, 96, 61, 48, 40, 44, 51, 70, 132, 1240], emphasis: 9, width: 440, name: 'Vues', xEvery: 3 }))}
+      ${card('Complétion par type', '', barList([{ label: 'Films', value: .64, fill: 'color-mix(in srgb, var(--t-movie) 18%, transparent)' }, { label: 'Séries', value: .81, fill: 'color-mix(in srgb, var(--t-series) 18%, transparent)' }, { label: 'Musique', value: .73, fill: 'color-mix(in srgb, var(--t-music) 18%, transparent)' }], { fmt: (v) => fmtPct(v), max: 1, head: ['Type', 'Terminé'] }))}
+      ${card('Binges', '≥ 3 épisodes d’une même série, le même jour', barList([{ label: 'Station Nord', value: 14, lead: art('Station Nord', 'poster'), href: '#pages/series' }, { label: 'Brigade 9', value: 9, lead: art('Brigade 9', 'poster'), href: '#pages/series' }, { label: 'Les Héritiers', value: 4, lead: art('Les Héritiers', 'poster'), href: '#pages/series' }], { head: ['Série', 'Binges'] }))}
+      ${card('Pauses', 'temps en pause / temps regardé', barList([{ label: 'Les Rivages', value: .18 }, { label: 'Orbital', value: .11 }, { label: 'Station Nord', value: .06 }, { label: 'Brigade 9', value: .04 }], { fmt: (v) => fmtPct(v), head: ['Contenu', 'Ratio'] }))}
+    </div>
+    ${card('Rythme hebdomadaire', 'vues par jour et heure, 90 jours', weekHeatmap(weekHour, { width: 940 }))}`,
+};
+
+PAGES.discover = {
+  nav: 'discover', crumbs: [['Découverte']], url: '/discover', title: 'Découverte', sub: 'Ce qui dort dans la bibliothèque, et ce qui a été abandonné',
+  body: () => `
+    <div class="card"><div class="stat-strip" style="--n:3">${statTile({ label: 'Jamais vus', value: '86', foot: '24 % du catalogue · 1,2 To' })}${statTile({ label: 'Abandonnés', value: '11', foot: 'arrêtés entre 10 et 80 %, > 60 j' })}${statTile({ label: 'Ajoutés ce mois', value: '23', foot: '9 déjà vus' })}</div></div>
+    <div class="doc-grid g2">
+      ${card('Jamais vus', 'du plus ancien ajout au plus récent', `<table class="table table-dense"><tbody>${['Atlas', 'La Grande Marée', 'Sous la glace', 'Kilomètre zéro'].map((t, i) => `<tr><td><div class="cell-media">${art(t, 'poster')}<div><a class="t" href="#pages/movie">${t}</a><div class="s">ajouté il y a ${[412, 230, 98, 12][i]} j</div></div></div></td><td class="r">${typeBadge('movie')}</td></tr>`).join('')}</tbody></table>`, { flush: true })}
+      ${card('Abandonnés', 'dernière lecture il y a plus de 60 jours', `<table class="table table-dense"><tbody>${[['Cartographes', 'Léa · É2 sur 10', .1], ['Les Héritiers', 'Hugo · S1É3 sur 12', .25], ['Orbital', 'Marc · arrêté à 54 min', .42]].map(([t, s, p]) => `<tr><td><div class="cell-media">${art(t, 'poster')}<div><a class="t" href="#pages/series">${t}</a><div class="s">${s}</div></div></div></td><td style="width:120px"><div class="meter thin"><span style="width:${p * 100}%;background:var(--serious)"></span></div></td></tr>`).join('')}</tbody></table>`, { flush: true })}
+    </div>`,
+};
+
+PAGES.playback = {
+  nav: 'playback', crumbs: [['Lecture & transcodage']], url: '/playback', title: 'Lecture & transcodage', sub: 'Santé de la lecture : direct play, transcodages, clients',
+  body: () => `
+    <div class="card"><div class="stat-strip" style="--n:4">${statTile({ label: 'Direct play', value: '68', unit: '%', delta: '+5 pts' })}${statTile({ label: 'Transcodages', value: '18', unit: '%', delta: '−4 pts', up: true })}${statTile({ label: 'Cause n°1', value: 'HDR → SDR', foot: '41 % des transcodages' })}${statTile({ label: 'Client le plus transcodé', value: 'Web', foot: '62 % de ses lectures' })}</div></div>
+    ${card('Méthode de lecture par jour', 'vues', stackedColumns({ labels: DAYLBL, series: [{ name: 'Direct play', color: 'var(--m-direct)', values: dailyViews.map((v) => Math.round(v * .68)) }, { name: 'Direct stream', color: 'var(--m-stream)', values: dailyViews.map((v) => Math.round(v * .14)) }, { name: 'Transcodage', color: 'var(--m-transcode)', values: dailyViews.map((v) => Math.round(v * .18)) }], xEvery: 7, width: 940 }), { action: `<div class="legend"><span><i style="background:var(--m-direct)"></i>Direct play</span><span><i style="background:var(--m-stream)"></i>Direct stream</span><span><i style="background:var(--m-transcode)"></i>Transcodage</span></div>` })}
+    <div class="doc-grid g2">
+      ${card('Clients', '% de transcodage', barList(CLIENTS.map(([c], i) => ({ label: c, value: [.62, .04, .02, .21, .0, .09][i], href: '#pages/history' })), { fmt: (v) => fmtPct(v), max: 1, head: ['Client', 'Transcodé'] }))}
+      ${card('Conversions', 'source → sortie', `<table class="table table-dense"><thead><tr><th>Vidéo</th><th>Audio</th><th class="num">Lectures</th></tr></thead><tbody>${[['HEVC HDR → H.264', 'TrueHD → AAC', 41], ['HEVC → H.264', '—', 22], ['—', 'DTS → AAC', 18], ['AV1 → H.264', 'Opus → AAC', 6]].map(([v, a, n]) => `<tr><td class="mono" style="font-size:12px">${v}</td><td class="mono" style="font-size:12px">${a}</td><td class="num">${n}</td></tr>`).join('')}</tbody></table>`, { flush: true })}
+    </div>`,
+};
+
+PAGES.recap = {
+  nav: 'users', crumbs: [['Utilisateurs', 'users'], ['Léa', 'user'], ['Récap 2026']], url: '/users/lea/recap/2026',
+  body: () => `
+    <div class="card" style="padding:var(--s-8) var(--s-6);text-align:center"><div class="muted" style="font-size:var(--fs-sm)">Léa · janvier – novembre 2026</div><div style="font-size:var(--fs-hero);font-weight:600;letter-spacing:-.03em;margin:8px 0 2px">1 812 h</div><div class="ink2">de lecture, soit 75 jours entiers · ${fmtN(5210)} vues · 312 jours actifs</div><div class="row" style="justify-content:center;margin-top:16px"><button class="btn btn-secondary btn-sm">${ic('share', 14)}Partager l’image</button><div class="seg">${['2026', 'Nov.', 'Oct.'].map((x, i) => `<button aria-pressed="${!i}">${x}</button>`).join('')}</div></div></div>
+    <div class="doc-grid g3">
+      ${card('Top séries', '', barList([{ label: 'Station Nord', value: 288, lead: art('Station Nord', 'poster') }, { label: 'Brigade 9', value: 141, lead: art('Brigade 9', 'poster') }, { label: 'Les Héritiers', value: 98, lead: art('Les Héritiers', 'poster') }], { fmt: (v) => `${v} h`, fill: 'color-mix(in srgb, var(--t-series) 18%, transparent)' }))}
+      ${card('Top films', '', barList([{ label: 'Les Rivages', value: 3, lead: art('Les Rivages', 'poster') }, { label: 'Orbital', value: 2, lead: art('Orbital', 'poster') }, { label: 'Atlas', value: 1, lead: art('Atlas', 'poster') }], { fmt: (v) => `${v} vue${v > 1 ? 's' : ''}`, fill: 'color-mix(in srgb, var(--t-movie) 18%, transparent)' }))}
+      ${card('Top artistes', '', barList([{ label: 'Lune Pâle', value: 37, lead: art('Lune Pâle', 'square') }, { label: 'Mira Okafor', value: 21, lead: art('Mira Okafor', 'square') }, { label: 'Les Satellites', value: 9, lead: art('Les Satellites', 'square') }], { fmt: (v) => `${v} h`, fill: 'color-mix(in srgb, var(--t-music) 18%, transparent)' }))}
+    </div>
+    ${card('Par mois', 'heures de lecture', columns({ labels: MONTHS.slice(0, 11), values: [140, 122, 151, 160, 132, 101, 188, 201, 155, 170, 192], emphasis: 7, name: 'Heures', yFmt: (v) => `${fmtN(v)} h`, width: 940 }), { foot: '<span>Mois record : août (201 h) · binge record : 9 épisodes de Station Nord le 14 août</span>' })}
+    <p class="note">Le récap reste dans la DA B (sobre, data). Une version « story » plus expressive (direction C) pourra venir plus tard pour l’export d’images.</p>`,
+};
+
+const PICK = [['overview', 'Vue d’ensemble'], ['live', 'En direct'], ['history', 'Historique'], ['library', 'Bibliothèque'], ['series', 'Série'], ['episode', 'Épisode'], ['movie', 'Film'], ['artist', 'Artiste'], ['album', 'Album'], ['users', 'Utilisateurs'], ['user', 'Utilisateur'], ['insights', 'Insights'], ['discover', 'Découverte'], ['playback', 'Lecture & transcodage'], ['recap', 'Récap']];
+
+function renderPages(current = 'overview') {
+  const p = PAGES[current] || PAGES.overview;
+  const side = `<aside class="side"><div class="side-brand"><span class="logo">${ic('logo')}</span>Jellystics</div><div class="side-search input-wrap">${ic('search')}<input class="input" placeholder="Rechercher" style="height:30px"><span class="kbd" style="position:absolute;right:8px;top:7px">⌘K</span></div>${NAV.map(([g, items]) => `<div class="side-label">${g}</div>${items.map(([k, i, l, x]) => `<a class="nav-item ${p.nav === k || (k === 'library' && p.nav === 'library') ? 'active' : ''}" href="#pages/${k}" ${p.nav === k ? 'aria-current="page"' : ''}>${ic(i)}${l}${x === 'live' ? '<span class="live-dot"></span>' : ''}</a>`).join('')}`).join('')}<div class="side-foot">${avatar(USERS[0], 'sm')}<span>Céline</span><a class="btn btn-ghost btn-icon btn-sm" style="margin-left:auto" href="#pages/overview" title="Réglages">${ic('settings')}</a></div></aside>`;
+  const header = p.title ? `<div class="ph"><div><h1>${p.title}</h1>${p.sub ? `<div class="sub">${p.sub}</div>` : ''}</div>${p.actions ? `<div class="ph-actions">${p.actions}</div>` : ''}</div>` : '';
+  return `
+  <h1 class="doc-h1">Pages</h1>
+  <p class="doc-lead">Maquettes cliquables des pages proposées, dans la DA B, avec des données fictives. Navigue avec la barre latérale, les liens dans les tableaux et le fil d’Ariane ; l’URL proposée est affichée en haut à droite.</p>
+  <div class="page-pick">${PICK.map(([k, l]) => `<a class="chip" href="#pages/${k}" aria-pressed="${k === current}">${l}</a>`).join('')}</div>
+  <div class="app">${side}<div class="app-main"><div class="app-top">${crumbs(p.crumbs)}<span class="url">${p.url}</span>${range}</div><div class="app-body">${header}${p.body()}</div></div></div>`;
+}
+/* =====================================================================
+   NOUVEAUTÉS — every chart / component we could add, tagged NEW
+   ===================================================================== */
+
+/* ---------- extra chart primitives ---------- */
+
+/* Stacked area (shares over time). series: [{name,color,values}] */
+function stackedArea({ labels, series, height = 220, width = 940, yFmt = fmtN, xEvery = 4 }) {
+  const m = { t: 10, r: 12, b: 26, l: 46 };
+  const iw = width - m.l - m.r, ih = height - m.t - m.b;
+  const totals = labels.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
+  const ymax = niceMax(Math.max(...totals) * 1.05);
+  const x = (i) => m.l + (i * iw) / (labels.length - 1), y = (v) => m.t + ih - (v / ymax) * ih;
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = (ymax * k) / 4; g += `<line x1="${m.l}" x2="${width - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${m.l - 8}" y="${y(v) + 3.5}" text-anchor="end">${yFmt(v)}</text>`; }
+  const acc = labels.map(() => 0);
+  series.forEach((s) => {
+    const lower = acc.slice(); s.values.forEach((v, i) => { acc[i] += v; });
+    const top = acc.map((v, i) => `${x(i)},${y(v)}`), bot = lower.map((v, i) => `${x(i)},${y(v)}`).reverse();
+    g += `<path d="M${top.join('L')}L${bot.join('L')}Z" fill="${s.color}" opacity=".85" stroke="var(--surface)" stroke-width="1.5"/>`;
+  });
+  labels.forEach((l, i) => { if (i % xEvery === 0) g += `<text x="${x(i)}" y="${height - 8}" text-anchor="middle">${esc(l)}</text>`; });
+  const step = iw / (labels.length - 1);
+  g += `<line class="xhair" x1="0" x2="0" y1="${m.t}" y2="${y(0)}" stroke="var(--ink-3)"/>`;
+  labels.forEach((l, i) => { g += `<rect data-x="${i}" data-cx="${x(i)}" x="${x(i) - step / 2}" y="${m.t}" width="${step}" height="${ih}" fill="transparent" data-tip="${tipData(l, series.map((s) => [s.color, s.name, yFmt(s.values[i])]).reverse())}"/>`; });
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img">${g}</svg></div>`;
+}
+
+/* Generic matrix heatmap with row/col labels (sequential) */
+function matrix({ rows, cols, values, width = 440, cell = 28, fmt = fmtN, unit = '', labelW = 120 }) {
+  const max = Math.max(...values.flat().filter((v) => v !== null));
+  const cw = Math.min(cell * 1.6, (width - labelW) / cols.length), ch = cell, top = 22;
+  const height = top + rows.length * ch + 4;
+  const steps = ['var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'var(--seq-4)', 'var(--seq-5)', 'var(--seq-6)'];
+  let g = '';
+  cols.forEach((c, j) => { g += `<text x="${labelW + j * cw + cw / 2}" y="14" text-anchor="middle">${esc(c)}</text>`; });
+  rows.forEach((r, i) => {
+    g += `<text class="lbl" x="${labelW - 8}" y="${top + i * ch + ch / 2 + 4}" text-anchor="end">${esc(r)}</text>`;
+    cols.forEach((c, j) => {
+      const v = values[i][j];
+      if (v === null) { g += `<rect x="${labelW + j * cw}" y="${top + i * ch}" width="${cw - 2}" height="${ch - 2}" rx="3" fill="transparent" stroke="var(--grid)"/>`; return; }
+      const idx = Math.min(5, Math.floor((v / max) * 5.999));
+      const dark = idx >= 3;
+      g += `<rect x="${labelW + j * cw}" y="${top + i * ch}" width="${cw - 2}" height="${ch - 2}" rx="3" fill="${v === 0 ? 'var(--seq-0)' : steps[idx]}" data-tip="${tipData(`${r} · ${c}`, [[null, unit || 'Valeur', fmt(v)]])}"/>`;
+      g += `<text x="${labelW + j * cw + (cw - 2) / 2}" y="${top + i * ch + ch / 2 + 3}" text-anchor="middle" class="mx-t ${dark ? 'hi' : 'lo'}" style="font-size:10.5px;pointer-events:none">${fmt(v)}</text>`;
+    });
+  });
+  return `<div class="chart"><svg viewBox="0 0 ${labelW + cols.length * cw} ${height}" style="max-width:${labelW + cols.length * cw}px" role="img">${g}</svg></div>`;
+}
+
+/* Scatter with quadrant labels. points: [{x,y,label,color}] */
+function scatter({ points, width = 440, height = 240, xFmt = fmtN, yFmt = fmtN, xLabel = '', yLabel = '', quad }) {
+  const m = { t: 12, r: 12, b: 34, l: 46 };
+  const iw = width - m.l - m.r, ih = height - m.t - m.b;
+  const xmax = niceMax(Math.max(...points.map((p) => p.x))), ymax = niceMax(Math.max(...points.map((p) => p.y)));
+  const x = (v) => m.l + (v / xmax) * iw, y = (v) => m.t + ih - (v / ymax) * ih;
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = (ymax * k) / 4; g += `<line x1="${m.l}" x2="${width - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${m.l - 8}" y="${y(v) + 3.5}" text-anchor="end">${yFmt(v)}</text>`; }
+  for (let k = 0; k <= 4; k++) { const v = (xmax * k) / 4; g += `<text x="${x(v)}" y="${height - 18}" text-anchor="middle">${xFmt(v)}</text>`; }
+  g += `<text x="${m.l + iw / 2}" y="${height - 3}" text-anchor="middle">${esc(xLabel)}</text><text x="${m.l}" y="${m.t - 2}" >${esc(yLabel)}</text>`;
+  if (quad) g += `<text x="${width - m.r - 4}" y="${y(0) - 6}" text-anchor="end" class="lbl-strong">${esc(quad)}</text>`;
+  points.forEach((p) => { g += `<circle cx="${x(p.x)}" cy="${y(p.y)}" r="5" fill="${p.color || 'var(--accent)'}" stroke="var(--surface)" stroke-width="2" data-tip="${tipData(p.label, [[null, xLabel, xFmt(p.x)], [null, yLabel, yFmt(p.y)]])}"/>`; });
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img">${g}</svg></div>`;
+}
+
+/* Gantt-like session timeline for one evening */
+function sessionTimeline({ rows, fromH = 18, toH = 24, width = 940 }) {
+  const lw = 90, rh = 26, top = 18, height = top + rows.length * rh + 6;
+  const x = (h) => lw + ((h - fromH) / (toH - fromH)) * (width - lw - 8);
+  let g = '';
+  for (let h = fromH; h <= toH; h++) g += `<line x1="${x(h)}" x2="${x(h)}" y1="${top - 4}" y2="${height}" stroke="var(--grid)"/><text x="${x(h)}" y="11" text-anchor="middle">${fmtHour(h % 24)}</text>`;
+  rows.forEach((r, i) => {
+    g += `<text class="lbl" x="${lw - 10}" y="${top + i * rh + 16}" text-anchor="end">${esc(r.user)}</text>`;
+    r.spans.forEach((s) => { g += `<rect x="${x(s.a)}" y="${top + i * rh + 5}" width="${Math.max(3, x(s.b) - x(s.a) - 2)}" height="14" rx="4" fill="${TYPE[s.t].color}" data-tip="${tipData(s.label, [[TYPE[s.t].color, TYPE[s.t].label, `${fmtHour(Math.floor(s.a))}${String(Math.round((s.a % 1) * 60)).padStart(2, '0')} → ${fmtHour(Math.floor(s.b) % 24)}${String(Math.round((s.b % 1) * 60)).padStart(2, '0')}`]])}"/>`; });
+  });
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Frise des lectures">${g}</svg></div>`;
+}
+
+/* Small multiples: one tiny column chart per series, shared y scale */
+function smallMultiples(items, { width = 290, height = 110 } = {}) {
+  const max = Math.max(...items.flatMap((it) => it.values));
+  return `<div class="doc-grid g3">${items.map((it) => `<div><div class="row" style="justify-content:space-between;font-size:var(--fs-sm);margin-bottom:4px"><span class="tkey"><i style="background:${it.color}"></i>${it.name}</span><span class="muted">pic ${fmtHour(it.values.indexOf(Math.max(...it.values)))}</span></div>${columnsScaled(it.values, max, it.color, width, height, it.name)}</div>`).join('')}</div>`;
+}
+function columnsScaled(values, max, color, width, height, name) {
+  const m = { t: 4, b: 16, l: 2, r: 2 }, ih = height - m.t - m.b, band = (width - m.l - m.r) / values.length, bw = Math.max(2, Math.min(10, band - 2));
+  let g = '';
+  values.forEach((v, i) => { const h = (v / max) * ih; g += `<path d="${barPath(m.l + band * i + (band - bw) / 2, m.t + ih - h, bw, h, 2)}" fill="${color}"/><rect x="${m.l + band * i}" y="${m.t}" width="${band}" height="${ih}" fill="transparent" data-tip="${tipData(`${name} · ${fmtHour(i)}`, [[color, 'Vues', fmtN(v)]])}"/>`; });
+  g += `<line x1="0" x2="${width}" y1="${m.t + ih}" y2="${m.t + ih}" stroke="var(--axis)"/>`;
+  [0, 6, 12, 18].forEach((h) => { g += `<text x="${m.l + band * h + band / 2}" y="${height - 3}" text-anchor="middle" style="font-size:10px">${fmtHour(h)}</text>`; });
+  return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img">${g}</svg></div>`;
+}
+
+/* ---------- NEW card wrapper ---------- */
+const newBadge = `<span class="badge new"><span class="dot"></span>NEW</span>`;
+const dataBadge = (state) => state === 'ok'
+  ? `<span class="badge good">${ic('check', 12)}Données collectées</span>`
+  : state === 'catalog' ? `<span class="badge good">${ic('check', 12)}Catalogue synchronisé</span>`
+  : `<span class="badge warning">${ic('zap', 12)}À capter</span>`;
+let NSTATES = [];
+function ncard({ title, q, data, state = 'ok', page, body, span = 1 }) {
+  NSTATES.push(state);
+  return `<section class="card ncard" style="grid-column: span ${span}"><div class="card-h" style="align-items:flex-start"><div style="min-width:0"><div class="row" style="gap:8px;margin-bottom:4px">${newBadge}<h3>${title}</h3></div><div class="sub">${q}</div></div></div><div class="card-b">${body}</div><div class="card-f" style="flex-wrap:wrap;gap:6px 12px;justify-content:flex-start"><span class="row" style="gap:6px">${dataBadge(state)}<span class="mono" style="font-size:11px">${data}</span></span><span style="margin-left:auto">→ <a href="#pages/${page[1]}">${page[0]}</a></span></div></section>`;
+}
+const ngroup = (title, sub, cards) => `<h2 class="doc-h2" id="new-${title.toLowerCase().replace(/[^a-z]+/g, '-')}">${title}</h2><p class="doc-sub">${sub}</p><div class="doc-grid g2">${cards.join('')}</div>`;
+
+function renderNew() {
+  _seed = 101;
+  NSTATES = [];
+  const H = Array.from({ length: 24 }, (_, h) => h);
+  const weeks = Array.from({ length: 12 }, (_, i) => { const d = new Date(TODAY); d.setDate(d.getDate() - (11 - i) * 7); return fmtDay(d); });
+  const months = MONTHS.slice(0, 11);
+  const genre = (base, amp) => months.map((_, i) => Math.max(5, Math.round(base + Math.sin(i / 1.7 + amp) * base * 0.35 + rnd() * 10)));
+
+  /* --- Vue d'ensemble & live --- */
+  const overview = [
+    ncard({ title: 'Pic de flux simultanés', q: 'Combien de lectures en même temps, au maximum, chaque jour ? (dimensionner le serveur)', data: 'StartedAt / EndedAt', page: ['Vue d’ensemble', 'overview'], body: (() => { const v = DAYS30.map((d) => ri(2, 4) + (d.getDay() % 6 === 0 ? 2 : 0)); v[22] = 7; return columns({ labels: DAYLBL, values: v, xEvery: 6, width: 440, height: 160, name: 'Flux max', emphasis: v.indexOf(Math.max(...v)) }); })() }),
+    ncard({ title: 'Frise de la soirée', q: 'Qui regardait quoi, et quand les lectures se chevauchent-elles ?', data: 'StartedAt / EndedAt · MediaType', page: ['En direct', 'live'], body: sessionTimeline({ width: 440, rows: [{ user: 'Léa', spans: [{ a: 20.2, b: 21.0, t: 'series', label: 'Station Nord S2É4' }, { a: 21.05, b: 21.85, t: 'series', label: 'Station Nord S2É5' }] }, { user: 'Marc', spans: [{ a: 20.8, b: 22.95, t: 'movie', label: 'Les Rivages' }] }, { user: 'Hugo', spans: [{ a: 18.3, b: 19.1, t: 'music', label: 'Halo' }, { a: 22.1, b: 23.4, t: 'series', label: 'Brigade 9' }] }, { user: 'Inès', spans: [{ a: 21.4, b: 22.2, t: 'series', label: 'Brigade 9 S4É2' }] }] }) }),
+    ncard({ title: 'Débit sortant en direct', q: 'Quelle bande passante consomment les lectures en cours ?', data: 'TranscodingInfo.Bitrate · MediaSource.Bitrate', state: 'todo', page: ['En direct', 'live'], body: `<div class="row" style="justify-content:space-between;align-items:flex-end"><div><div class="stat-value">38<small>Mb/s</small></div><div class="muted" style="font-size:var(--fs-sm)">sur 100 Mb/s d’upload configurés</div></div>${spark([12, 14, 18, 22, 21, 30, 34, 38, 36, 38], { width: 140, height: 40 })}</div><div class="meter" style="margin-top:12px"><span style="width:38%"></span></div><div class="stack" style="margin-top:12px;font-size:var(--fs-sm)">${[['Les Rivages · Marc', 21, 'transcode'], ['Station Nord · Léa', 12, 'direct'], ['Brigade 9 · Inès', 4, 'stream'], ['Halo · Hugo', 0.3, 'direct']].map(([l, v, m]) => `<div class="row" style="justify-content:space-between"><span class="row" style="gap:8px">${methodBadge(m)}${l}</span><span class="num">${String(v).replace('.', ',')} Mb/s</span></div>`).join('')}</div>` }),
+    ncard({ title: 'Ce jour-là', q: 'Ce qu’on regardait il y a un an, jour pour jour.', data: 'StartedAt (historique)', page: ['Vue d’ensemble', 'overview'], body: `<div class="stack">${[['Les Héritiers', 'S1É1 · Hugo, Léa', 'series'], ['Orbital', 'Marc', 'movie'], ['Rivière noire', 'Lune Pâle · Céline', 'music']].map(([t, s, ty]) => `<div class="row" style="gap:12px">${art(t, ty === 'music' ? 'square' : 'poster')}<div><div style="font-weight:550">${t}</div><div class="muted" style="font-size:var(--fs-sm)">${s}</div></div><span style="margin-left:auto">${typeBadge(ty)}</span></div>`).join('')}</div><p class="note">22 novembre 2025</p>` }),
+  ];
+
+  /* --- Historique & comportements --- */
+  const behaviour = [
+    ncard({ title: 'Durée des séances', q: 'Combien de temps dure une séance typique ?', data: 'PlaybackDuration', page: ['Insights', 'insights'], body: columns({ labels: ['< 1 min', '1–5', '5–15', '15–30', '30–45', '45–60', '1–1,5 h', '1,5–2 h', '> 2 h'], values: [410, 260, 190, 340, 610, 520, 300, 210, 90], emphasis: 4, width: 440, height: 170, name: 'Séances' }) }),
+    ncard({ title: 'Reprises vs depuis le début', q: 'Les gens reprennent-ils là où ils s’étaient arrêtés ?', data: 'PositionTicksStart', page: ['Insights', 'insights'], body: segBar([{ label: 'Depuis le début', value: 71, color: 'var(--m-direct)', ink: 'var(--m-direct-ink)' }, { label: 'Reprise', value: 29, color: 'var(--m-transcode)', ink: 'var(--m-transcode-ink)' }]) + `<div style="height:14px"></div>` + barList([{ label: 'Films', value: .41 }, { label: 'Séries', value: .22 }, { label: 'Musique', value: .03 }], { fmt: (v) => fmtPct(v), max: 1, head: ['Type', 'Part reprise'] }) }),
+    ncard({ title: 'Séances pour finir un film', q: 'Un film se regarde-t-il d’une traite ?', data: 'ItemId × UserId · PositionTicksEnd', page: ['Film', 'movie'], body: columns({ labels: ['1 fois', '2 fois', '3 fois', '4 +'], values: [62, 24, 9, 5], emphasis: 0, width: 440, height: 160, name: '% des films terminés', yFmt: (v) => `${fmtN(v)} %` }) }),
+    ncard({ title: 'Cadence entre épisodes', q: 'Délai avant l’épisode suivant : autoplay, le soir même, ou la semaine suivante ?', data: 'StartedAt · EpisodeId (consécutifs)', page: ['Série', 'series'], body: columns({ labels: ['< 1 min', '1–15 min', '15–60 min', 'même jour', 'lendemain', '2–7 j', '> 7 j'], values: [420, 130, 60, 80, 190, 110, 70], emphasis: 0, width: 440, height: 170, name: 'Enchaînements' }) }),
+    ncard({ title: 'Faux départs par client', q: 'Quels clients démarrent puis coupent dans les 30 s ? (souvent un problème de lecture)', data: 'IsView = false · Client · PlayMethod', page: ['Lecture & transcodage', 'playback'], body: barList(CLIENTS.map(([c], i) => ({ label: c, value: [.21, .06, .04, .14, .31, .08][i], badge: i === 0 ? `<span class="badge serious">${ic('cpu', 12)}62 % transcodé</span>` : '' })), { fmt: (v) => fmtPct(v), max: .4, head: ['Client', 'Clics sans vue'] }) + `<p class="note">Finamp est élevé pour une raison normale : le skip musical.</p>` }),
+    ncard({ title: 'Revisionnages', q: 'Quels contenus sont regardés plusieurs fois par la même personne ?', data: 'ItemId × UserId (vues ≥ 2)', page: ['Insights', 'insights'], body: barList([{ label: 'Les Rivages', value: 5, lead: art('Les Rivages', 'poster'), extra: [[null, 'par', 'Marc']] }, { label: 'Halo (album)', value: 41, lead: art('Halo', 'square'), extra: [[null, 'par', 'Hugo']] }, { label: 'Orbital', value: 3, lead: art('Orbital', 'poster') }, { label: 'Station Nord S1É1', value: 3, lead: art('Station Nord', 'poster') }], { head: ['Contenu', 'Vues max / personne'] }) }),
+  ];
+
+  /* --- Séries / films / catalogue --- */
+  const catalog = [
+    ncard({ title: 'Délai sortie → visionnage', q: 'Les épisodes sont-ils vus dès leur sortie ou rattrapés plus tard ?', data: 'PremiereDate (catalogue) · StartedAt', state: 'catalog', page: ['Série', 'series'], body: columns({ labels: ['< 24 h', '1–7 j', '1–4 sem.', '1–6 mois', '6–12 mois', '> 1 an'], values: [18, 34, 21, 40, 22, 65], emphasis: 5, width: 440, height: 160, name: 'Épisodes' }) }),
+    ncard({ title: 'Décennies regardées vs catalogue', q: 'Regarde-t-on surtout du récent alors que la bibliothèque est ancienne ?', data: 'ProductionYear (catalogue)', state: 'catalog', page: ['Bibliothèque', 'library'], body: `<div class="legend" style="margin-bottom:8px"><span><i style="background:var(--accent)"></i>Part des vues</span><span><i style="background:var(--seq-2)"></i>Part du catalogue</span></div>` + (() => { const dec = ['1970', '1980', '1990', '2000', '2010', '2020']; const v = [2, 4, 9, 14, 28, 43], c = [6, 9, 15, 22, 27, 21]; return `<div class="stack" style="gap:6px">${dec.map((d, i) => `<div class="row" style="gap:10px;font-size:var(--fs-sm);flex-wrap:nowrap"><span class="num" style="width:44px">${d}s</span><div style="flex:1" class="stack"><div style="height:8px;width:${v[i] * 2}%;background:var(--accent);border-radius:0 4px 4px 0" data-tip="${tipData(d + 's', [['var(--accent)', 'Vues', v[i] + ' %'], ['var(--seq-2)', 'Catalogue', c[i] + ' %']])}"></div><div style="height:8px;width:${c[i] * 2}%;background:var(--seq-2);border-radius:0 4px 4px 0"></div></div></div>`).join('')}</div>`; })() }),
+    ncard({ title: 'Genres dans le temps', q: 'Comment les goûts évoluent-ils mois après mois ? (top 3 + autres)', data: 'Genres (catalogue) · PlaybackDuration', state: 'catalog', page: ['Insights', 'insights'], span: 2, body: `<div class="legend" style="margin-bottom:6px"><span><i style="background:var(--t-movie)"></i>Drame</span><span><i style="background:var(--t-series)"></i>Science-fiction</span><span><i style="background:var(--t-music)"></i>Comédie</span><span><i style="background:var(--axis)"></i>Autres</span></div>` + stackedArea({ labels: months, series: [{ name: 'Autres', color: 'var(--axis)', values: genre(40, 3) }, { name: 'Comédie', color: 'var(--t-music)', values: genre(30, 2) }, { name: 'Science-fiction', color: 'var(--t-series)', values: genre(45, 1) }, { name: 'Drame', color: 'var(--t-movie)', values: genre(60, 0) }], yFmt: (v) => `${fmtN(v)} h`, xEvery: 2 }) }),
+    ncard({ title: 'Stockage vs visionnage', q: 'Quels gros fichiers occupent de la place sans jamais être regardés ?', data: 'MediaSource.Size (catalogue) · vues', state: 'catalog', page: ['Découverte', 'discover'], body: scatter({ points: [['Atlas', 48, 0], ['La Grande Marée', 62, 0], ['Les Rivages', 18, 48], ['Orbital', 22, 31], ['Sous la glace', 35, 1], ['Kilomètre zéro', 9, 6], ['Nuit blanche', 14, 12], ['Le Dernier Phare', 55, 2]].map(([label, x, y]) => ({ label, x, y, color: y === 0 ? 'var(--serious)' : 'var(--accent)' })), xLabel: 'Taille (Go)', yLabel: 'Vues', quad: 'gros et jamais vus ↘', xFmt: (v) => `${fmtN(v)} Go` }) }),
+    ncard({ title: 'Croissance vs consommation', q: 'La bibliothèque grandit-elle plus vite qu’on ne la regarde ?', data: 'DateCreated (catalogue) · première vue', state: 'catalog', page: ['Bibliothèque', 'library'], body: `<div class="legend" style="margin-bottom:6px"><span><i class="line" style="background:var(--accent)"></i>Ajoutés</span><span><i class="line" style="background:var(--t-music)"></i>Vus pour la 1ʳᵉ fois</span></div>` + lineChart({ labels: months, series: [{ name: 'Ajoutés', color: 'var(--accent)', values: [12, 30, 18, 22, 40, 15, 9, 33, 21, 26, 23] }, { name: '1ʳᵉ vue', color: 'var(--t-music)', values: [10, 14, 16, 15, 19, 17, 12, 18, 20, 16, 9] }], area: false, width: 440, height: 180, xEvery: 2 }) }),
+  ];
+
+  /* --- Qualité & langues --- */
+  const quality = [
+    ncard({ title: 'Résolution réellement servie', q: 'Les fichiers 4K sont-ils regardés en 4K ?', data: 'MediaStreams (Height) · TranscodingInfo', page: ['Lecture & transcodage', 'playback'], body: segBar([{ label: '4K', value: 18, color: 'var(--seq-6)' }, { label: '1080p', value: 61, color: 'var(--seq-4)' }, { label: '720p', value: 15, color: 'var(--seq-3)', ink: '#0b0b0b' }, { label: 'SD', value: 6, color: 'var(--seq-2)', ink: '#0b0b0b' }]) + `<p class="note">36 % des lectures de fichiers 4K sont descendues en 1080p (client ou bande passante).</p>` }),
+    ncard({ title: 'HDR', q: 'Part des lectures HDR, et combien sont converties en SDR ?', data: 'MediaStreams (VideoRange) · TranscodingInfo', page: ['Lecture & transcodage', 'playback'], body: segBar([{ label: 'HDR natif', value: 11, color: 'var(--m-direct)', ink: 'var(--m-direct-ink)' }, { label: 'HDR → SDR (tone mapping)', value: 9, color: 'var(--m-stream)', ink: 'var(--m-stream-ink)' }, { label: 'SDR', value: 80, color: 'var(--m-transcode)', ink: 'var(--m-transcode-ink)' }]) }),
+    ncard({ title: 'VO ou VF, par utilisateur', q: 'Qui regarde en version originale, avec ou sans sous-titres ?', data: 'PlayState.AudioStreamIndex · SubtitleStreamIndex', state: 'todo', page: ['Utilisateur', 'user'], body: `<div class="stack" style="gap:10px">${USERS.slice(0, 5).map((u, i) => { const vo = [.82, .2, .64, .9, .35][i], st = [.7, .05, .5, .2, .3][i]; return `<div class="row" style="gap:10px;flex-wrap:nowrap">${avatar(u, 'sm')}<span style="width:48px;font-size:var(--fs-md)">${u.name}</span><div style="flex:1">${segBar([{ label: 'VO sous-titrée', value: vo * st, color: 'var(--m-direct)' }, { label: 'VO', value: vo * (1 - st), color: 'var(--m-stream)' }, { label: 'VF', value: 1 - vo, color: 'var(--m-transcode)' }], { thin: true })}</div><span class="num muted" style="font-size:var(--fs-sm);width:44px;text-align:right">${fmtPct(vo)}</span></div>`; }).join('')}</div><div class="legend" style="margin-top:12px"><span><i style="background:var(--m-direct)"></i>VO sous-titrée</span><span><i style="background:var(--m-stream)"></i>VO</span><span><i style="background:var(--m-transcode)"></i>VF</span></div>` }),
+    ncard({ title: 'Pourquoi ça transcode', q: 'Les raisons exactes données par Jellyfin.', data: 'TranscodingInfo.TranscodeReasons', state: 'todo', page: ['Lecture & transcodage', 'playback'], body: barList([{ label: 'Plage vidéo non supportée (HDR)', value: 41 }, { label: 'Codec audio non supporté', value: 27 }, { label: 'Débit trop élevé', value: 16 }, { label: 'Sous-titres incrustés (PGS)', value: 11 }, { label: 'Conteneur non supporté', value: 5 }], { fmt: (v) => `${v} %`, head: ['Raison', 'Part'] }) }),
+    ncard({ title: 'Conversions source → sortie', q: 'Quels couples de codecs coûtent le plus ?', data: 'MediaStreams · TranscodingInfo', page: ['Lecture & transcodage', 'playback'], body: matrix({ rows: ['HEVC 10 bit', 'HEVC', 'AV1', 'H.264'], cols: ['H.264', 'HEVC', 'Copie'], values: [[41, 3, 12], [22, null, 31], [6, 1, 2], [2, null, 180]], unit: 'Lectures', width: 440 }) }),
+    ncard({ title: 'Vidéo ou audio seul', q: 'Un transcodage audio seul est léger ; un transcodage vidéo, non.', data: 'TranscodingInfo.IsVideoDirect / IsAudioDirect', page: ['Lecture & transcodage', 'playback'], body: segBar([{ label: 'Audio seul', value: 46, color: 'var(--m-transcode)', ink: 'var(--m-transcode-ink)' }, { label: 'Vidéo seule', value: 21, color: 'var(--m-stream)', ink: 'var(--m-stream-ink)' }, { label: 'Vidéo + audio', value: 33, color: 'var(--m-direct)', ink: 'var(--m-direct-ink)' }]) }),
+  ];
+
+  /* --- Utilisateurs & réseau --- */
+  const people = [
+    ncard({ title: 'Rétention des utilisateurs', q: 'Les comptes restent-ils actifs semaine après semaine ?', data: 'UserId · StartedAt (semaines)', page: ['Utilisateurs', 'users'], body: matrix({ rows: ['sept. S1', 'sept. S3', 'oct. S1', 'oct. S3', 'nov. S1'], cols: ['S0', 'S+1', 'S+2', 'S+3', 'S+4'], values: [[6, 6, 5, 5, 5], [6, 5, 5, 4, null], [6, 6, 6, null, null], [5, 5, null, null, null], [6, null, null, null, null]], unit: 'Utilisateurs actifs', width: 440, labelW: 80 }) }),
+    ncard({ title: 'Part de chacun dans le temps', q: 'Qui fait vivre le serveur, mois après mois ?', data: 'UserId · PlaybackDuration', page: ['Utilisateurs', 'users'], body: `<div class="stack" style="gap:8px">${USERS.map((u) => `<div class="row" style="gap:10px;flex-wrap:nowrap">${avatar(u, 'sm')}<span style="width:52px;font-size:var(--fs-md)">${u.name}</span>${spark(Array.from({ length: 11 }, () => ri(1, 12)), { width: 200, height: 24 })}<span class="num muted" style="margin-left:auto;font-size:var(--fs-sm)">${ri(4, 40)} %</span></div>`).join('')}</div><p class="note">Petits multiples plutôt qu’une aire empilée à 6 couleurs : chaque courbe reste lisible.</p>` }),
+    ncard({ title: 'Local ou à distance', q: 'Quelle part des lectures passe par Internet ?', data: 'RemoteEndPoint', page: ['Lecture & transcodage', 'playback'], body: segBar([{ label: 'Réseau local', value: 64, color: 'var(--m-direct)', ink: 'var(--m-direct-ink)' }, { label: 'À distance', value: 36, color: 'var(--m-transcode)', ink: 'var(--m-transcode-ink)' }]) + `<div style="height:12px"></div>` + barList([{ label: 'Lyon, FR', value: 312 }, { label: 'Bordeaux, FR', value: 140 }, { label: 'Bruxelles, BE', value: 61 }, { label: 'Montréal, CA', value: 12 }], { head: ['Lieu (géoloc IP)', 'Lectures'] }) }),
+    ncard({ title: 'Appareils & versions', q: 'Quels appareils utilise chacun, et lesquels sont obsolètes ?', data: 'DeviceName · ApplicationVersion · Client', page: ['Utilisateur', 'user'], body: `<table class="table table-dense"><thead><tr><th>Appareil</th><th>Client</th><th>Version</th><th class="num">Vues</th></tr></thead><tbody>${[['Shield', 'Android TV', '0.18.3', 412, true], ['Pixel 8', 'Android', '2.6.1', 96, true], ['Chrome', 'Web', '10.11.0', 51, true], ['Fire TV Stick', 'Android TV', '0.15.8', 22, false]].map(([d, c, v, n, ok]) => `<tr style="cursor:default"><td>${d}</td><td class="ink2">${c}</td><td>${ok ? `<span class="mono" style="font-size:12px">${v}</span>` : `<span class="badge warning">${ic('alert', 12)}${v} · obsolète</span>`}</td><td class="num">${n}</td></tr>`).join('')}</tbody></table>` }),
+    ncard({ title: 'Moments de la journée par type', q: 'Musique le matin, séries le soir ?', data: 'MediaType · StartedAt (heure locale)', page: ['Insights', 'insights'], span: 2, body: smallMultiples([{ name: 'Films', color: 'var(--t-movie)', values: H.map((h) => Math.round(Math.exp(-((h - 21.5) ** 2) / 4) * 20 + (h > 13 && h < 17 ? 4 : 0))) }, { name: 'Séries', color: 'var(--t-series)', values: H.map((h) => Math.round(Math.exp(-((h - 21) ** 2) / 6) * 30 + Math.exp(-((h - 13) ** 2) / 3) * 8)) }, { name: 'Musique', color: 'var(--t-music)', values: H.map((h) => Math.round(Math.exp(-((h - 9) ** 2) / 5) * 22 + Math.exp(-((h - 17) ** 2) / 4) * 14)) }]) }),
+  ];
+
+  /* --- Musique --- */
+  const music = [
+    ncard({ title: 'Skip selon l’heure', q: 'Zappe-t-on plus à certains moments ?', data: 'IsView · MediaType = Audio · heure', page: ['Artiste', 'artist'], body: columns({ labels: H.map(fmtHour), values: H.map((h) => Math.round(12 + Math.exp(-((h - 8) ** 2) / 3) * 18 + rnd() * 4)), emphasis: 8, xEvery: 4, width: 440, height: 160, name: 'Taux de skip', yFmt: (v) => `${fmtN(v)} %` }) }),
+    ncard({ title: 'Découverte d’artistes', q: 'Combien de nouveaux artistes écoutés chaque mois ?', data: 'ArtistId · première écoute', page: ['Récap', 'recap'], body: columns({ labels: months, values: [3, 1, 4, 2, 6, 2, 1, 5, 3, 2, 4], width: 440, height: 160, name: 'Nouveaux artistes', emphasis: 4 }) }),
+    ncard({ title: 'Albums écoutés en entier', q: 'Écoute-t-on des albums ou des pistes isolées ?', data: 'AlbumId · pistes consécutives', page: ['Album', 'album'], body: barList([{ label: 'Halo', value: 9, lead: art('Halo', 'square') }, { label: 'Rivière noire', value: 6, lead: art('Rivière noire', 'square') }, { label: 'Orbites', value: 2, lead: art('Orbites', 'square') }], { head: ['Album', 'Écoutes complètes'] }) }),
+    ncard({ title: 'Classement avec évolution', q: 'Qui monte, qui descend par rapport à la période précédente ?', data: 'Écoutes · période N vs N-1', page: ['Récap', 'recap'], body: `<table class="table table-dense"><tbody>${[['Rivière noire', 'Lune Pâle', 2, 182], ['Sel', 'Mira Okafor', -1, 160], ['Halo', 'Lune Pâle', 0, 141], ['Orbites', 'Les Satellites', 4, 96]].map(([t, a, d, v], i) => `<tr style="cursor:default"><td class="num muted" style="width:28px">${i + 1}</td><td><div class="cell-media">${art(t, 'square')}<div><div class="t">${t}</div><div class="s">${a}</div></div></div></td><td><span class="delta ${d > 0 ? 'up' : d < 0 ? 'down' : 'flat'}">${ic(d > 0 ? 'up' : d < 0 ? 'down' : 'chevR', 12)}${d ? Math.abs(d) : '='}</span></td><td class="num">${v}</td></tr>`).join('')}</tbody></table>` }),
+  ];
+
+  /* --- Nouveaux composants --- */
+  const comps = `
+  <div class="doc-grid g2">
+    ${spec(`${newBadge} Palette de commandes (⌘K)`, `<div class="pop" style="width:100%;padding:0"><div class="input-wrap" style="padding:8px;border-bottom:1px solid var(--border)">${ic('search')}<input class="input" style="border:0;box-shadow:none;padding-left:28px" value="stat"></div><div style="padding:4px"><div class="pop-label">Contenus</div><div class="pop-item">${art('Station Nord', 'poster')}<span>Station Nord</span><span class="hint">Série</span></div><div class="pop-label">Utilisateurs</div><div class="pop-item">${avatar(USERS[0], 'sm')}<span>Céline</span><span class="hint">Utilisateur</span></div><div class="pop-label">Actions</div><div class="pop-item">${ic('refresh')}Lancer une synchro<span class="hint">⇧S</span></div><div class="pop-item">${ic('calendar')}Période : 90 derniers jours<span class="hint">9</span></div></div></div>`)}
+    ${spec(`${newBadge} Panneau latéral (piste, ligne d’historique)`, `<div class="card" style="box-shadow:var(--shadow-pop)"><div class="card-h"><div class="row" style="gap:10px">${art('Halo', 'square')}<div><h3>Basse lumière</h3><div class="sub">Lune Pâle · Halo</div></div></div><button class="btn btn-ghost btn-icon btn-sm">${ic('x', 14)}</button></div><div class="card-b"><div class="stat-strip" style="--n:3;border:1px solid var(--border);border-radius:var(--r-lg)">${statTile({ label: 'Écoutes', value: '96' })}${statTile({ label: 'Skip', value: '36', unit: '%' })}${statTile({ label: 'Auditeurs', value: '2' })}</div><div class="note">Dernières écoutes : Hugo il y a 2 h, Céline hier…</div></div></div><p class="note">Remplace une page « piste » : s’ouvre par-dessus l’album, l’URL garde <code>?track=…</code>.</p>`)}
+    ${spec(`${newBadge} Comparaison de deux utilisateurs`, `<div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="row" style="gap:8px">${avatar(USERS[2])}<b>Léa</b></span><span class="muted">vs</span><span class="row" style="gap:8px"><b>Hugo</b>${avatar(USERS[3])}</span></div><div class="stack" style="gap:8px;font-size:var(--fs-md)">${[['Temps', '190 h', '121 h', .61], ['Complétion', '82 %', '64 %', .56], ['Part de séries', '71 %', '38 %', .65]].map(([l, a, b, r]) => `<div><div class="row" style="justify-content:space-between"><span class="num">${a}</span><span class="muted">${l}</span><span class="num">${b}</span></div><div style="display:flex;gap:2px;height:6px;margin-top:4px"><span style="flex:${r};background:${USERS[2].color};border-radius:3px 0 0 3px"></span><span style="flex:${1 - r};background:${USERS[3].color};border-radius:0 3px 3px 0"></span></div></div>`).join('')}</div><p class="note">12 contenus en commun · affinité 64 %</p>`)}
+    ${spec(`${newBadge} Annotations sur un graphique`, lineChart({ labels: DAYLBL, series: [{ name: 'Temps de lecture', color: 'var(--accent)', values: totDaily.map((v) => v / 3600) }], yFmt: (v) => `${fmtN(v)} h`, width: 520, height: 170, xEvery: 7 }).replace('</svg>', `<line x1="${46 + (13 * (520 - 58)) / 29}" x2="${46 + (13 * (520 - 58)) / 29}" y1="10" y2="144" stroke="var(--ink-3)" stroke-width="1"/><text x="${50 + (13 * (520 - 58)) / 29}" y="20" class="lbl">+23 films ajoutés</text></svg>`) + `<p class="note">Événements (synchro, ajouts massifs, mise à jour Jellyfin, panne) en filets verticaux étiquetés.</p>`)}
+    ${spec(`${newBadge} Série en cours & records`, `<div class="row" style="gap:16px"><div class="row" style="gap:10px"><span style="width:36px;height:36px;border-radius:var(--r-lg);border:1px solid var(--border);display:grid;place-items:center;color:var(--serious-ink)">${ic('flame', 18)}</span><div><div class="stat-value" style="font-size:var(--fs-xl)">9 jours</div><div class="muted" style="font-size:var(--fs-sm)">d’affilée · record 23</div></div></div><div style="display:flex;gap:3px">${Array.from({ length: 14 }, (_, i) => `<span style="width:10px;height:22px;border-radius:3px;background:${i > 4 ? 'var(--accent)' : 'var(--surface-3)'}"></span>`).join('')}</div></div>`)}
+    ${spec(`${newBadge} Notification de jalon`, `<div class="stack"><div class="toast">${ic('sparkle')}Léa vient de dépasser 1 000 h de lecture</div><div class="toast">${ic('flame')}Nouveau record : 6 lectures simultanées</div></div><p class="note">Aussi envoyables par webhook Discord.</p>`)}
+    ${spec(`${newBadge} Barre de filtres (une seule rangée)`, `<div class="row"><button class="btn btn-secondary btn-sm">${ic('calendar', 14)}30 j${ic('chevD', 12)}</button><span class="chip" aria-pressed="true">Séries ${ic('x', 12)}</span><span class="chip">Léa ${ic('x', 12)}</span><span class="chip">+ Filtre</span><button class="btn btn-ghost btn-sm" style="margin-left:auto">Tout effacer</button><button class="btn btn-ghost btn-icon btn-sm" title="Copier le lien">${ic('share', 14)}</button></div><p class="note">Chaque filtre est dans l’URL ; « Copier le lien » partage exactement la vue.</p>`)}
+    ${spec(`${newBadge} Vue tableau d’un graphique`, `<div class="row" style="justify-content:flex-end;margin-bottom:8px">${seg([ic('insights', 14) + ' Graphique', ic('list', 14) + ' Tableau'], 1)}</div><table class="table table-dense"><thead><tr><th>Jour</th><th class="num">Temps</th><th class="num">Vues</th></tr></thead><tbody>${DAYLBL.slice(-4).map((d, i) => `<tr style="cursor:default"><td>${d}</td><td class="num">${fmtDur(totDaily[26 + i])}</td><td class="num">${dailyViews[26 + i]}</td></tr>`).join('')}</tbody></table><p class="note">Accessibilité : chaque graphique a sa vue tableau (et l’export CSV).</p>`)}
+  </div>`;
+
+  /* --- Backend capture --- */
+  const capture = [
+    ['Piste audio choisie', 'PlayState.AudioStreamIndex', 'VO / VF par utilisateur, langues', 'colonne + champ tracker'],
+    ['Sous-titres choisis', 'PlayState.SubtitleStreamIndex', 'Usage des sous-titres, PGS incrustés', 'colonne + champ tracker'],
+    ['Raisons du transcodage', 'TranscodingInfo.TranscodeReasons', '« Pourquoi ça transcode »', 'colonne JSON'],
+    ['Débit', 'TranscodingInfo.Bitrate · MediaSource.Bitrate', 'Bande passante live et historique', 'colonne'],
+    ['Accélération matérielle', 'TranscodingInfo.HardwareAccelerationType', 'Charge CPU vs GPU', 'colonne'],
+    ['Plage vidéo (HDR)', 'MediaStream.VideoRange / VideoRangeType', 'Part HDR, tone mapping', 'déjà dans MediaStreams : à typer'],
+    ['Nombre de pauses', 'transitions IsPaused entre polls', 'Comportement de pause', 'compteur watchdog'],
+    ['Géolocalisation', 'RemoteEndPoint → /utils/geolocateIp', 'Local / distant, carte', 'cache IP → lieu'],
+  ];
+
+  return `
+  <h1 class="doc-h1">Nouveautés ${newBadge}</h1>
+  <p class="doc-lead">Tout ce que les données de Jellystics permettent d’ajouter et qui n’existe pas encore : ${'graphiques'} et composants, rangés par page de destination. Chaque carte dit à quelle question elle répond, quelle donnée elle utilise, si cette donnée est <b>déjà collectée</b> ou <b>à capter</b>, et où elle vivrait.</p>
+  <div class="card"><div class="stat-strip" style="--n:4">
+    ${statTile({ label: 'Graphiques proposés', value: String(overview.length + behaviour.length + catalog.length + quality.length + people.length + music.length) })}
+    ${statTile({ label: 'Composants proposés', value: '8' })}
+    ${statTile({ label: 'Faisables tout de suite', value: String(NSTATES.filter((s) => s !== 'todo').length), foot: 'données déjà collectées ou synchronisées' })}
+    ${statTile({ label: 'Champs à capter', value: String(capture.length), foot: 'déjà renvoyés par /Sessions' })}
+  </div></div>
+  <div class="page-pick" style="margin-top:var(--s-4)">${['Vue d’ensemble & live', 'Comportements', 'Catalogue', 'Qualité & langues', 'Utilisateurs & réseau', 'Musique', 'Composants', 'Données à capter'].map((t) => `<a class="chip" href="javascript:void 0" data-jump="new-${t.toLowerCase().replace(/[^a-z]+/g, '-')}">${t}</a>`).join('')}</div>
+  ${ngroup('Vue d’ensemble & live', 'Ce qui se passe maintenant et le dimensionnement du serveur.', overview)}
+  ${ngroup('Comportements', 'Comment on regarde : durée des séances, reprises, cadence, faux départs, revisionnages.', behaviour)}
+  ${ngroup('Catalogue', 'Croiser les lectures avec la bibliothèque synchronisée (année, genres, taille, date d’ajout, date de sortie).', catalog)}
+  ${ngroup('Qualité & langues', 'Ce que le serveur sert vraiment : résolution, HDR, codecs, langues.', quality)}
+  ${ngroup('Utilisateurs & réseau', 'Qui, depuis où, sur quoi.', people)}
+  ${ngroup('Musique', 'Les spécificités de l’écoute : skip, découverte, albums entiers, classements.', music)}
+  <h2 class="doc-h2" id="new-composants">Composants</h2><p class="doc-sub">Les briques d’interface nouvelles, dans la même DA.</p>
+  ${comps}
+  <h2 class="doc-h2" id="new-donn-es-capter">Données à capter</h2><p class="doc-sub">Champs déjà renvoyés par <code>GET /Sessions</code> que le tracker n’enregistre pas encore. Une migration et quelques lignes dans <code>tracker.go</code>.</p>
+  ${card('', '', `<table class="table" style="cursor:default"><thead><tr><th>Donnée</th><th>Source Jellyfin</th><th>Débloque</th><th>Travail</th></tr></thead><tbody>${capture.map(([a, b, c, d]) => `<tr style="cursor:default"><td style="font-weight:550">${newBadge} ${a}</td><td class="mono" style="font-size:12px">${b}</td><td class="ink2" style="white-space:normal">${c}</td><td class="muted">${d}</td></tr>`).join('')}</tbody></table>`, { flush: true })}`;
+}
+/* ---------- boot ---------- */
+const RENDER = { audit: renderAudit, foundations: renderFoundations, components: renderComponents, charts: renderCharts, architecture: renderArchitecture, new: renderNew };
+const rendered = {};
+function route() {
+  const h = (location.hash || '#audit').slice(1);
+  const [sec, sub] = h.split('/');
+  const key = RENDER[sec] || sec === 'pages' ? sec : 'audit';
+  $$('.doc-section').forEach((s) => s.classList.toggle('active', s.id === 's-' + key));
+  $$('.doc-nav a').forEach((a) => a.setAttribute('aria-current', a.getAttribute('href').slice(1).split('/')[0] === key ? 'page' : 'false'));
+  if (key === 'pages') {
+    $('#s-pages').innerHTML = renderPages(sub || 'overview');
+    const p = PAGES[sub || 'overview'];
+    if (p && p.after) p.after();
+  } else if (!rendered[key]) { $('#s-' + key).innerHTML = RENDER[key](); rendered[key] = true; }
+  tip.classList.remove('on');
+  if (!h.includes('/') || sec !== 'pages' || !route.inPages) window.scrollTo(0, 0);
+  route.inPages = key === 'pages';
+}
+// segmented / tabs / chips: purely visual toggles in the mock
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.seg button');
+  if (b) { b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', x === b)); }
+  const t = e.target.closest('.tabs button');
+  if (t) { t.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-selected', x === t)); }
+  const sw = e.target.closest('.switch');
+  if (sw) sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') !== 'true');
+  const j = e.target.closest('[data-jump]');
+  if (j) { const el = document.getElementById(j.dataset.jump); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - 64, behavior: 'smooth' }); }
+  const a = e.target.closest('a[href="javascript:void 0"]');
+  if (a) e.preventDefault();
+});
+// theme toggle (stamp on <html>, remembered per viewer)
+const themeBtn = $('#theme');
+function currentTheme() { const s = document.documentElement.dataset.theme; return s || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+function paintThemeBtn() { themeBtn.innerHTML = ic(currentTheme() === 'dark' ? 'sun' : 'moon'); }
+try { const saved = localStorage.getItem('jellystics-ds-theme'); if (saved) document.documentElement.dataset.theme = saved; } catch {}
+themeBtn.addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('jellystics-ds-theme', next); } catch {}
+  paintThemeBtn();
+});
+paintThemeBtn();
+addEventListener('hashchange', route);
+route();
+
+</script>
+</body>
+</html>
