@@ -70,6 +70,7 @@ func seed(t *testing.T, db *gorm.DB) {
 		// music play: album=NowPlayingItemId, track=EpisodeId
 		{Id: "a4", UserId: p("user-1"), NowPlayingItemId: p("album-1"), NowPlayingItemName: p("Discovery"), EpisodeId: p("track-1"), PlaybackDuration: i64(600), ActivityDateInserted: ts(5), Source: "watchdog"},
 	}).Error)
+	testutil.BackfillTracking(t, db)
 }
 
 func newSvc(t *testing.T) (*stats.Service, *gorm.DB) {

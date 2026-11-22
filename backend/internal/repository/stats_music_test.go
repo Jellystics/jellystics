@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
+	"github.com/Jellystics/Jellystics/internal/testutil"
 	"github.com/Jellystics/Jellystics/internal/repository"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -80,6 +81,7 @@ func seedMusic(t *testing.T, db *gorm.DB) {
 	play("album-2", "track-3", 2)
 	play("album-3", "track-4", 1)
 	must(db.Create(&acts).Error)
+	testutil.BackfillTracking(t, db)
 }
 
 func ptrI64(v int64) *int64 { return &v }

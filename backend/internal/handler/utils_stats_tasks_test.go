@@ -94,6 +94,7 @@ func seedStatsService(t *testing.T, db *gorm.DB) {
 		{Id: "p1", UserId: sp("u1"), UserName: sp("Alice"), NowPlayingItemId: sp("m1"), PlaybackDuration: i64(3600), ActivityDateInserted: &d, Source: "watchdog"},
 		{Id: "p2", UserId: sp("u1"), UserName: sp("Alice"), NowPlayingItemId: sp("m1"), PlaybackDuration: i64(3600), ActivityDateInserted: &d, Source: "watchdog"},
 	}))
+	testutil.BackfillTracking(t, db)
 }
 
 func statsHandler(t *testing.T) (*handler.StatsHandler, *gin.Engine) {

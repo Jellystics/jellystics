@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
 	"github.com/Jellystics/Jellystics/internal/handler"
@@ -94,8 +96,8 @@ func seedRichStats(t *testing.T, db *gorm.DB) {
 		{Id: "tr1", Size: i64(50)},
 	}).Error)
 
-	d := "2026-07-12 14:00:00+00:00"
-	dEp := "2026-07-12 09:00:00+00:00"
+	d := testutil.TS(richSeedDay().Add(14 * time.Hour))
+	dEp := testutil.TS(richSeedDay().Add(9 * time.Hour))
 	must(repos.Playback.Upsert(ctx, []models.JFPlaybackActivity{
 		{Id: "p1", UserId: sp("u1"), UserName: sp("Alice"), NowPlayingItemId: sp("m1"), NowPlayingItemName: sp("Inception"),
 			Client: sp("Web"), DeviceName: sp("Firefox"), PlayMethod: sp("DirectPlay"), PlaybackDuration: i64(600), ActivityDateInserted: &d, Source: "watchdog"},
@@ -108,7 +110,12 @@ func seedRichStats(t *testing.T, db *gorm.DB) {
 		{Id: "p5", UserId: sp("u2"), UserName: sp("Bob"), NowPlayingItemId: sp("alb1"), NowPlayingItemName: sp("Greatest Hits"),
 			EpisodeId: sp("tr1"), Client: sp("Android"), PlayMethod: sp("DirectPlay"), PlaybackDuration: i64(180), ActivityDateInserted: &dEp, Source: "watchdog"},
 	}))
+	testutil.BackfillTracking(t, db)
 }
+
+// richSeedDay is the (UTC) calendar day of every seedRichStats playback row:
+// three days ago, so default "last 30 days" windows include it.
+func richSeedDay() time.Time { return testutil.RecentDay(3) }
 
 // ip returns a pointer to an int (unique helper name to avoid collisions).
 func ip(n int) *int { return &n }
@@ -159,7 +166,7 @@ func TestGetWatchStatisticsOverTime(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &rows); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	// All 5 plays land on the same calendar day (2026-07-12).
+	// All 5 plays land on the same calendar day (richSeedDay).
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1 day bucket", len(rows))
 	}
@@ -217,7 +224,7 @@ func TestGetUserStats_All(t *testing.T) {
 	if rows[0].UserId != "u1" || rows[0].TotalPlays != 3 {
 		t.Errorf("rows[0] = %+v, want u1 with 3 plays", rows[0])
 	}
-	// Alice watch: 600+600+1200 = 2400s → 40 min. Unique items: m1, series-1 = 2.
+	// Alice watch: 600+600+1200 = 2400s → 40 min. Unique items (ItemId): m1, ep1 = 2.
 	if rows[0].TotalWatchTime != 40 || rows[0].UniqueItems != 2 {
 		t.Errorf("alice = {watch:%d unique:%d}, want {40, 2}", rows[0].TotalWatchTime, rows[0].UniqueItems)
 	}
@@ -599,21 +606,25 @@ func TestGetGenreStats_ByUser(t *testing.T) {
 func TestGetViewsByLibraryType(t *testing.T) {
 	h, r := richStats(t)
 	r.GET("/vlt", h.GetViewsByLibraryType)
-	// days window includes the seeded recent rows only if within 30 days of run;
-	// the seed date is fixed, so use a large window to be safe.
-	w := getOK(t, r, "/vlt?days=100000")
+	// Seed rows are 3 days old → inside the default 30-day window.
+	w := getOK(t, r, "/vlt")
 
 	var got map[string]int
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	// Movie plays: p1,p2,p3 on m1 = 3. Series: p4 on series-1 = 1.
-	// Audio: p5's NowPlayingItemId=alb1 has no jf_library_items row → Type NULL → "Other".
+	// Movie plays: p1,p2,p3 on m1 = 3. Series: p4 (episode) = 1. Music: p5 (track) = 1.
 	if got["Movie"] != 3 {
 		t.Errorf("Movie = %d, want 3", got["Movie"])
 	}
 	if got["Series"] != 1 {
 		t.Errorf("Series = %d, want 1", got["Series"])
+	}
+	if got["Music"] != 1 || got["Audio"] != 1 {
+		t.Errorf("Music/Audio = %d/%d, want 1/1 (music must not be 0)", got["Music"], got["Audio"])
+	}
+	if got["Other"] != 0 {
+		t.Errorf("Other = %d, want 0", got["Other"])
 	}
 }
 
@@ -681,15 +692,32 @@ func TestGetAlbumTracks(t *testing.T) {
 func TestGetActivityTimeline(t *testing.T) {
 	h, r := richStats(t)
 	r.GET("/tl", h.GetActivityTimeline)
-	w := getOK(t, r, "/tl?year=2026&month=7")
+	day := richSeedDay()
+	w := getOK(t, r, "/tl?year="+strconv.Itoa(day.Year())+"&month="+strconv.Itoa(int(day.Month())))
 
 	var rows []struct {
-		Duration int `json:"Duration"`
+		StartTime string `json:"StartTime"`
+		EndTime   string `json:"EndTime"`
+		Duration  int    `json:"Duration"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &rows)
-	// All 5 plays fall in July 2026.
+	// All 5 plays fall in the seed month.
 	if len(rows) != 5 {
-		t.Errorf("timeline rows = %d, want 5", len(rows))
+		t.Fatalf("timeline rows = %d, want 5", len(rows))
+	}
+	// StartTime is the real start (not start - duration); EndTime = start + duration.
+	for _, row := range rows {
+		start, err1 := time.Parse(time.RFC3339, row.StartTime)
+		end, err2 := time.Parse(time.RFC3339, row.EndTime)
+		if err1 != nil || err2 != nil {
+			t.Fatalf("bad times %+v", row)
+		}
+		if start.Hour() != 14 && start.Hour() != 9 {
+			t.Errorf("StartTime = %s, want 09:00 or 14:00 UTC", row.StartTime)
+		}
+		if got := int(end.Sub(start).Seconds()); got != row.Duration {
+			t.Errorf("End-Start = %ds, Duration = %ds (seconds expected)", got, row.Duration)
+		}
 	}
 }
 
@@ -748,7 +776,7 @@ func TestGetGlobalUserStats(t *testing.T) {
 		UniqueItems    int `json:"UniqueItems"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &got)
-	// Alice: 3 plays, 40 min, unique NowPlayingItemId = {m1, series-1} = 2.
+	// Alice: 3 plays, 40 min, unique ItemId = {m1, ep1} = 2.
 	if got.TotalPlays != 3 || got.TotalWatchTime != 40 || got.UniqueItems != 2 {
 		t.Errorf("got = %+v, want plays 3 watch 40 unique 2", got)
 	}
@@ -894,7 +922,7 @@ func TestGetWatchHeatmap(t *testing.T) {
 	if total != 5 {
 		t.Errorf("total plays across grid = %d, want 5", total)
 	}
-	// 2026-07-12 is a Sunday (DOW 0), hour 14 has p1,p2,p4 = 3 plays → maxPlays 3.
+	// Hour 14 has p1,p2,p4 = 3 plays → maxPlays 3.
 	if got.MaxPlays != 3 {
 		t.Errorf("maxPlays = %d, want 3", got.MaxPlays)
 	}
@@ -975,7 +1003,7 @@ func TestGetViewingDiversity_SingleUser(t *testing.T) {
 	if got.UserId != "u1" {
 		t.Errorf("userId = %q, want u1", got.UserId)
 	}
-	// Alice unique NowPlayingItemId = {m1, series-1} = 2.
+	// Alice unique ItemId = {m1, ep1} = 2.
 	if got.UniqueItems != 2 {
 		t.Errorf("uniqueItems = %d, want 2", got.UniqueItems)
 	}

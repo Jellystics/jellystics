@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
+	"github.com/Jellystics/Jellystics/internal/testutil"
 	"github.com/Jellystics/Jellystics/internal/repository"
 	"gorm.io/gorm"
 )
@@ -49,6 +50,7 @@ func seedMovies(t *testing.T, db *gorm.DB) {
 		{Id: "a3", UserId: p("user-1"), NowPlayingItemId: p("movie-2"), NowPlayingItemName: p("Interstellar"), PlaybackDuration: ptrI64(3600), ActivityDateInserted: ts(30), Source: "watchdog"},
 		{Id: "a4", UserId: p("user-2"), NowPlayingItemId: p("movie-1"), NowPlayingItemName: p("Inception"), PlaybackDuration: ptrI64(900), ActivityDateInserted: ts(40), Source: "watchdog"},
 	}).Error)
+	testutil.BackfillTracking(t, db)
 }
 
 func TestGetGlobalStats(t *testing.T) {

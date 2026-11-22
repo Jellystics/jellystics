@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
 	"github.com/Jellystics/Jellystics/internal/handler"
@@ -17,13 +18,41 @@ import (
 
 func sp(s string) *string { return &s }
 func i64(v int64) *int64  { return &v }
+func tp(t time.Time) *time.Time {
+	return &t
+}
 
 const secTicks = 10_000_000 // ticks per second
 
-// seedCompletion inserts one Movie play (fully watched), one Movie play
-// (abandoned), one Episode play, and one music Track play. Runtimes are chosen
-// so completion ratios are exact. The music play is the regression guard: it
-// must be counted and classified as "Audio", not silently dropped.
+// trackedRow builds a playback row with the accurate-tracking columns set.
+func trackedRow(id, user, itemId, mediaType string, start time.Time, durSec, runtimeSec int64, posEndSec *int64) models.JFPlaybackActivity {
+	r := models.JFPlaybackActivity{
+		Id: id, UserId: sp(user), UserName: sp(user),
+		NowPlayingItemId: sp(itemId), NowPlayingItemName: sp(itemId),
+		ItemId: sp(itemId), MediaType: sp(mediaType),
+		PlaybackDuration: i64(durSec), RunTimeTicks: i64(runtimeSec * secTicks),
+		StartedAt: tp(start), EndedAt: tp(start.Add(time.Duration(durSec) * time.Second)),
+		ActivityDateInserted: sp(testutil.TS(start)),
+		IsView:               durSec >= 30,
+		Source:               "watchdog",
+	}
+	if posEndSec != nil {
+		r.PositionTicksEnd = i64(*posEndSec * secTicks)
+	}
+	return r
+}
+
+// seedCompletion inserts views with exact completion ratios (all on the same
+// day, user u1):
+//
+//	movie-1  100/100 s                         → 1.00 completed
+//	movie-2   30/100 s                         → 0.30 abandoned
+//	ep-1     two sittings: stop at 40 s, then resumed and stopped at 96 s
+//	                                           → one unit, 0.96 completed
+//	ep-2      80/100 s                         → 0.80 abandoned (< 0.9)
+//	track-1  200/200 s (Audio)                 → 1.00 completed
+//
+// plus a 10 s click on movie-1 by u2, which is not a view and must be ignored.
 func seedCompletion(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	must := func(err error) {
@@ -33,34 +62,30 @@ func seedCompletion(t *testing.T, db *gorm.DB) {
 		}
 	}
 	genres := datatypes.JSON([]byte("[]"))
-
 	movie := "Movie"
-	must(db.Create(&models.JFLibraryItem{
-		Id: "movie-1", Name: sp("Inception"), Type: &movie, ParentId: sp("lib-movies"),
-		RunTimeTicks: i64(100 * secTicks), Genres: genres,
+	must(db.Create(&[]models.JFLibraryItem{
+		{Id: "movie-1", Name: sp("Inception"), Type: &movie, ParentId: sp("lib-movies"), RunTimeTicks: i64(100 * secTicks), Genres: genres},
+		{Id: "movie-2", Name: sp("Tenet"), Type: &movie, ParentId: sp("lib-movies"), RunTimeTicks: i64(100 * secTicks), Genres: genres},
 	}).Error)
-
-	// Episode with a 100s runtime.
-	must(db.Create(&models.JFLibraryEpisode{
-		Id: "ep-1", Name: sp("Pilot"), RunTimeTicks: i64(100 * secTicks), SeriesId: sp("series-1"),
+	must(db.Create(&[]models.JFLibraryEpisode{
+		{Id: "ep-1", Name: sp("Pilot"), RunTimeTicks: i64(100 * secTicks), SeriesId: sp("series-1")},
+		{Id: "ep-2", Name: sp("Second"), RunTimeTicks: i64(100 * secTicks), SeriesId: sp("series-1")},
 	}).Error)
-
-	// Music track with a 200s runtime.
 	must(db.Create(&models.JFMusicTrack{
 		Id: "track-1", Name: sp("One More Time"), AlbumId: sp("album-1"),
 		RunTimeTicks: i64(200 * secTicks), LibraryId: sp("lib-music"), Genres: genres,
 	}).Error)
 
-	date := "2026-07-12 10:00:00+00:00"
+	day := testutil.RecentDay(2).Add(10 * time.Hour)
+	p40, p96, p80 := int64(40), int64(96), int64(80)
 	must(db.Create(&[]models.JFPlaybackActivity{
-		// Movie fully watched: 100/100 = 1.0.
-		{Id: "c1", UserId: sp("u1"), NowPlayingItemId: sp("movie-1"), PlaybackDuration: i64(100), ActivityDateInserted: &date, Source: "watchdog"},
-		// Movie abandoned: 25/100 = 0.25.
-		{Id: "c2", UserId: sp("u1"), NowPlayingItemId: sp("movie-1"), PlaybackDuration: i64(25), ActivityDateInserted: &date, Source: "watchdog"},
-		// Episode: 80/100 = 0.8.
-		{Id: "c3", UserId: sp("u1"), NowPlayingItemId: sp("series-1"), EpisodeId: sp("ep-1"), PlaybackDuration: i64(80), ActivityDateInserted: &date, Source: "watchdog"},
-		// Audio: 200/200 = 1.0 (must be included and labelled Audio).
-		{Id: "c4", UserId: sp("u1"), NowPlayingItemId: sp("album-1"), EpisodeId: sp("track-1"), PlaybackDuration: i64(200), ActivityDateInserted: &date, Source: "watchdog"},
+		trackedRow("c1", "u1", "movie-1", "Movie", day, 100, 100, nil),
+		trackedRow("c2", "u1", "movie-2", "Movie", day.Add(time.Hour), 30, 100, nil),
+		trackedRow("c3a", "u1", "ep-1", "Episode", day.Add(2*time.Hour), 40, 100, &p40),
+		trackedRow("c3b", "u1", "ep-1", "Episode", day.Add(3*time.Hour), 56, 100, &p96),
+		trackedRow("c5", "u1", "ep-2", "Episode", day.Add(4*time.Hour), 80, 100, &p80),
+		trackedRow("c4", "u1", "track-1", "Audio", day.Add(5*time.Hour), 200, 200, nil),
+		trackedRow("click", "u2", "movie-1", "Movie", day.Add(6*time.Hour), 10, 100, nil),
 	}).Error)
 }
 
@@ -76,6 +101,7 @@ type completionResponse struct {
 		AvgCompletionRate float64 `json:"avgCompletionRate"`
 		TotalPlays        int     `json:"totalPlays"`
 	} `json:"byType"`
+	Threshold float64 `json:"threshold"`
 }
 
 func TestGetCompletionRate_IncludesAudio(t *testing.T) {
@@ -87,7 +113,7 @@ func TestGetCompletionRate_IncludesAudio(t *testing.T) {
 	r := gin.New()
 	r.GET("/completion", h.GetCompletionRate)
 
-	req := httptest.NewRequest(http.MethodGet, "/completion?days=0", nil) // days=0 → all time
+	req := httptest.NewRequest(http.MethodGet, "/completion?from=all", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -99,16 +125,21 @@ func TestGetCompletionRate_IncludesAudio(t *testing.T) {
 		t.Fatalf("decode: %v (body %s)", err, w.Body.String())
 	}
 
-	// All four rows (including the music track) must be counted.
-	if resp.Overall.TotalPlays != 4 {
-		t.Errorf("overall totalPlays = %d, want 4 (audio must not be dropped)", resp.Overall.TotalPlays)
+	if resp.Threshold != 0.9 {
+		t.Errorf("threshold = %v, want 0.9", resp.Threshold)
 	}
-	// 3 completed (>=0.75): movie 1.0, episode 0.8, audio 1.0. 1 abandoned: movie 0.25.
+	// 5 (user, item, day) units; the click is not a view; ep-1's two sittings
+	// are one unit.
+	if resp.Overall.TotalPlays != 5 {
+		t.Errorf("overall totalPlays = %d, want 5", resp.Overall.TotalPlays)
+	}
+	// Completed (>= 0.9): movie-1 1.0, ep-1 0.96 (resumed), track 1.0.
 	if resp.Overall.CompletedPlays != 3 {
 		t.Errorf("completedPlays = %d, want 3", resp.Overall.CompletedPlays)
 	}
-	if resp.Overall.AbandonedPlays != 1 {
-		t.Errorf("abandonedPlays = %d, want 1", resp.Overall.AbandonedPlays)
+	// Abandoned: movie-2 0.30, ep-2 0.8. ep-1's first sitting is NOT an abandon.
+	if resp.Overall.AbandonedPlays != 2 {
+		t.Errorf("abandonedPlays = %d, want 2", resp.Overall.AbandonedPlays)
 	}
 
 	byType := map[string]struct {
@@ -121,8 +152,6 @@ func TestGetCompletionRate_IncludesAudio(t *testing.T) {
 			plays int
 		}{r.AvgCompletionRate, r.TotalPlays}
 	}
-
-	// The fix: music plays are classified as Audio and included.
 	audio, ok := byType["Audio"]
 	if !ok {
 		t.Fatalf("byType missing 'Audio' — music completion is not counted; got %+v", resp.ByType)
@@ -130,10 +159,10 @@ func TestGetCompletionRate_IncludesAudio(t *testing.T) {
 	if audio.plays != 1 || audio.avg != 1.0 {
 		t.Errorf("Audio = {plays:%d avg:%v}, want {1, 1.0}", audio.plays, audio.avg)
 	}
-	if m := byType["Movie"]; m.plays != 2 || m.avg != 0.63 { // (1.0+0.25)/2 = 0.625 → rounded 0.63
-		t.Errorf("Movie = {plays:%d avg:%v}, want {2, 0.63}", m.plays, m.avg)
+	if m := byType["Movie"]; m.plays != 2 || m.avg != 0.65 { // (1.0+0.30)/2
+		t.Errorf("Movie = {plays:%d avg:%v}, want {2, 0.65}", m.plays, m.avg)
 	}
-	if e := byType["Episode"]; e.plays != 1 || e.avg != 0.8 {
-		t.Errorf("Episode = {plays:%d avg:%v}, want {1, 0.8}", e.plays, e.avg)
+	if e := byType["Episode"]; e.plays != 2 || e.avg != 0.88 { // (0.96+0.8)/2 = 0.88
+		t.Errorf("Episode = {plays:%d avg:%v}, want {2, 0.88}", e.plays, e.avg)
 	}
 }

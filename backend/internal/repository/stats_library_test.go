@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
+	"github.com/Jellystics/Jellystics/internal/testutil"
 	"github.com/Jellystics/Jellystics/internal/repository"
 	"gorm.io/gorm"
 )
@@ -49,6 +50,7 @@ func seedLibraryStats(t *testing.T, db *gorm.DB) {
 		{Id: "a4", NowPlayingItemId: p("tr-1"), EpisodeId: p("tr-1"), PlaybackDuration: ptrI64(200), ActivityDateInserted: &date, Source: "watchdog"},
 		{Id: "a5", NowPlayingItemId: p("tr-1"), EpisodeId: p("tr-1"), PlaybackDuration: ptrI64(200), ActivityDateInserted: &date, Source: "watchdog"},
 	}))
+	testutil.BackfillTracking(t, db)
 }
 
 // TestGetMostViewedLibraries verifies play counts are grouped per library and
