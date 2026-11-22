@@ -47,12 +47,6 @@ const PHASE5: Record<string, unknown> = {
 
 // Realistic minimal shapes for endpoints whose consumers expect an object rather than a list.
 const OBJECTS: Record<string, unknown> = {
-  '/stats/getViewsByLibraryType': {},
-  '/stats/getCompletionRate': { overall: { avgCompletionRate: 0 }, byType: [] },
-  '/stats/getWatchHeatmap': { cells: [] },
-  '/stats/getGlobalStats': { TotalPlays: 0, TotalWatchTime: 0, ActiveUsers: 0, TotalUsers: 0, TotalLibraries: 0, TotalItems: 0 },
-  '/stats/getBingeStats': { totalBingeSessions: 0, topBingedSeries: [] },
-  '/stats/getViewingDiversity': { uniqueGenres: 0, uniqueLibraries: 0, uniqueItems: 0, diversityScore: 0, genreBreakdown: [] },
   '/sessions/current': [],
   // --- phase 7 settings ---
   '/api/getconfig': { JF_HOST: 'http://jellyfin.test', app_url: '', settings: { KeepLogsForDays: 30 } },

@@ -37,7 +37,7 @@ export function useSeriesHistory(id: string | undefined, filters?: Filters) {
   const p: QueryParams = { ...usePeriodParams(filters), seriesId: id ?? '' }
   return useQuery({
     queryKey: qkx.seriesHistory(id ?? '', p),
-    queryFn: ({ signal }) => apiFetch<HistoryPage>(`${V2}/history`, { params: p, signal }),
+    queryFn: get<HistoryPage>(`${V2}/history`, p),
     enabled: !!id,
     placeholderData: keepPreviousData,
   })
