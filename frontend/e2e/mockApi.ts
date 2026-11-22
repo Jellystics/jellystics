@@ -22,6 +22,22 @@ const OBJECTS: Record<string, unknown> = {
   // --- end phase 7 settings ---
 }
 
+// --- phase 3 ---
+// Realistic payloads for the core pages (/, /live, /history, /users, /users/:id).
+import { calendarFixture, concurrencyFixture, historyFixture, overviewFixture, retentionFixture, sessionsFixture, shareFixture, userFixture, usersFixture } from '../src/app/pages/overview/fixtures'
+const PHASE3: Record<string, () => unknown> = {
+  '/api/v2/overview': overviewFixture,
+  '/api/v2/history': historyFixture,
+  '/api/v2/history/calendar': () => calendarFixture(),
+  '/api/v2/users': usersFixture,
+  '/api/v2/users/retention': retentionFixture,
+  '/api/v2/users/share': shareFixture,
+  '/api/v2/users/u1': () => userFixture('u1', 'Céline'),
+  '/api/v2/users/u2': () => userFixture(),
+  '/api/v2/concurrency': concurrencyFixture,
+  '/sessions/current': sessionsFixture,
+}
+// --- end phase 3 ---
 // --- phase 4 ---
 // Entity pages: realistic payloads for the fixture ids (lib-s, m1, s1, e5, ar1, al1, t3).
 Object.assign(OBJECTS, entityApi, { '/api/v2/history': libraryHistoryFixture })
@@ -39,6 +55,7 @@ export async function mockApi(page: Page) {
     if (pathname === '/auth/check-server') return route.fulfill(json({ serverName: 'Jellyfin', url: 'http://jellyfin.test' }))
     if (pathname === '/auth/jellyfin-login') return route.fulfill(json({ token: FAKE_JWT }))
     if (pathname.startsWith('/socket.io')) return route.fulfill({ status: 200, contentType: 'text/plain', body: '' })
+    if (pathname in PHASE3) return route.fulfill(json(PHASE3[pathname]())) // --- phase 3 ---
     if (pathname in OBJECTS) return route.fulfill(json(OBJECTS[pathname]))
     return route.fulfill(json([]))
   })

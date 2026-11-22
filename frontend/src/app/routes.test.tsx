@@ -6,9 +6,12 @@ import { routes } from './routes'
 
 vi.mock('@/app/legacy/LegacyPage', () => ({ LegacyPage: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 vi.mock('@/lib/socket', () => ({ default: { connect: vi.fn(), disconnect: vi.fn() }, useSocketEvent: vi.fn() }))
-vi.mock('@/features/dashboard/DashboardPage', () => ({ default: () => <p>legacy-dashboard</p> }))
-vi.mock('@/features/activity/ActivityPage', () => ({ default: () => <p>legacy-activity</p> }))
-vi.mock('@/features/activity/TimelinePage', () => ({ default: () => <p>legacy-timeline</p> }))
+vi.mock('./pages/overview/OverviewPage', () => ({ default: () => <p>page-overview</p> }))
+vi.mock('./pages/live/LivePage', () => ({ default: () => <p>page-live</p> }))
+vi.mock('./pages/history/HistoryPage', async () => {
+  const { useSearchParams } = await import('react-router-dom')
+  return { default: function History() { return <p>page-history:{useSearchParams()[0].get('view') ?? 'table'}</p> } }
+})
 vi.mock('@/features/libraries/LibrariesPage', () => ({ default: () => <p>legacy-libraries</p> }))
 vi.mock('@/features/libraries/LibraryDetailPage', () => ({ default: () => <p>legacy-library</p> }))
 vi.mock('@/features/libraries/ItemDetailPage', async () => {
@@ -19,8 +22,8 @@ vi.mock('@/features/libraries/AlbumDetailPage', async () => {
   const { useParams } = await import('react-router-dom')
   return { default: function Album() { return <p>legacy-album:{useParams().albumId}</p> } }
 })
-vi.mock('@/features/users/UsersPage', () => ({ default: () => <p>legacy-users</p> }))
-vi.mock('@/features/users/UserDetailPage', () => ({ default: () => <p>legacy-user</p> }))
+vi.mock('./pages/users/UsersPage', () => ({ default: () => <p>page-users</p> }))
+vi.mock('./pages/user/UserPage', () => ({ default: () => <p>page-user</p> }))
 vi.mock('@/features/statistics/StatisticsPage', () => ({ default: () => <p>legacy-statistics</p> }))
 vi.mock('./pages/settings/SettingsPage', async (orig) => ({ ...(await orig<object>()), SettingsPage: ({ section }: { section: string }) => <p>settings:{section}</p> }))
 
@@ -89,9 +92,11 @@ it('unauthenticated access goes to login with next', async () => {
   await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
   expect(router.state.location.search).toBe('?next=%2Fusers%3Frange%3D7d')
 })
-it('legacy dashboard is mounted at /', async () => { renderApp('/'); expect(await screen.findByText('legacy-dashboard')).toBeInTheDocument() })
-it('history shows the timeline for ?view=calendar', async () => {
-  renderApp('/history?view=calendar'); expect(await screen.findByText('legacy-timeline')).toBeInTheDocument()
+it.each([['/', 'page-overview'], ['/live', 'page-live'], ['/users', 'page-users'], ['/users/lea', 'page-user']])('%s mounts the new page', async (p, text) => {
+  renderApp(p); expect(await screen.findByText(text)).toBeInTheDocument()
+})
+it('history mounts the new page with ?view=calendar', async () => {
+  renderApp('/history?view=calendar'); expect(await screen.findByText('page-history:calendar')).toBeInTheDocument()
 })
 it('episode page fetches the episode id (not the series id)', async () => {
   renderApp('/series/s1/episodes/e9')
@@ -110,7 +115,7 @@ it('settings about renders the new page', async () => {
   renderApp('/settings/about'); expect(await screen.findByText('settings:about')).toBeInTheDocument()
 })
 it('coming soon pages render', async () => {
-  renderApp('/live'); expect(await screen.findByText('app.comingSoon.title')).toBeInTheDocument()
+  renderApp('/discover'); expect(await screen.findByText('app.comingSoon.title')).toBeInTheDocument()
 })
 
 function crumbTrail() {
@@ -118,7 +123,7 @@ function crumbTrail() {
   return Array.from(nav.querySelectorAll('a, [aria-current]')).map((e) => [e.textContent, e.getAttribute('href')])
 }
 it('shows the breadcrumb trail for a user page', async () => {
-  renderApp('/users/lea'); await screen.findByText('legacy-user')
+  renderApp('/users/lea'); await screen.findByText('page-user')
   expect(crumbTrail()).toEqual([['app.nav.users', '/users'], ['app.crumb.user', null]])
 })
 it('shows the breadcrumb trail for a settings section', async () => {
@@ -140,8 +145,13 @@ it('track redirect keeps the period params', async () => {
   await waitFor(() => expect(router.state.location.pathname).toBe('/albums/a1'))
   expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({ track: 'x1', range: '7d' })
 })
-it.each(['/', '/history', '/insights'])('legacy page %s hides the global period picker', async (p) => {
+it.each(['/insights'])('legacy page %s hides the global period picker', async (p) => {
   renderApp(p)
   await screen.findByText(/legacy-/)
   expect(screen.queryByRole('button', { name: /app\.period\./ })).toBeNull()
+})
+it.each([['/', 'page-overview'], ['/history', 'page-history:table'], ['/users/lea', 'page-user']])('page %s shows the global period picker', async (p, text) => {
+  renderApp(p)
+  await screen.findByText(text)
+  expect(screen.getAllByRole('button', { name: /app\.period\./ }).length).toBeGreaterThan(0)
 })

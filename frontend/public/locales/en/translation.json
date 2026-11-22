@@ -501,6 +501,294 @@
       "peak": "peak",
       "views": "Views"
     },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "{{views}} views · {{users}} active users in this period",
+      "metric": {
+        "time": "Watch time",
+        "views": "Views",
+        "clicks": "Clicks"
+      },
+      "hoursUnit": "h",
+      "activeUsers": "Active users",
+      "completion": "Average completion",
+      "points_one": "{{count}} pt",
+      "points_other": "{{count}} pts",
+      "perDay": "{{metric}} per day",
+      "currentPeriod": "Selected period",
+      "previousPeriod": "Previous period",
+      "date": "Date",
+      "error": "Could not load the overview",
+      "seeAll": "See all →",
+      "top": {
+        "title": "Top content",
+        "subtitle": "views · click = content page",
+        "filter": "Content type",
+        "all": "All",
+        "movies": "Movies",
+        "series": "Series",
+        "music": "Music",
+        "content": "Content",
+        "empty": "Nothing watched in this period"
+      },
+      "live": {
+        "title": "Live",
+        "subtitle_one": "{{count}} stream · {{transcodes}} transcoding",
+        "subtitle_other": "{{count}} streams · {{transcodes}} transcoding",
+        "badge": "Live",
+        "empty": "Nothing playing",
+        "realtime": "Updated in real time"
+      },
+      "users": {
+        "title": "Users",
+        "subtitle": "watch time",
+        "user": "User",
+        "empty": "No active user"
+      },
+      "byType": {
+        "title": "By type",
+        "subtitle": "share of watch time, then play method",
+        "method": "Play method (views)",
+        "empty": "No playback in this period"
+      },
+      "when": {
+        "title": "When",
+        "subtitle": "views by day and hour",
+        "day": "Day"
+      },
+      "peak": {
+        "title": "Peak concurrent streams",
+        "subtitle": "maximum simultaneous streams per day",
+        "series": "Max streams"
+      },
+      "onThisDay": {
+        "title": "On this day",
+        "subtitle": "what was watched on this date in earlier years",
+        "empty": "Nothing watched on this day in earlier years"
+      }
+    },
+    "live": {
+      "title": "Live",
+      "subtitle_one": "{{count}} stream playing · updated in real time",
+      "subtitle_other": "{{count}} streams playing · updated in real time",
+      "playing": "Now playing",
+      "transcodes": "Transcodes",
+      "hardware_one": "{{count}} hardware accelerated",
+      "hardware_other": "{{count}} hardware accelerated",
+      "bandwidth": "Outgoing bitrate",
+      "mbps": "Mb/s",
+      "peak": "Today’s peak",
+      "peakAt": "at {{time}}",
+      "empty": "Nothing playing",
+      "emptyHint": "Sessions show up here as soon as playback starts.",
+      "error": "Could not load the current sessions",
+      "episodeShort": "S{{season}} · E{{episode}}",
+      "bandwidthTitle": "Live outgoing bitrate",
+      "bandwidthSubtitle": "per active stream",
+      "simultaneous": "Concurrent streams",
+      "simultaneousSubtitle": "today, per {{minutes}} min slot",
+      "timeline": "Today’s timeline",
+      "timelineSubtitle": "who watched what today, and when streams overlapped",
+      "timelineEmpty": "No playback today",
+      "concurrencyError": "Could not load today’s playback",
+      "time": "Time",
+      "user": "User",
+      "content": "Content",
+      "start": "Start",
+      "end": "End"
+    },
+    "history": {
+      "title": "History",
+      "subtitle_one": "{{total}} play in this period",
+      "subtitle_other": "{{total}} plays in this period",
+      "view": "View",
+      "table": "Table",
+      "export": "Export",
+      "exportError": "CSV export failed",
+      "filters": "History filters",
+      "search": "Search the history",
+      "types": {
+        "movie": "Movies",
+        "series": "Series",
+        "music": "Music"
+      },
+      "viewsOnly": "Views only",
+      "add": {
+        "user": "User",
+        "client": "Client",
+        "device": "Device",
+        "method": "Method"
+      },
+      "chip": {
+        "user": "User: {{value}}",
+        "client": "Client: {{value}}",
+        "device": "Device: {{value}}",
+        "method": "Method: {{value}}"
+      },
+      "filterBy": "Filter on {{value}}",
+      "col": {
+        "date": "Date",
+        "user": "User",
+        "content": "Content",
+        "watched": "Watched",
+        "completion": "Completion",
+        "device": "Device",
+        "method": "Playback",
+        "view": "View or click"
+      },
+      "episodeShort": "S{{season}} · E{{episode}}",
+      "empty": "No playback",
+      "emptyHint": "Try another period or remove some filters.",
+      "error": "Could not load the history",
+      "calendar": {
+        "title": "Calendar",
+        "prev": "Previous month",
+        "next": "Next month",
+        "current": "This month",
+        "views_one": "{{count}} view",
+        "views_other": "{{count}} views",
+        "more_one": "+{{count}} more",
+        "more_other": "+{{count}} more"
+      }
+    },
+    "users": {
+      "title": "Users",
+      "subtitle_one": "{{count}} tracked account · {{active}} active in this period",
+      "subtitle_other": "{{count}} tracked accounts · {{active}} active in this period",
+      "col": {
+        "user": "User",
+        "time": "Time",
+        "views": "Views",
+        "split": "Split",
+        "last": "Last activity",
+        "trend": "Last 14 days"
+      },
+      "never": "never",
+      "empty": "No users",
+      "error": "Could not load the users",
+      "retention": {
+        "title": "User retention",
+        "subtitle": "users of a week still active in the following weeks",
+        "week": "week of {{date}}",
+        "cohort": "Week",
+        "size": "Active",
+        "unit": "Active users",
+        "empty": "Not enough data",
+        "error": "Could not load retention"
+      },
+      "share": {
+        "title": "Everyone’s share over time",
+        "subtitle": {
+          "week": "share of watch time, week by week",
+          "month": "share of watch time, month by month"
+        },
+        "total": "Share in period",
+        "empty": "No playback in this period",
+        "error": "Could not load the shares"
+      }
+    },
+    "userPage": {
+      "error": "Could not load this user",
+      "notFound": "User not found",
+      "memberSince": "First playback on {{date}}",
+      "favoriteDevice": "Favourite device: {{device}}",
+      "watching": "Watching {{title}}",
+      "recap": "{{year}} recap",
+      "tabs": {
+        "overview": "Overview",
+        "history": "History",
+        "taste": "Taste"
+      },
+      "tiles": {
+        "time": "Watch time",
+        "hoursUnit": "h",
+        "views": "Views",
+        "activeDays": "Active days",
+        "streak": "Current streak",
+        "daysUnit": "days",
+        "record_one": "record: {{count}} day",
+        "record_other": "record: {{count}} days",
+        "completion": "Completion"
+      },
+      "calendar": {
+        "title": "Activity over 12 months",
+        "subtitle": "watch time per day",
+        "date": "Date"
+      },
+      "inProgress": {
+        "title": "In progress",
+        "subtitle": "series started, not finished",
+        "empty": "No series in progress",
+        "next": "S{{season}} · E{{episode}} up next",
+        "nextUnknown": "Next episode",
+        "progress": "{{name}} progress"
+      },
+      "clock": {
+        "title": "Clock",
+        "subtitle": "peak at {{hour}} · views per hour",
+        "subtitleEmpty": "views per hour",
+        "hour": "Hour",
+        "views": "Views"
+      },
+      "profile": {
+        "title": "Profile",
+        "subtitle": "scores for the period",
+        "regularity": "Regularity",
+        "regularityHint": "active days",
+        "discovery": "Discovery",
+        "discoveryHint": "first views",
+        "concentration": "Concentration",
+        "concentrationHint": "share of top 3",
+        "completion": "Completion",
+        "completionHint": "finished views"
+      },
+      "streak": {
+        "title": "Streak & records",
+        "subtitle": "consecutive days with at least one play",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days",
+        "best_one": "in a row · record {{count}} day",
+        "best_other": "in a row · record {{count}} days",
+        "bestLabel": "best streak",
+        "recordDay": "record on {{date}}",
+        "noRecord": "no playback",
+        "last14_one": "{{count}} active day in the last 14",
+        "last14_other": "{{count}} active days in the last 14"
+      },
+      "devices": {
+        "title": "Devices & versions",
+        "subtitle": "devices used and client versions",
+        "device": "Device",
+        "client": "Client",
+        "version": "Version",
+        "views": "Views",
+        "outdated": "{{version}} · outdated",
+        "empty": "No devices"
+      },
+      "compare": {
+        "title": "Comparison",
+        "subtitle": "with another user, over the period",
+        "pick": "Compare with…",
+        "clear": "Remove comparison",
+        "empty": "No comparison",
+        "emptyHint": "Pick a user to compare with.",
+        "error": "Could not load the compared user",
+        "vs": "vs",
+        "time": "Time",
+        "views": "Views",
+        "completion": "Completion",
+        "regularity": "Regularity",
+        "seriesShare": "Series share"
+      },
+      "taste": {
+        "movie": "Movies",
+        "series": "Series",
+        "music": "Music",
+        "subtitle": "genres by watch time",
+        "genre": "Genre",
+        "empty": "No genre in this period"
+      }
+    },
     "navGroup": {
       "observe": "Observe",
       "explore": "Explore",

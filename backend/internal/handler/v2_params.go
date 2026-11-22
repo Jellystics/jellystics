@@ -269,4 +269,5 @@ func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2.GET("/libraries", h.Libraries)
 	v2.GET("/libraries/:id", h.Library)
 	h.registerMediaExtra(v2)
+	h.registerUsersExtra(v2)
 }

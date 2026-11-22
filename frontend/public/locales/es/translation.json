@@ -501,6 +501,294 @@
       "peak": "pico",
       "views": "Vistas"
     },
+    "overview": {
+      "title": "Resumen",
+      "subtitle": "{{views}} vistas · {{users}} usuarios activos en el periodo",
+      "metric": {
+        "time": "Tiempo de reproducción",
+        "views": "Vistas",
+        "clicks": "Clics"
+      },
+      "hoursUnit": "h",
+      "activeUsers": "Usuarios activos",
+      "completion": "Finalización media",
+      "points_one": "{{count}} pt",
+      "points_other": "{{count}} pts",
+      "perDay": "{{metric}} por día",
+      "currentPeriod": "Periodo seleccionado",
+      "previousPeriod": "Periodo anterior",
+      "date": "Fecha",
+      "error": "No se pudo cargar el resumen",
+      "seeAll": "Ver todo →",
+      "top": {
+        "title": "Contenido más visto",
+        "subtitle": "vistas · clic = página del contenido",
+        "filter": "Tipo de contenido",
+        "all": "Todo",
+        "movies": "Películas",
+        "series": "Series",
+        "music": "Música",
+        "content": "Contenido",
+        "empty": "Nada visto en el periodo"
+      },
+      "live": {
+        "title": "En directo",
+        "subtitle_one": "{{count}} reproducción · {{transcodes}} transcodificación(es)",
+        "subtitle_other": "{{count}} reproducciones · {{transcodes}} transcodificación(es)",
+        "badge": "Live",
+        "empty": "Nada en reproducción",
+        "realtime": "Actualizado en tiempo real"
+      },
+      "users": {
+        "title": "Usuarios",
+        "subtitle": "tiempo de reproducción",
+        "user": "Usuario",
+        "empty": "Ningún usuario activo"
+      },
+      "byType": {
+        "title": "Por tipo",
+        "subtitle": "parte del tiempo de reproducción y método de reproducción",
+        "method": "Método de reproducción (vistas)",
+        "empty": "Sin reproducciones en el periodo"
+      },
+      "when": {
+        "title": "Cuándo",
+        "subtitle": "vistas por día y hora",
+        "day": "Día"
+      },
+      "peak": {
+        "title": "Pico de flujos simultáneos",
+        "subtitle": "máximo de reproducciones a la vez, por día",
+        "series": "Flujos máx."
+      },
+      "onThisDay": {
+        "title": "Tal día como hoy",
+        "subtitle": "lo que se veía en esta fecha en años anteriores",
+        "empty": "Nada visto este día en años anteriores"
+      }
+    },
+    "live": {
+      "title": "En directo",
+      "subtitle_one": "{{count}} reproducción en curso · actualizado en tiempo real",
+      "subtitle_other": "{{count}} reproducciones en curso · actualizado en tiempo real",
+      "playing": "En reproducción",
+      "transcodes": "Transcodificaciones",
+      "hardware_one": "{{count}} con aceleración por hardware",
+      "hardware_other": "{{count}} con aceleración por hardware",
+      "bandwidth": "Tasa de salida",
+      "mbps": "Mb/s",
+      "peak": "Pico del día",
+      "peakAt": "a las {{time}}",
+      "empty": "Nada en reproducción",
+      "emptyHint": "Las sesiones aparecen aquí en cuanto empieza una reproducción.",
+      "error": "No se pudieron cargar las sesiones en curso",
+      "episodeShort": "T{{season}} · E{{episode}}",
+      "bandwidthTitle": "Tasa de salida en directo",
+      "bandwidthSubtitle": "por reproducción en curso",
+      "simultaneous": "Reproducciones simultáneas",
+      "simultaneousSubtitle": "hoy, por franjas de {{minutes}} min",
+      "timeline": "Cronología del día",
+      "timelineSubtitle": "quién veía qué hoy y cuándo se solapan las reproducciones",
+      "timelineEmpty": "Ninguna reproducción hoy",
+      "concurrencyError": "No se pudieron cargar las reproducciones del día",
+      "time": "Hora",
+      "user": "Usuario",
+      "content": "Contenido",
+      "start": "Inicio",
+      "end": "Fin"
+    },
+    "history": {
+      "title": "Historial",
+      "subtitle_one": "{{total}} reproducción en el periodo",
+      "subtitle_other": "{{total}} reproducciones en el periodo",
+      "view": "Vista",
+      "table": "Tabla",
+      "export": "Exportar",
+      "exportError": "Error al exportar el CSV",
+      "filters": "Filtros del historial",
+      "search": "Buscar en el historial",
+      "types": {
+        "movie": "Películas",
+        "series": "Series",
+        "music": "Música"
+      },
+      "viewsOnly": "Solo vistas",
+      "add": {
+        "user": "Usuario",
+        "client": "Cliente",
+        "device": "Dispositivo",
+        "method": "Método"
+      },
+      "chip": {
+        "user": "Usuario: {{value}}",
+        "client": "Cliente: {{value}}",
+        "device": "Dispositivo: {{value}}",
+        "method": "Método: {{value}}"
+      },
+      "filterBy": "Filtrar por {{value}}",
+      "col": {
+        "date": "Fecha",
+        "user": "Usuario",
+        "content": "Contenido",
+        "watched": "Visto",
+        "completion": "Finalización",
+        "device": "Dispositivo",
+        "method": "Reproducción",
+        "view": "Vista o clic"
+      },
+      "episodeShort": "T{{season}} · E{{episode}}",
+      "empty": "Sin reproducciones",
+      "emptyHint": "Prueba otro periodo o quita filtros.",
+      "error": "No se pudo cargar el historial",
+      "calendar": {
+        "title": "Calendario",
+        "prev": "Mes anterior",
+        "next": "Mes siguiente",
+        "current": "Este mes",
+        "views_one": "{{count}} vista",
+        "views_other": "{{count}} vistas",
+        "more_one": "+{{count}} más",
+        "more_other": "+{{count}} más"
+      }
+    },
+    "users": {
+      "title": "Usuarios",
+      "subtitle_one": "{{count}} cuenta seguida · {{active}} activa(s) en el periodo",
+      "subtitle_other": "{{count}} cuentas seguidas · {{active}} activa(s) en el periodo",
+      "col": {
+        "user": "Usuario",
+        "time": "Tiempo",
+        "views": "Vistas",
+        "split": "Reparto",
+        "last": "Última actividad",
+        "trend": "Últimos 14 días"
+      },
+      "never": "nunca",
+      "empty": "Ningún usuario",
+      "error": "No se pudieron cargar los usuarios",
+      "retention": {
+        "title": "Retención de usuarios",
+        "subtitle": "usuarios de una semana aún activos las semanas siguientes",
+        "week": "sem. del {{date}}",
+        "cohort": "Semana",
+        "size": "Activos",
+        "unit": "Usuarios activos",
+        "empty": "No hay suficientes datos",
+        "error": "No se pudo cargar la retención"
+      },
+      "share": {
+        "title": "La parte de cada uno en el tiempo",
+        "subtitle": {
+          "week": "parte del tiempo de reproducción, semana a semana",
+          "month": "parte del tiempo de reproducción, mes a mes"
+        },
+        "total": "Parte en el periodo",
+        "empty": "Sin reproducciones en el periodo",
+        "error": "No se pudo cargar el reparto"
+      }
+    },
+    "userPage": {
+      "error": "No se pudo cargar este usuario",
+      "notFound": "Usuario no encontrado",
+      "memberSince": "Primera reproducción el {{date}}",
+      "favoriteDevice": "Dispositivo favorito: {{device}}",
+      "watching": "Viendo {{title}}",
+      "recap": "Resumen {{year}}",
+      "tabs": {
+        "overview": "Resumen",
+        "history": "Historial",
+        "taste": "Gustos"
+      },
+      "tiles": {
+        "time": "Tiempo de reproducción",
+        "hoursUnit": "h",
+        "views": "Vistas",
+        "activeDays": "Días activos",
+        "streak": "Racha actual",
+        "daysUnit": "días",
+        "record_one": "récord: {{count}} día",
+        "record_other": "récord: {{count}} días",
+        "completion": "Finalización"
+      },
+      "calendar": {
+        "title": "Actividad en 12 meses",
+        "subtitle": "tiempo de reproducción por día",
+        "date": "Fecha"
+      },
+      "inProgress": {
+        "title": "En curso",
+        "subtitle": "series empezadas, sin terminar",
+        "empty": "Ninguna serie en curso",
+        "next": "T{{season}} · E{{episode}} a continuación",
+        "nextUnknown": "Episodio siguiente",
+        "progress": "Progreso de {{name}}"
+      },
+      "clock": {
+        "title": "Reloj",
+        "subtitle": "pico a las {{hour}} · vistas por hora",
+        "subtitleEmpty": "vistas por hora",
+        "hour": "Hora",
+        "views": "Vistas"
+      },
+      "profile": {
+        "title": "Perfil",
+        "subtitle": "puntuaciones del periodo",
+        "regularity": "Regularidad",
+        "regularityHint": "días activos",
+        "discovery": "Descubrimiento",
+        "discoveryHint": "primeras vistas",
+        "concentration": "Concentración",
+        "concentrationHint": "parte del top 3",
+        "completion": "Finalización",
+        "completionHint": "vistas terminadas"
+      },
+      "streak": {
+        "title": "Racha y récords",
+        "subtitle": "días seguidos con al menos una reproducción",
+        "days_one": "{{count}} día",
+        "days_other": "{{count}} días",
+        "best_one": "seguidos · récord {{count}} día",
+        "best_other": "seguidos · récord {{count}} días",
+        "bestLabel": "mejor racha",
+        "recordDay": "récord el {{date}}",
+        "noRecord": "sin reproducciones",
+        "last14_one": "{{count}} día activo de los últimos 14",
+        "last14_other": "{{count}} días activos de los últimos 14"
+      },
+      "devices": {
+        "title": "Dispositivos y versiones",
+        "subtitle": "dispositivos usados y versiones de los clientes",
+        "device": "Dispositivo",
+        "client": "Cliente",
+        "version": "Versión",
+        "views": "Vistas",
+        "outdated": "{{version}} · obsoleta",
+        "empty": "Ningún dispositivo"
+      },
+      "compare": {
+        "title": "Comparación",
+        "subtitle": "con otro usuario, en el periodo",
+        "pick": "Comparar con…",
+        "clear": "Quitar la comparación",
+        "empty": "Sin comparación",
+        "emptyHint": "Elige un usuario para comparar.",
+        "error": "No se pudo cargar el usuario comparado",
+        "vs": "vs",
+        "time": "Tiempo",
+        "views": "Vistas",
+        "completion": "Finalización",
+        "regularity": "Regularidad",
+        "seriesShare": "Parte de series"
+      },
+      "taste": {
+        "movie": "Películas",
+        "series": "Series",
+        "music": "Música",
+        "subtitle": "géneros por tiempo de reproducción",
+        "genre": "Género",
+        "empty": "Ningún género en el periodo"
+      }
+    },
     "navGroup": {
       "observe": "Observar",
       "explore": "Explorar",
