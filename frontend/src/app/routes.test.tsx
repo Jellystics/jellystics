@@ -137,8 +137,14 @@ it('track redirect keeps the period params', async () => {
   await waitFor(() => expect(router.state.location.pathname).toBe('/albums/a1'))
   expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({ track: 'x1', range: '7d' })
 })
-it.each(['/', '/history', '/insights'])('legacy page %s hides the global period picker', async (p) => {
+it.each(['/', '/history'])('legacy page %s hides the global period picker', async (p) => {
   renderApp(p)
   await screen.findByText(/legacy-/)
   expect(screen.queryByRole('button', { name: /app\.period\./ })).toBeNull()
+})
+// --- phase 5 ---
+it('/insights mounts the insights page with the global period picker', async () => {
+  renderApp('/insights')
+  expect(await screen.findByRole('heading', { name: 'app.insights.title' })).toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: /app\.period\./ }).length).toBeGreaterThan(0)
 })

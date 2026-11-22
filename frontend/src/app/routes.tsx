@@ -17,9 +17,12 @@ import ItemDetailPage from '@/features/libraries/ItemDetailPage'
 import AlbumDetailPage from '@/features/libraries/AlbumDetailPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
-import StatisticsPage from '@/features/statistics/StatisticsPage'
 import SettingsPage from '@/features/settings/SettingsPage'
 import AboutPage from '@/features/about/AboutPage'
+import InsightsPage from './pages/insights/InsightsPage'
+import DiscoverPage from './pages/discover/DiscoverPage'
+import PlaybackPage from './pages/playback/PlaybackPage'
+import RecapPage from './pages/recap/RecapPage'
 
 /** Redirect keeping the current query string (and optionally overriding it). */
 function To({ to, search }: { to: string; search?: string }) {
@@ -98,10 +101,10 @@ export const routes: RouteObject[] = [
       { path: '/albums/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.album' })), element: <AlbumPage /> },
       { path: '/users', ...nav('users'), element: legacy(<UsersPage />) },
       { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: legacy(<UserDetailPage />) },
-      { path: '/users/:id/recap/:period', ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]), element: <ComingSoon nav="users" /> },
-      { path: '/insights', ...ownPeriod('insights'), element: legacy(<StatisticsPage />) },
-      { path: '/discover', ...nav('discover'), element: <ComingSoon nav="discover" /> },
-      { path: '/playback', ...nav('playback'), element: <ComingSoon nav="playback" /> },
+      { path: '/users/:id/recap/:period', handle: { ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]).handle, period: false }, element: <RecapPage /> },
+      { path: '/insights', ...nav('insights'), element: <InsightsPage /> },
+      { path: '/discover', ...nav('discover'), element: <DiscoverPage /> },
+      { path: '/playback', ...nav('playback'), element: <PlaybackPage /> },
       { path: '/settings', ...nav('settings'), element: <SettingsIndex /> },
       { path: '/settings/about', ...nav('settings', settingsTrail), element: legacy(<AboutPage />) },
       { path: '/settings/:section', ...nav('settings', settingsTrail), element: <SettingsSection /> },

@@ -5,6 +5,44 @@ export const FAKE_JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ userId: 'u
 
 const API_PREFIX = /^\/(api|auth|stats|sessions|sync|backup|logs|utils|webhooks|proxy|socket\.io)(\/|$)/
 
+// --- phase 5 ---
+const hours24 = (peak: number, n: number) => Array.from({ length: 24 }, (_, h) => Math.max(0, n - Math.abs(h - peak) * 2))
+const PHASE5_METHODS_DAILY = Array.from({ length: 30 }, (_, i) => ({ date: `2026-10-${String(i + 1).padStart(2, '0')}`, direct: 6 + (i % 4), stream: 2, transcode: 1 + (i % 3) }))
+const PHASE5: Record<string, unknown> = {
+  '/api/v2/insights/completion': { distribution: [21, 9, 6, 4, 4, 4, 5, 7, 13, 124], byType: { movie: 0.64, series: 0.81, music: 0.73 }, units: 197 },
+  '/api/v2/insights/sessions': { buckets: [41, 26, 19, 34, 61, 52, 30, 21, 9], sessions: 293, medianSeconds: 2460 },
+  '/api/v2/insights/resumes': { fromStart: 71, resumed: 29, byType: { movie: 0.41, series: 0.22, music: 0.03 } },
+  '/api/v2/insights/rewatches': [{ id: 'e1', kind: 'episode', name: 'Pilote', parentId: 's1', parentName: 'Station Nord', views: 3, user: { id: 'u1', name: 'Céline' } }],
+  '/api/v2/insights/genres': { months: ['2026-09', '2026-10', '2026-11'], series: [{ name: 'Drame', values: [216000, 198000, 230400] }, { name: 'Science-fiction', values: [162000, 180000, 144000] }], other: [72000, 64800, 79200] },
+  '/api/v2/insights/moments': { movie: hours24(21, 20), series: hours24(21, 30), music: hours24(9, 22) },
+  '/api/v2/insights/pauses': [{ id: 'm1', kind: 'movie', name: 'Les Rivages', ratio: 0.18, pausedSeconds: 1300, watchSeconds: 7200 }],
+  '/api/v2/insights/binges': [{ id: 's1', name: 'Station Nord', binges: 14, users: 3 }],
+  '/api/v2/insights/rhythm': { weekHour: Array.from({ length: 7 }, (_, d) => hours24(21, 6 + d)) },
+  '/api/v2/discover/unwatched': { count: 86, catalog: 352, sizeBytes: 1_200_000_000_000, items: [{ id: 'm9', kind: 'movie', name: 'Atlas', dateAdded: '2025-10-05', sizeBytes: 48_000_000_000 }] },
+  '/api/v2/discover/abandoned': { count: 1, items: [{ id: 'm3', kind: 'movie', name: 'Orbital', user: { id: 'u1', name: 'Céline' }, progress: 0.42, lastPlayed: '2026-07-01T20:00:00+02:00', positionSeconds: 3240 }] },
+  '/api/v2/discover/added': { count: 23, seen: 9, items: [] },
+  '/api/v2/discover/storage': [{ id: 'm9', kind: 'movie', name: 'Atlas', sizeBytes: 48_000_000_000, views: 0 }, { id: 'm1', kind: 'movie', name: 'Les Rivages', sizeBytes: 18_000_000_000, views: 48 }],
+  '/api/v2/playback/methods': { totals: { direct: 240, stream: 60, transcode: 60 }, daily: PHASE5_METHODS_DAILY },
+  '/api/v2/playback/clients': [{ client: 'Jellyfin Web', clicks: 120, views: 100, transcodes: 62, transcodeRatio: 0.62, falseStarts: 20, falseStartRatio: 0.17 }],
+  '/api/v2/playback/quality': {
+    collectedSince: null, captured: 0, views: 360, transcodes: 60,
+    resolution: { served: { '4K': 18, '1080p': 61, '720p': 15, SD: 6 }, sourceUhd: 25, downscaledUhd: 9 },
+    hdr: { native: 11, toneMapped: 9, sdr: 80 }, reasons: [], hwAccel: [],
+    conversions: [{ videoFrom: 'HEVC', videoTo: 'H264', audioFrom: 'TRUEHD', audioTo: 'AAC', views: 41 }],
+    streams: { audioOnly: 46, videoOnly: 21, both: 33 }, bitrate: { samples: 0, avg: null, p95: null, buckets: [0, 0, 0, 0, 0, 0] },
+  },
+  '/api/v2/playback/network': { collectedSince: null, captured: 0, local: 0, remote: 0, unknown: 360, places: [] },
+  '/api/v2/recap/u1/2026': {
+    user: { id: 'u1', name: 'Céline' }, period: '2026', granularity: 'month', from: '2026-01-01', to: '2027-01-01',
+    totals: { watchSeconds: 6_523_200, views: 5210, activeDays: 312 }, previous: { watchSeconds: 0, views: 0, activeDays: 0 },
+    topSeries: [{ id: 's1', name: 'Station Nord', watchSeconds: 1_036_800, views: 300 }], topMovies: [], topArtists: [],
+    buckets: Array.from({ length: 12 }, (_, i) => ({ key: `2026-${String(i + 1).padStart(2, '0')}`, watchSeconds: 360_000 + i * 36_000, views: 400, newArtists: i % 3 })),
+    records: { bestBucket: null, binge: { seriesId: 's1', seriesName: 'Station Nord', episodes: 9, date: '2026-08-14' }, longestStreak: 23 },
+    ranking: [{ id: 's1', kind: 'series', name: 'Station Nord', parentName: null, views: 300, rank: 1, previousRank: null }],
+  },
+}
+// --- end phase 5 ---
+
 // Realistic minimal shapes for endpoints whose consumers expect an object rather than a list.
 const OBJECTS: Record<string, unknown> = {
   '/stats/getViewsByLibraryType': {},
@@ -14,6 +52,9 @@ const OBJECTS: Record<string, unknown> = {
   '/stats/getBingeStats': { totalBingeSessions: 0, topBingedSeries: [] },
   '/stats/getViewingDiversity': { uniqueGenres: 0, uniqueLibraries: 0, uniqueItems: 0, diversityScore: 0, genreBreakdown: [] },
   '/sessions/current': [],
+  // --- phase 5 ---
+  ...PHASE5,
+  // --- end phase 5 ---
 }
 
 const json = (body: unknown, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
