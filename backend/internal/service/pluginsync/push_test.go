@@ -139,7 +139,8 @@ func TestPush_InterruptedResumes(t *testing.T) {
 	f := newFakePlugin(t)
 	s, db := newTestService(t, f)
 	seedHistory(t, db)
-	db.Exec(`UPDATE plugin_sync_state SET push_state = 'running', push_cursor = 't01000', push_sent = 1003, push_imported = 1003, push_total = 1205`)
+	db.Exec(`UPDATE plugin_sync_state SET push_state = 'running', push_cursor = 't01000', push_cursor_at = ?, push_sent = 1003, push_imported = 1003, push_total = 1205`,
+		t0.Add(1000*time.Hour))
 	if st := pushStatus(t, s); st.State != PushInterrupted || !st.Resumable {
 		t.Fatalf("status = %+v", st)
 	}

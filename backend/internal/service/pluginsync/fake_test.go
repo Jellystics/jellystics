@@ -40,6 +40,9 @@ type fakePlugin struct {
 	logins        []jellyfin.JellysticsLogin
 	pushBatches   [][]jellyfin.JellysticsPlay // POST /Jellystics/Import/Plays bodies
 	imported      map[string]bool             // ids received by Import/Plays
+	echoImports   bool                        // pushed plays are stored and served back (import-jellystics)
+	noCounts      bool                        // Import/Plays answers {} (no counts)
+	playsDelay    time.Duration               // delay of every /Plays page (concurrency tests)
 }
 
 func newFakePlugin(t *testing.T) *fakePlugin {
@@ -66,6 +69,11 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 	page := func(path string, versions func() []int64, item func(v int64) any) {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			f.mu.Lock()
+			if d := f.playsDelay; d > 0 && path == "/Jellystics/Plays" {
+				f.mu.Unlock()
+				time.Sleep(d)
+				f.mu.Lock()
+			}
 			defer f.mu.Unlock()
 			if f.absent {
 				http.NotFound(w, r)
@@ -185,7 +193,15 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 			default:
 				f.imported[p.Id] = true
 				res["imported"]++
+				if f.echoImports { // stored like the real plugin: served back by /Plays
+					f.seq++
+					p.Version, p.Source = f.seq, "import-jellystics"
+					f.plays[p.Id] = p
+				}
 			}
+		}
+		if f.noCounts {
+			res = map[string]int{}
 		}
 		writeJSON(w, res)
 	})

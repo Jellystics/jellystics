@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/repository"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,10 +39,15 @@ func dataQualityKey(source string, imported bool) string {
 
 // DataQualityCounts are the counters of one source (or of the period).
 type DataQualityCounts struct {
-	Plays        int   `json:"plays"`
+	// Views / Clicks: as in every v2 endpoint (a view is >= 30 s, every
+	// playback attempt is a click). Detail counters are over clicks.
 	Views        int   `json:"views"`
+	Clicks       int   `json:"clicks"`
 	WatchSeconds int64 `json:"watchSeconds"`
-	// Repaired: imported plays whose impossible duration Jellystics replaced.
+	// Repaired: imported plays whose impossible duration was repaired. A
+	// lower bound: the plugin's own Playback Reporting repairs are only known
+	// once it reports durationRepaired (TODO plugin side), and TSV rows
+	// repaired before migration 015 cannot be identified.
 	Repaired int `json:"repaired"`
 	// Captured: plays with playback details (audio / subtitle choice,
 	// bitrate, local / remote, video range, pauses: see capturedCond).
@@ -57,8 +63,8 @@ type DataQualityCounts struct {
 }
 
 func (a *DataQualityCounts) add(b DataQualityCounts) {
-	a.Plays += b.Plays
 	a.Views += b.Views
+	a.Clicks += b.Clicks
 	a.WatchSeconds += b.WatchSeconds
 	a.Repaired += b.Repaired
 	a.Captured += b.Captured
@@ -73,7 +79,7 @@ func (a *DataQualityCounts) add(b DataQualityCounts) {
 type DataQualitySource struct {
 	Key string `json:"key"`
 	DataQualityCounts
-	PlayShare  float64 `json:"playShare"`
+	ViewShare  float64 `json:"viewShare"`
 	WatchShare float64 `json:"watchShare"`
 }
 
@@ -105,7 +111,7 @@ func (h *V2Handler) DataQuality(c *gin.Context) {
 	}
 	q, args := p.filter(p.Range).sql(`
 		SELECT pa.source AS source, COALESCE(pa.imported, false) AS imported,
-		       COUNT(*)::int AS plays,
+		       COUNT(*)::int AS clicks,
 		       COUNT(*) FILTER (WHERE acts.is_view)::int AS views,
 		       COALESCE(SUM(acts.duration), 0)::bigint AS watch_seconds,
 		       COUNT(*) FILTER (WHERE pa."DurationRepaired")::int AS repaired,
@@ -135,8 +141,8 @@ func (h *V2Handler) DataQuality(c *gin.Context) {
 	}
 	for i := range out.Sources {
 		s := &out.Sources[i]
-		if out.Totals.Plays > 0 {
-			s.PlayShare = float64(s.Plays) / float64(out.Totals.Plays)
+		if out.Totals.Views > 0 {
+			s.ViewShare = float64(s.Views) / float64(out.Totals.Views)
 		}
 		if out.Totals.WatchSeconds > 0 {
 			s.WatchShare = float64(s.WatchSeconds) / float64(out.Totals.WatchSeconds)
@@ -147,10 +153,16 @@ func (h *V2Handler) DataQuality(c *gin.Context) {
 		PluginFirst *time.Time
 		Undated     int
 	}
+	// Undated: same media types and user filter as the statistics.
+	undated := `SELECT COUNT(*) FROM jf_playback_activity a WHERE a."StartedAt" IS NULL AND ` + statsql.MediaFilter("a")
+	args = []interface{}{repository.SourceJellysticsPlugin}
+	if p.UserID != "" {
+		undated += ` AND a."UserId" = ?`
+		args = append(args, p.UserID)
+	}
 	if v2Fail(c, h.raw(c, &meta, `
 		SELECT (SELECT MIN("StartedAt") FROM jf_playback_activity WHERE source = ?) AS plugin_first,
-		       (SELECT COUNT(*) FROM jf_playback_activity WHERE "StartedAt" IS NULL)::int AS undated`,
-		repository.SourceJellysticsPlugin)) {
+		       (`+undated+`)::int AS undated`, args...)) {
 		return
 	}
 	if meta.PluginFirst != nil && !meta.PluginFirst.IsZero() {

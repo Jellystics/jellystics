@@ -174,9 +174,12 @@ func MapPlayWith(p jellyfin.JellysticsPlay, fb *repository.SourceVideo) (models.
 		SkippedSeconds:       &skipped,
 		PlayedToCompletion:   p.PlayedToCompletion,
 		PluginOpen:           open,
-		PlayState:            playState(p),
-		TranscodingInfo:      transcodingInfo(p),
-		MediaStreams:         mediaStreams(p, sv),
+		// Contract extension: the plugin reports durations it repaired
+		// (Playback Reporting import). Absent = not repaired / unknown.
+		DurationRepaired: p.DurationRepaired != nil && *p.DurationRepaired,
+		PlayState:        playState(p),
+		TranscodingInfo:  transcodingInfo(p),
+		MediaStreams:     mediaStreams(p, sv),
 	}
 	if a.SubtitleStreamIndex != nil && *a.SubtitleStreamIndex < 0 {
 		a.SubtitleStreamIndex = nil // -1 = none

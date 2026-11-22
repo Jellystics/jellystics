@@ -301,6 +301,7 @@ type PluginSyncState struct {
 	// History push to the plugin (migration 015), served by the push status.
 	PushState      string     `gorm:"column:push_state;not null;default:idle" json:"-"` // idle | running | done | error
 	PushCursor     string     `gorm:"column:push_cursor;not null;default:''"  json:"-"` // last pushed play Id
+	PushCursorAt   *time.Time `gorm:"column:push_cursor_at"                   json:"-"` // its StartedAt
 	PushTotal      int64      `gorm:"column:push_total"                       json:"-"`
 	PushSent       int64      `gorm:"column:push_sent"                        json:"-"`
 	PushImported   int64      `gorm:"column:push_imported"                    json:"-"`

@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Jellystics/Jellystics/internal/migrations"
@@ -22,12 +23,16 @@ func TestMigration015_DownUpBackfill(t *testing.T) {
 	}
 	run("015_data_quality.down.sql")
 	for _, q := range []string{
-		`INSERT INTO jf_playback_reporting_plugin_data (rowid, "PlayDuration") VALUES ('10', -2147483648), ('11', 3000), ('12', 166552)`,
+		`INSERT INTO jf_playback_reporting_plugin_data (rowid, "PlayDuration") VALUES ('10', -2147483648), ('11', 3000), ('12', 166552), ('14', 90000), ('15', 600)`,
 		`INSERT INTO jf_playback_activity ("Id", "PlaybackDuration", source, imported) VALUES
-			('10', 0, 'plugin', true),      -- repaired negative
-			('11', 3000, 'plugin', true),   -- untouched
-			('12', 2700, 'plugin', true),   -- repaired overlong
-			('13', 10, 'plugin', true),     -- no staging row
+			('10', 0, 'plugin', true),          -- repaired negative
+			('11', 3000, 'plugin', true),       -- untouched
+			('12', 2700, 'plugin', true),       -- repaired overlong
+			('13', 10, 'plugin', true),         -- no staging row
+			('plugin-14', 43200, 'plugin', true), -- older id format, repaired
+			('plugin-15', 600, 'plugin', true),   -- older id format, untouched
+			('import-u-i-2026', 0, 'import', true), -- TSV import: no staging row, unknown
+			('15', 10, 'import', true),         -- TSV row whose id collides with a staging rowid: not legacy
 			('w1', 10, 'watchdog', false)`,
 	} {
 		if err := db.Exec(q).Error; err != nil {
@@ -39,7 +44,7 @@ func TestMigration015_DownUpBackfill(t *testing.T) {
 	if err := db.Raw(`SELECT "Id" FROM jf_playback_activity WHERE "DurationRepaired" ORDER BY "Id"`).Scan(&repaired).Error; err != nil {
 		t.Fatal(err)
 	}
-	if len(repaired) != 2 || repaired[0] != "10" || repaired[1] != "12" {
+	if fmt.Sprint(repaired) != "[10 12 plugin-14]" {
 		t.Fatalf("repaired = %v", repaired)
 	}
 	var state string

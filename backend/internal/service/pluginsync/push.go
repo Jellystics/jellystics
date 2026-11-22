@@ -35,6 +35,8 @@ var (
 	ErrNotConfigured      = errors.New("Jellyfin is not configured")
 	ErrPluginAbsent       = errors.New("the Jellystics plugin is not installed")
 	ErrPluginIncompatible = errors.New("the Jellystics plugin schema version is not supported")
+	// ErrPluginUnreachable wraps HTTP / network failures talking to the plugin.
+	ErrPluginUnreachable = errors.New("the Jellystics plugin is unreachable")
 )
 
 // PushStatus is the read model of the history push.
@@ -82,11 +84,11 @@ func (s *Service) PushStatus(ctx context.Context) (PushStatus, error) {
 // StartPush checks the plugin and starts the history push in the background
 // (resuming an interrupted / failed one). WaitPush waits for it to finish.
 func (s *Service) StartPush(ctx context.Context) (PushStatus, error) {
-	s.pushMu.Lock()
-	defer s.pushMu.Unlock()
-	if s.pushing {
+	if s.isPushing() {
 		return PushStatus{}, ErrPushRunning
 	}
+	// Plugin check without holding pushMu (status reads must not wait on
+	// the network).
 	jf, err := s.client(ctx)
 	if err != nil {
 		return PushStatus{}, err
@@ -96,13 +98,19 @@ func (s *Service) StartPush(ctx context.Context) (PushStatus, error) {
 	}
 	info, err := jf.GetJellysticsInfo(ctx)
 	if err != nil {
-		return PushStatus{}, fmt.Errorf("plugin info: %w", err)
+		return PushStatus{}, fmt.Errorf("%w: %v", ErrPluginUnreachable, err)
 	}
 	if info == nil {
 		return PushStatus{}, ErrPluginAbsent
 	}
 	if info.SchemaVersion != SupportedSchemaVersion {
 		return PushStatus{}, ErrPluginIncompatible
+	}
+
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+	if s.pushing { // started meanwhile
+		return PushStatus{}, ErrPushRunning
 	}
 	st, err := s.repos.PluginSync.GetState(ctx)
 	if err != nil {
@@ -111,7 +119,8 @@ func (s *Service) StartPush(ctx context.Context) (PushStatus, error) {
 	resume := (st.PushState == PushRunning || st.PushState == PushError) && st.PushCursor != ""
 	now := s.now()
 	if !resume {
-		st.PushCursor, st.PushSent, st.PushImported, st.PushSkipped, st.PushRejected = "", 0, 0, 0, 0
+		st.PushCursor, st.PushCursorAt = "", nil
+		st.PushSent, st.PushImported, st.PushSkipped, st.PushRejected = 0, 0, 0, 0
 		st.PushStartedAt = &now
 	}
 	if st.PushTotal, err = s.repos.PluginSync.CountPushable(ctx); err != nil {
@@ -126,6 +135,12 @@ func (s *Service) StartPush(ctx context.Context) (PushStatus, error) {
 	s.pushWG.Add(1)
 	go s.push(jf, st)
 	return out, nil
+}
+
+func (s *Service) isPushing() bool {
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+	return s.pushing
 }
 
 // WaitPush blocks until the running history push (if any) has finished.
@@ -156,7 +171,7 @@ func (s *Service) push(jf *jellyfin.Client, st *models.PluginSyncState) {
 
 func (s *Service) pushBatches(ctx context.Context, jf *jellyfin.Client, st *models.PluginSyncState) error {
 	for {
-		rows, err := s.repos.PluginSync.ListPushable(ctx, st.PushCursor, jellyfin.JellysticsMaxPush)
+		rows, err := s.repos.PluginSync.ListPushable(ctx, st.PushCursorAt, st.PushCursor, jellyfin.JellysticsMaxPush)
 		if err != nil {
 			return err
 		}
@@ -171,7 +186,8 @@ func (s *Service) pushBatches(ctx context.Context, jf *jellyfin.Client, st *mode
 		if err != nil {
 			return fmt.Errorf("push after %q: %w", st.PushCursor, err)
 		}
-		st.PushCursor = rows[len(rows)-1].Id
+		last := rows[len(rows)-1]
+		st.PushCursor, st.PushCursorAt = last.Id, last.StartedAt
 		st.PushSent += int64(len(rows))
 		st.PushImported += int64(res.Imported)
 		st.PushSkipped += int64(res.Skipped)
@@ -196,10 +212,14 @@ func ToPlay(a models.JFPlaybackActivity) jellyfin.JellysticsPlay {
 		}
 		return *p
 	}
-	itemId := str(a.ItemId)
+	// Ids in the N format, like the plays the plugin records, so the overlap
+	// checks match when they come back.
+	itemId := normID(str(a.ItemId))
+	repaired := a.DurationRepaired
 	p := jellyfin.JellysticsPlay{
-		Id: a.Id, PlaySessionId: a.PlaySessionId, UserId: str(a.UserId), UserName: a.UserName,
-		ItemId: itemId, ItemName: a.NowPlayingItemName, ItemType: a.MediaType,
+		Id: a.Id, PlaySessionId: a.PlaySessionId, UserId: normID(str(a.UserId)), UserName: a.UserName,
+		DurationRepaired: &repaired,
+		ItemId:           itemId, ItemName: a.NowPlayingItemName, ItemType: a.MediaType,
 		PauseCount: a.PauseCount, PositionStartTicks: a.PositionTicksStart, PositionEndTicks: a.PositionTicksEnd,
 		RunTimeTicks: a.RunTimeTicks, PlayedToCompletion: a.PlayedToCompletion,
 		DeviceId: a.DeviceId, DeviceName: a.DeviceName, Client: a.Client, ApplicationVersion: a.ApplicationVersion,
@@ -212,7 +232,7 @@ func ToPlay(a models.JFPlaybackActivity) jellyfin.JellysticsPlay {
 	if len(a.TranscodeReasons) > 0 && string(a.TranscodeReasons) != "null" {
 		p.TranscodeReasons = jellyfin.EmbeddedJSON(a.TranscodeReasons)
 	}
-	parent := str(a.NowPlayingItemId)
+	parent := normID(str(a.NowPlayingItemId))
 	if parent != "" && parent != itemId {
 		switch str(a.MediaType) {
 		case "Episode":

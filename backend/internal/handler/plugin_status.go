@@ -25,7 +25,8 @@ func PluginStatus(svc *pluginsync.Service) gin.HandlerFunc {
 // PluginPushHistory serves POST /api/plugin/push-history: starts (or
 // resumes) the background push of the Jellystics history to the plugin.
 // 202 with the push status; 409 when a push is already running or the
-// plugin is absent / incompatible / Jellyfin not configured.
+// plugin is absent / incompatible / Jellyfin not configured; 502 when the
+// plugin cannot be reached; 500 otherwise (database).
 func PluginPushHistory(svc *pluginsync.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		st, err := svc.StartPush(c.Request.Context())
@@ -33,8 +34,10 @@ func PluginPushHistory(svc *pluginsync.Service) gin.HandlerFunc {
 		case errors.Is(err, pluginsync.ErrPushRunning), errors.Is(err, pluginsync.ErrPluginAbsent),
 			errors.Is(err, pluginsync.ErrPluginIncompatible), errors.Is(err, pluginsync.ErrNotConfigured):
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		case err != nil:
+		case errors.Is(err, pluginsync.ErrPluginUnreachable):
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		case err != nil:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusAccepted, st)
 		}

@@ -22,6 +22,9 @@ const (
 	// SourceLegacyPBR: legacy Jellystics import of the official Playback
 	// Reporting plugin (always imported = true).
 	SourceLegacyPBR = "plugin"
+	// SourceTSVImport: Playback Reporting TSV backup imported by Jellystics
+	// (imported = true).
+	SourceTSVImport = "import"
 	// Imports made by the Jellystics plugin (imported = true).
 	SourceImportPBR        = "import-pbr"        // official Playback Reporting DB
 	SourceImportJellystics = "import-jellystics" // Jellystics history pushed to the plugin, coming back
@@ -35,6 +38,12 @@ const (
 	trackerOverlapSlack = "interval '10 seconds'"
 	importOverlapSlack  = "interval '2 minutes'" // imported plays have imprecise times
 )
+
+// overlapImport: rows a and t overlap in time within importOverlapSlack.
+func overlapImport(a, t string) string {
+	return a + `."StartedAt" <= COALESCE(` + t + `."EndedAt", ` + t + `."StartedAt") + ` + importOverlapSlack +
+		` AND COALESCE(` + a + `."EndedAt", ` + a + `."StartedAt") >= ` + t + `."StartedAt" - ` + importOverlapSlack
+}
 
 // UpsertResult counts the plays written by UpsertPlays.
 type UpsertResult struct {
@@ -61,9 +70,10 @@ type PluginSyncRepository interface {
 	// (SaveState never writes them).
 	SavePushState(ctx context.Context, st *models.PluginSyncState) error
 	// CountPushable / ListPushable select the plays the history push sends
-	// to the plugin (everything not coming from the plugin), by ascending Id.
+	// to the plugin (everything not coming from the plugin), in ("StartedAt",
+	// "Id") order after the given cursor (nil afterAt = from the start).
 	CountPushable(ctx context.Context) (int64, error)
-	ListPushable(ctx context.Context, afterId string, limit int) ([]models.JFPlaybackActivity, error)
+	ListPushable(ctx context.Context, afterAt *time.Time, afterId string, limit int) ([]models.JFPlaybackActivity, error)
 	// CountPluginPlays counts the plays recorded by the Jellystics plugin.
 	CountPluginPlays(ctx context.Context) (int64, error)
 
@@ -107,7 +117,7 @@ func (r *pluginSyncRepo) GetState(ctx context.Context) (*models.PluginSyncState,
 
 // pushColumns are owned by the history push (SavePushState): the sync never
 // writes them, so a concurrent sync run and push cannot overwrite each other.
-var pushColumns = []string{"push_state", "push_cursor", "push_total", "push_sent", "push_imported",
+var pushColumns = []string{"push_state", "push_cursor", "push_cursor_at", "push_total", "push_sent", "push_imported",
 	"push_skipped", "push_rejected", "push_started_at", "push_finished_at", "push_error"}
 
 func (r *pluginSyncRepo) SaveState(ctx context.Context, st *models.PluginSyncState) error {
@@ -133,10 +143,13 @@ func (r *pluginSyncRepo) CountPushable(ctx context.Context) (int64, error) {
 	return n, err
 }
 
-func (r *pluginSyncRepo) ListPushable(ctx context.Context, afterId string, limit int) ([]models.JFPlaybackActivity, error) {
+func (r *pluginSyncRepo) ListPushable(ctx context.Context, afterAt *time.Time, afterId string, limit int) ([]models.JFPlaybackActivity, error) {
 	var out []models.JFPlaybackActivity
-	err := r.db.WithContext(ctx).Where(pushableCond).Where(`"Id" > ?`, afterId).
-		Order(`"Id"`).Limit(limit).Find(&out).Error
+	q := r.db.WithContext(ctx).Where(pushableCond)
+	if afterAt != nil {
+		q = q.Where(`("StartedAt", "Id") > (?, ?)`, *afterAt, afterId)
+	}
+	err := q.Order(`"StartedAt", "Id"`).Limit(limit).Find(&out).Error
 	return out, err
 }
 
@@ -185,17 +198,21 @@ func (r *pluginSyncRepo) UpsertPlays(ctx context.Context, acts []models.JFPlayba
 		if err := tx.Table(importTmp).CreateInBatches(&imports, 500).Error; err != nil {
 			return err
 		}
-		// The legacy Jellystics import of the same Playback Reporting rows is
-		// superseded by the plugin's repaired ones.
+		// Jellystics' own imports of the same Playback Reporting rows (legacy
+		// sync, TSV backup) are superseded by the plugin's: one play = one
+		// row. A duration Jellystics had repaired keeps its flag.
 		if err := tx.Exec(`
-			DELETE FROM jf_playback_activity a USING `+importTmp+` t
-			WHERE t.source = ? AND a.source = ? AND a.imported
-			  AND (
-				(t."Id" LIKE 'pbr-%' AND a."Id" = substr(t."Id", 5))
-				OR (a."UserId" = t."UserId" AND a."ItemId" = t."ItemId"
-				    AND a."StartedAt" <= COALESCE(t."EndedAt", t."StartedAt") + `+importOverlapSlack+`
-				    AND COALESCE(a."EndedAt", a."StartedAt") >= t."StartedAt" - `+importOverlapSlack+`)
-			  )`, SourceImportPBR, SourceLegacyPBR).Error; err != nil {
+			WITH gone AS (
+				DELETE FROM jf_playback_activity a USING `+importTmp+` t
+				WHERE t.source = @pbr AND a.source IN (@legacy, @tsv) AND a.imported
+				  AND (
+					(t."Id" LIKE 'pbr-%' AND a."Id" IN (substr(t."Id", 5), 'plugin-' || substr(t."Id", 5)))
+					OR (a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`)
+				  )
+				RETURNING t."Id" AS tid, a."DurationRepaired" AS repaired
+			)
+			UPDATE `+importTmp+` t SET "DurationRepaired" = true FROM gone WHERE gone.tid = t."Id" AND gone.repaired`,
+			map[string]any{"pbr": SourceImportPBR, "legacy": SourceLegacyPBR, "tsv": SourceTSVImport}).Error; err != nil {
 			return err
 		}
 		updates := make([]string, 0, len(playbackUpsertColumns))
@@ -204,23 +221,40 @@ func (r *pluginSyncRepo) UpsertPlays(ctx context.Context, acts []models.JFPlayba
 			if c != "source" && c != "imported" {
 				q = `"` + c + `"`
 			}
+			if c == "DurationRepaired" {
+				// Sticky: once repaired (by Jellystics or the plugin), a
+				// re-read of the same play does not clear it.
+				updates = append(updates, `"DurationRepaired" = jf_playback_activity."DurationRepaired" OR EXCLUDED."DurationRepaired"`)
+				continue
+			}
 			updates = append(updates, fmt.Sprintf("%s = EXCLUDED.%s", q, q))
 		}
+		// A PBR import is skipped when another row already records the play
+		// (tracker, plugin, restored or Jellystics history); other PBR rows
+		// do not block it (two real plays can be close).
 		ins := tx.Exec(`
 			INSERT INTO jf_playback_activity SELECT t.* FROM `+importTmp+` t
-			WHERE t.source = ? AND NOT EXISTS (
+			WHERE t.source = @pbr AND NOT EXISTS (
 				SELECT 1 FROM jf_playback_activity a
-				WHERE NOT COALESCE(a.imported, false) AND a."UserId" = t."UserId" AND a."ItemId" = t."ItemId"
-				  AND a."StartedAt" <= COALESCE(t."EndedAt", t."StartedAt") + `+importOverlapSlack+`
-				  AND COALESCE(a."EndedAt", a."StartedAt") >= t."StartedAt" - `+importOverlapSlack+`)
-			ON CONFLICT ("Id") DO UPDATE SET `+strings.Join(updates, ", "), SourceImportPBR)
+				WHERE a.source <> @pbr AND NOT (COALESCE(a.imported, false) AND a.source IN (@legacy, @tsv))
+				  AND a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`)
+			ON CONFLICT ("Id") DO UPDATE SET `+strings.Join(updates, ", "),
+			map[string]any{"pbr": SourceImportPBR, "legacy": SourceLegacyPBR, "tsv": SourceTSVImport})
 		if ins.Error != nil {
 			return ins.Error
 		}
 		res.Imported += int(ins.RowsAffected)
+		// Jellystics history coming back from the plugin only fills genuine
+		// gaps: never when any row (whatever its source, its own Id included)
+		// already records that play. Otherwise a pushed row that was since
+		// replaced (plugin play, PBR import) would come back as a duplicate.
 		ins = tx.Exec(`
 			INSERT INTO jf_playback_activity SELECT t.* FROM `+importTmp+` t
-			WHERE t.source = ? ON CONFLICT ("Id") DO NOTHING`, SourceImportJellystics)
+			WHERE t.source = ? AND NOT EXISTS (
+				SELECT 1 FROM jf_playback_activity a
+				WHERE a."Id" = t."Id"
+				   OR (a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`))
+			ON CONFLICT ("Id") DO NOTHING`, SourceImportJellystics)
 		if ins.Error != nil {
 			return ins.Error
 		}

@@ -63,6 +63,11 @@ func TestPluginPushAndResyncEndpoints(t *testing.T) {
 	if w.Code != http.StatusOK || st["state"] != "idle" || st["sent"] != float64(0) || st["resumable"] != false {
 		t.Fatalf("push status = %d %v", w.Code, st)
 	}
+	// Unreachable plugin: 502.
+	db.Exec(`UPDATE app_config SET "JF_HOST" = 'http://127.0.0.1:1'`)
+	if w := post("/api/plugin/push-history"); w.Code != http.StatusBadGateway {
+		t.Fatalf("push unreachable = %d %s", w.Code, w.Body.String())
+	}
 	if w := post("/api/plugin/resync"); w.Code != http.StatusAccepted {
 		t.Fatalf("resync = %d %s", w.Code, w.Body.String())
 	}

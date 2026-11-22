@@ -162,15 +162,19 @@ type JellysticsPlay struct {
 	VideoRange          *string      `json:"videoRange"`
 	// Contract extension (12): Jellyfin TranscodingInfo direct flags and the
 	// source video stream. All optional (null = unknown).
-	IsVideoDirect  *bool    `json:"isVideoDirect"`
-	IsAudioDirect  *bool    `json:"isAudioDirect"`
-	SourceWidth    *int     `json:"sourceWidth"`
-	SourceHeight   *int     `json:"sourceHeight"`
-	VideoRangeType *string  `json:"videoRangeType"` // SDR, HDR10, HLG, DOVI...
-	State          string   `json:"state"`          // open | closed
-	LastEventAt    FlexTime `json:"lastEventAt"`
-	Source         string   `json:"source"` // plugin | import-pbr | import-jellystics
-	Version        int64    `json:"version"`
+	IsVideoDirect  *bool   `json:"isVideoDirect"`
+	IsAudioDirect  *bool   `json:"isAudioDirect"`
+	SourceWidth    *int    `json:"sourceWidth"`
+	SourceHeight   *int    `json:"sourceHeight"`
+	VideoRangeType *string `json:"videoRangeType"` // SDR, HDR10, HLG, DOVI...
+	// DurationRepaired (contract extension, optional): the duration was
+	// repaired by the importer (Playback Reporting negative / overlong
+	// durations). null = unknown / not repaired.
+	DurationRepaired *bool    `json:"durationRepaired"`
+	State            string   `json:"state"` // open | closed
+	LastEventAt      FlexTime `json:"lastEventAt"`
+	Source           string   `json:"source"` // plugin | import-pbr | import-jellystics
+	Version          int64    `json:"version"`
 }
 
 // JellysticsLibraryEvent is a library addition / removal (spec §3.2).
