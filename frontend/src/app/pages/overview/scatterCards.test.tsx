@@ -64,29 +64,37 @@ it('All plays: capped note, empty and error states', async () => {
   expect(await screen.findByText('app.error.generic')).toBeInTheDocument()
 })
 
-const libs = (n: number): LibrariesDaily => {
-  const libraries = Array.from({ length: n }, (_, i) => ({ id: `l${i}`, name: `Lib ${String.fromCharCode(74 - i)}`, views: 100 - i }))
+type LibType = LibrariesDaily['libraries'][number]['type']
+/** Libraries by views desc; names run backwards (Lib J, Lib I, …) so name order differs from views order. */
+const libs = (types: LibType[]): LibrariesDaily => {
+  const libraries = types.map((type, i) => ({ id: `l${i}`, name: `Lib ${String.fromCharCode(74 - i)}`, type, views: 100 - i }))
   return {
     bucket: 'day', libraries,
     points: libraries.flatMap((l) => [{ date: '2026-11-19', libraryId: l.id, views: 2 }, { date: '2026-11-20', libraryId: l.id, views: 3 }]),
   }
 }
+const colours = (s: { name: string; color: string }[]) => s.map((x) => [x.name, x.color])
 
-it('librarySeries: fixed slots by name, never cycled; > 8 libraries fold into "other"', () => {
-  const few = librarySeries(libs(3), 'Autres')
-  expect(few.series.map((s) => [s.name, s.color])).toEqual([['Lib H', 'var(--cat-1)'], ['Lib I', 'var(--cat-2)'], ['Lib J', 'var(--cat-3)']])
-  expect(few.points).toHaveLength(6)
+it('librarySeries: one library per type takes the type colour, others take --cat-4..8, then "other"', () => {
+  const one = librarySeries(libs(['movie', 'series', 'music']), 'Autres')
+  expect(colours(one.series)).toEqual([['Lib H', 'var(--t-music)'], ['Lib I', 'var(--t-series)'], ['Lib J', 'var(--t-movie)']])
+  expect(one.points).toHaveLength(6)
 
-  const many = librarySeries(libs(10), 'Autres')
-  expect(many.series).toHaveLength(9)
-  expect(many.series.slice(0, 8).map((s) => s.color)).toEqual(Array.from({ length: 8 }, (_, i) => `var(--cat-${i + 1})`))
-  expect(many.series[8]).toEqual({ id: '__other__', name: 'Autres', color: 'var(--axis)' })
-  // The two smallest (l8, l9) are summed per date into "other".
-  expect(many.points.filter((p) => p.seriesId === '__other__')).toEqual([{ date: '2026-11-19', seriesId: '__other__', views: 4 }, { date: '2026-11-20', seriesId: '__other__', views: 6 }])
+  // First movie library by name (Lib I) gets the movie colour; the second one and the "other" one take extra slots by name.
+  const mixed = librarySeries(libs(['movie', 'movie', 'other', 'series']), 'Autres')
+  expect(colours(mixed.series)).toEqual([['Lib G', 'var(--t-series)'], ['Lib H', 'var(--cat-4)'], ['Lib I', 'var(--t-movie)'], ['Lib J', 'var(--cat-5)']])
+
+  // 9 extra libraries: the 5 most viewed keep a slot (fixed order by name, never cycled), the 4 smallest fold.
+  const many = librarySeries(libs(['movie', ...Array<LibType>(9).fill('other')]), 'Autres')
+  expect(colours(many.series)).toEqual([
+    ['Lib E', 'var(--cat-4)'], ['Lib F', 'var(--cat-5)'], ['Lib G', 'var(--cat-6)'], ['Lib H', 'var(--cat-7)'], ['Lib I', 'var(--cat-8)'],
+    ['Lib J', 'var(--t-movie)'], ['Autres', 'var(--axis)'],
+  ])
+  expect(many.points.filter((p) => p.seriesId === '__other__')).toEqual([{ date: '2026-11-19', seriesId: '__other__', views: 8 }, { date: '2026-11-20', seriesId: '__other__', views: 12 }])
 })
 
 it('Plays by library: one dot per (day, library), legend, weekly subtitle, empty state', async () => {
-  stubFetch({ '/api/v2/overview/libraries-daily': libs(2) })
+  stubFetch({ '/api/v2/overview/libraries-daily': libs(['movie', 'series']) })
   const first = renderPage(<LibrariesScatterCard />)
   await waitFor(() => expect(first.container.querySelectorAll('circle[data-hit]')).toHaveLength(4))
   const c = card('app.overview.libraries.title')
@@ -94,7 +102,7 @@ it('Plays by library: one dot per (day, library), legend, weekly subtitle, empty
   expect(within(c).getAllByText('Lib J').length).toBeGreaterThan(0)
   expect(within(c).getAllByText('Lib I').length).toBeGreaterThan(0)
   const dots = [...first.container.querySelectorAll('circle[data-hit]')]
-  expect(new Set(dots.map((d) => d.getAttribute('fill')))).toEqual(new Set(['var(--cat-1)', 'var(--cat-2)']))
+  expect(new Set(dots.map((d) => d.getAttribute('fill')))).toEqual(new Set(['var(--t-movie)', 'var(--t-series)']))
   // Same day → same x (local midnight in the server zone).
   expect(dots[0].getAttribute('cx')).toBe(dots[2].getAttribute('cx'))
   expect(dots[0].getAttribute('cx')).not.toBe(dots[1].getAttribute('cx'))
@@ -102,7 +110,7 @@ it('Plays by library: one dot per (day, library), legend, weekly subtitle, empty
   expect(screen.getByRole('tooltip')).toHaveTextContent('19 nov.')
   first.unmount()
 
-  stubFetch({ '/api/v2/overview/libraries-daily': { ...libs(2), bucket: 'week' } })
+  stubFetch({ '/api/v2/overview/libraries-daily': { ...libs(['movie', 'series']), bucket: 'week' } })
   const second = renderPage(<LibrariesScatterCard />)
   expect(await screen.findByText('app.overview.libraries.subtitleWeek')).toBeInTheDocument()
   second.unmount()

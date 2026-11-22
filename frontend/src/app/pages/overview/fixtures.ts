@@ -162,7 +162,10 @@ export function playsFixture(capped = false): OverviewPlays {
 
 /** /api/v2/overview/libraries-daily: views per day for four libraries. */
 export function librariesDailyFixture(): LibrariesDaily {
-  const libs = [{ id: 'lib-s', name: 'Séries' }, { id: 'lib-m', name: 'Films' }, { id: 'lib-mu', name: 'Musique' }, { id: 'lib-k', name: 'Enfants' }]
+  const libs: { id: string; name: string; type: LibrariesDaily['libraries'][number]['type'] }[] = [
+    { id: 'lib-s', name: 'Séries', type: 'series' }, { id: 'lib-m', name: 'Films', type: 'movie' },
+    { id: 'lib-mu', name: 'Musique', type: 'music' }, { id: 'lib-k', name: 'Films enfants', type: 'movie' },
+  ]
   const base = [9, 4, 6, 2]
   const points = daysBack(30).flatMap((date, d) => libs.map((l, i) => ({ date, libraryId: l.id, views: Math.max(0, base[i] + ((d * (i + 3)) % 5) - 2) }))).filter((p) => p.views > 0)
   const libraries = libs

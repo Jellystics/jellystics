@@ -71,7 +71,7 @@ export interface LibraryDayPoint { date: ISODate; libraryId: string; views: numb
 export interface LibrariesDaily {
   bucket: 'day' | 'week'
   /** Libraries with views in the period, by views desc. */
-  libraries: { id: string; name: string; views: number }[]
+  libraries: { id: string; name: string; type: MediaFamily | 'other'; views: number }[]
   /** Non-zero (bucket, library) points. */
   points: LibraryDayPoint[]
 }

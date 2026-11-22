@@ -37,6 +37,7 @@ type scatterLibraries struct {
 	Libraries []struct {
 		ID    string
 		Name  string
+		Type  string
 		Views int
 	}
 	Points []struct {
@@ -141,7 +142,7 @@ func TestV2OverviewLibrariesDaily(t *testing.T) {
 		t.Errorf("bucket = %s", got.Bucket)
 	}
 	libs := fmt.Sprint(got.Libraries)
-	if want := "[{lib-s Séries 3} {lib-m Films 2} {lib-mu Musique 1}]"; libs != want {
+	if want := "[{lib-s Séries series 3} {lib-m Films movie 2} {lib-mu Musique music 1}]"; libs != want {
 		t.Errorf("libraries = %s, want %s", libs, want)
 	}
 	// Views only (r3 and r8 are clicks), one point per non-empty (day, library).
@@ -152,11 +153,11 @@ func TestV2OverviewLibrariesDaily(t *testing.T) {
 	}
 
 	v2JSON(t, db, "/api/v2/overview/libraries-daily?libraryId=lib-m", &got)
-	if fmt.Sprint(got.Libraries) != "[{lib-m Films 2}]" || fmt.Sprint(got.Points) != fmt.Sprintf("[{%s lib-m 2}]", d(v2Day3)) {
+	if fmt.Sprint(got.Libraries) != "[{lib-m Films movie 2}]" || fmt.Sprint(got.Points) != fmt.Sprintf("[{%s lib-m 2}]", d(v2Day3)) {
 		t.Errorf("libraryId=lib-m: %v %v", got.Libraries, got.Points)
 	}
 	v2JSON(t, db, "/api/v2/overview/libraries-daily?userId=u2&type=music", &got)
-	if fmt.Sprint(got.Libraries) != "[{lib-mu Musique 1}]" || len(got.Points) != 1 {
+	if fmt.Sprint(got.Libraries) != "[{lib-mu Musique music 1}]" || len(got.Points) != 1 {
 		t.Errorf("u2 music: %v %v", got.Libraries, got.Points)
 	}
 	v2JSON(t, db, "/api/v2/overview/libraries-daily?from=2020-01-01&to=2020-01-05", &got)
@@ -206,7 +207,7 @@ func TestV2OverviewScatterParis(t *testing.T) {
 	if got.Bucket != "week" || fmt.Sprint(got.Points) != "[{2024-01-01 lib-a 1} {2026-03-23 lib-a 3}]" {
 		t.Errorf("weekly: %s %v", got.Bucket, got.Points)
 	}
-	if fmt.Sprint(got.Libraries) != "[{lib-a Films 4}]" {
+	if fmt.Sprint(got.Libraries) != "[{lib-a Films other 4}]" {
 		t.Errorf("weekly libraries: %v", got.Libraries)
 	}
 }

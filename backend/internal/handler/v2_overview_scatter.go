@@ -89,6 +89,7 @@ func mediaFamily(mt string) string {
 type libraryTotal struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
+	Type  string `json:"type"` // movie | series | music | other (from CollectionType)
 	Views int    `json:"views"`
 }
 
@@ -127,7 +128,9 @@ func (h *V2Handler) OverviewLibrariesDaily(c *gin.Context) {
 		return
 	}
 	q, args = f.sql(`
-		SELECT acts.library_id AS id, COALESCE(MAX(l."Name"), acts.library_id) AS name, ` + aggPlays + ` AS views
+		SELECT acts.library_id AS id, COALESCE(MAX(l."Name"), acts.library_id) AS name,
+		       CASE MAX(l."CollectionType") WHEN 'movies' THEN 'movie' WHEN 'tvshows' THEN 'series' WHEN 'music' THEN 'music' ELSE 'other' END AS type,
+		       ` + aggPlays + ` AS views
 		FROM acts LEFT JOIN jf_libraries l ON l."Id" = acts.library_id
 		WHERE acts.library_id IS NOT NULL AND is_view
 		GROUP BY acts.library_id
