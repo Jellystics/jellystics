@@ -352,5 +352,7 @@ func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2.GET("/playback/quality", h.PlaybackQuality)
 	v2.GET("/playback/network", h.PlaybackNetwork)
 
+	v2.GET("/data-quality", h.DataQuality)
+
 	v2.GET("/recap/:userId/:period", h.Recap)
 }
