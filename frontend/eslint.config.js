@@ -7,16 +7,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 const BANNED = ['@mui/*', '@emotion/*', 'recharts', 'recharts/*', '@fluentui/*', '@tabler/*', 'axios', 'notistack']
 
 export default tseslint.config(
-  {
-    ignores: [
-      'dist',
-      'node_modules',
-      // Legacy code, removed in phase 7.
-      'src/features/**',
-      'src/shared/**',
-      'src/lib/{theme.ts,ThemeModeContext.tsx,PaletteContext.tsx,FaviconContext.tsx,dateRange.tsx,palette.ts,favicon.ts,chartColors.ts,dateLocale.ts,axios.ts,publicApi.ts}',
-    ],
-  },
+  { ignores: ['dist', 'node_modules'] },
   {
     files: ['src/**/*.{ts,tsx}', 'e2e/**/*.ts'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -44,7 +35,6 @@ export default tseslint.config(
   {
     // New code must stay free of the legacy UI stack.
     files: ['src/{styles,lib,ui,charts,app,api}/**/*.{ts,tsx}'],
-    ignores: ['src/app/legacy/**', 'src/lib/{theme.ts,ThemeModeContext.tsx,PaletteContext.tsx,FaviconContext.tsx,dateRange.tsx,palette.ts,favicon.ts,chartColors.ts,dateLocale.ts,axios.ts,publicApi.ts}'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [{ group: BANNED, message: 'Legacy UI stack is not allowed in new code.' }] }],
     },
@@ -52,7 +42,6 @@ export default tseslint.config(
   {
     // Layering: the ui kit, charts, lib and api client never depend on the app layer.
     files: ['src/{ui,charts,lib,api}/**/*.{ts,tsx}'],
-    ignores: ['src/lib/{theme.ts,ThemeModeContext.tsx,PaletteContext.tsx,FaviconContext.tsx,dateRange.tsx,palette.ts,favicon.ts,chartColors.ts,dateLocale.ts,axios.ts,publicApi.ts}'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [
         { group: BANNED, message: 'Legacy UI stack is not allowed in new code.' },

@@ -5,7 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { routes } from './routes'
 import { episodeFixture, seriesFixture } from './pages/library/fixtures'
 
-vi.mock('@/app/legacy/LegacyPage', () => ({ LegacyPage: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 vi.mock('@/lib/socket', () => ({ default: { connect: vi.fn(), disconnect: vi.fn() }, useSocketEvent: vi.fn() }))
 vi.mock('./pages/overview/OverviewPage', () => ({ default: () => <p>page-overview</p> }))
 vi.mock('./pages/live/LivePage', () => ({ default: () => <p>page-live</p> }))
@@ -13,19 +12,8 @@ vi.mock('./pages/history/HistoryPage', async () => {
   const { useSearchParams } = await import('react-router-dom')
   return { default: function History() { return <p>page-history:{useSearchParams()[0].get('view') ?? 'table'}</p> } }
 })
-vi.mock('@/features/libraries/LibrariesPage', () => ({ default: () => <p>legacy-libraries</p> }))
-vi.mock('@/features/libraries/LibraryDetailPage', () => ({ default: () => <p>legacy-library</p> }))
-vi.mock('@/features/libraries/ItemDetailPage', async () => {
-  const { useParams } = await import('react-router-dom')
-  return { default: function Item() { return <p>legacy-item:{useParams().itemId}</p> } }
-})
-vi.mock('@/features/libraries/AlbumDetailPage', async () => {
-  const { useParams } = await import('react-router-dom')
-  return { default: function Album() { return <p>legacy-album:{useParams().albumId}</p> } }
-})
 vi.mock('./pages/users/UsersPage', () => ({ default: () => <p>page-users</p> }))
 vi.mock('./pages/user/UserPage', () => ({ default: () => <p>page-user</p> }))
-vi.mock('@/features/statistics/StatisticsPage', () => ({ default: () => <p>legacy-statistics</p> }))
 vi.mock('./pages/settings/SettingsPage', async (orig) => ({ ...(await orig<object>()), SettingsPage: ({ section }: { section: string }) => <p>settings:{section}</p> }))
 
 function mockFetch(map: Record<string, unknown>) {

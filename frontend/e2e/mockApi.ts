@@ -89,8 +89,12 @@ Object.assign(OBJECTS, entityApi)
 
 const json = (body: unknown, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
 
-/** Answers every backend call with an empty-but-valid payload. */
-export async function mockApi(page: Page) {
+/**
+ * Answers every backend call with a realistic or empty-but-valid payload. Unknown `/api/v2` endpoints
+ * get a 404 and are recorded in the returned list, so a test can assert every call was mocked.
+ */
+export async function mockApi(page: Page): Promise<string[]> {
+  const unmocked: string[] = []
   await page.route((url) => API_PREFIX.test(url.pathname), async (route) => {
     const req = route.request()
     const { pathname } = new URL(req.url())
@@ -101,8 +105,10 @@ export async function mockApi(page: Page) {
     if (pathname.startsWith('/socket.io')) return route.fulfill({ status: 200, contentType: 'text/plain', body: '' })
     if (pathname in PHASE3) return route.fulfill(json(PHASE3[pathname]())) // --- phase 3 ---
     if (pathname in OBJECTS) return route.fulfill(json(OBJECTS[pathname]))
+    if (pathname.startsWith('/api/v2/')) { unmocked.push(pathname); return route.fulfill(json({ error: 'not found' }, 404)) }
     return route.fulfill(json([]))
   })
+  return unmocked
 }
 
 /** Puts a fake session token in localStorage before any page script runs. */
