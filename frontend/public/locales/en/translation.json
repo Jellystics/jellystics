@@ -155,6 +155,31 @@
         "title": "On this day",
         "subtitle": "what was watched on this date in earlier years",
         "empty": "Nothing watched on this day in earlier years"
+      },
+      "plays": {
+        "title": "All plays",
+        "subtitle": "one dot per play · click = content page",
+        "x": "Play start",
+        "y": "Minutes watched",
+        "capped": "{{value}} most recent plays",
+        "date": "Date",
+        "content": "Content",
+        "user": "User",
+        "type": "Type",
+        "duration": "Duration",
+        "minutes": "Minutes",
+        "empty": "No plays in this period"
+      },
+      "libraries": {
+        "title": "Plays by library",
+        "subtitle": "views per day and library",
+        "subtitleWeek": "views per week and library",
+        "x": "Date",
+        "y": "Views",
+        "library": "Library",
+        "week": "Week of {{date}}",
+        "other": "Other",
+        "empty": "No views in this period"
       }
     },
     "live": {

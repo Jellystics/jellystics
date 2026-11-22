@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import { WeekHeatmap, CalendarHeatmap, Funnel, RetentionChart, StopHistogram, Matrix, Scatter, StackedArea, SessionTimeline, SmallMultiples } from '@/charts'
 
 it('WeekHeatmap: 7×24 focusable cells with tooltip', () => {
@@ -83,6 +83,61 @@ it('Scatter: one point per entry with tooltip', () => {
   expect(screen.getByText('Fans')).toBeInTheDocument()
   fireEvent.mouseMove(pts[1], { clientX: 5, clientY: 5 })
   expect(screen.getByRole('tooltip')).toHaveTextContent('Bob')
+})
+
+it('Scatter time axis: min..max domain, date ticks in the server zone, coloured series', () => {
+  const t0 = Date.parse('2026-03-01T10:00:00Z'), t1 = Date.parse('2026-03-08T10:00:00Z')
+  const { container } = render(
+    <Scatter
+      timeAxis timeZone="Europe/Paris" radius={4}
+      points={[
+        { x: t1, y: 30, label: 'Station Nord › Le phare', color: 'var(--t-series)', rows: [{ label: 'Utilisateur', value: 'Léa' }] },
+        { x: t0, y: 120, label: 'Les Rivages', color: 'var(--t-movie)' },
+      ]}
+      xLabel="Début" yLabel="Minutes"
+    />,
+  )
+  const pts = container.querySelectorAll('circle[data-hit]')
+  expect(pts).toHaveLength(2)
+  // Domain is min..max (not 0..max): the oldest point sits on the left edge, the newest on the right one.
+  expect(Number(pts[1].getAttribute('cx'))).toBe(46)
+  expect(Number(pts[0].getAttribute('cx'))).toBe(600 - 12 - 4) // right margin + radius
+  expect(pts[0].getAttribute('fill')).toBe('var(--t-series)')
+  expect(pts[0].getAttribute('r')).toBe('4')
+  // Daily ticks on Paris midnights, labelled as dates.
+  const labels = [...container.querySelectorAll('text')].map((n) => n.textContent)
+  expect(labels).toContain('2 mars')
+  expect(labels).toContain('8 mars')
+  fireEvent.mouseMove(pts[0], { clientX: 5, clientY: 5 })
+  expect(screen.getByRole('tooltip')).toHaveTextContent('Station Nord › Le phare')
+  expect(screen.getByRole('tooltip')).toHaveTextContent('Léa')
+  fireEvent.mouseLeave(pts[0])
+  // Default tooltip formats x as a date-time in the zone.
+  fireEvent.mouseMove(pts[1], { clientX: 5, clientY: 5 })
+  expect(screen.getByRole('tooltip')).toHaveTextContent('1 mars 2026, 11:00')
+})
+
+it('Scatter: clickable points, one tab stop, arrows move in x order', () => {
+  const onPointClick = vi.fn()
+  const { container } = render(
+    <Scatter
+      timeAxis timeZone="UTC" onPointClick={onPointClick}
+      points={[{ x: 3000, y: 1, label: 'c' }, { x: 1000, y: 1, label: 'a' }, { x: 2000, y: 1, label: 'b' }]}
+      xLabel="x" yLabel="y"
+    />,
+  )
+  const pts = [...container.querySelectorAll<SVGElement>('circle[data-hit]')]
+  expect(pts.map((p) => p.getAttribute('tabindex'))).toEqual(['-1', '0', '-1'])
+  expect(pts[1]).toHaveAttribute('role', 'button')
+  act(() => pts[1].focus())
+  fireEvent.keyDown(pts[1], { key: 'ArrowRight' })
+  expect(document.activeElement).toBe(pts[2])
+  fireEvent.keyDown(pts[2], { key: 'End' })
+  expect(document.activeElement).toBe(pts[0])
+  fireEvent.keyDown(pts[0], { key: 'Enter' })
+  expect(onPointClick).toHaveBeenCalledWith(0)
+  fireEvent.click(pts[2])
+  expect(onPointClick).toHaveBeenLastCalledWith(2)
 })
 
 it('StackedArea: one band per series, one hit zone per label', () => {

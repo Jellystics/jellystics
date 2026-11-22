@@ -155,6 +155,31 @@
         "title": "Ce jour-là",
         "subtitle": "ce qu’on regardait les années précédentes, jour pour jour",
         "empty": "Rien de regardé ce jour-là les années précédentes"
+      },
+      "plays": {
+        "title": "Toutes les lectures",
+        "subtitle": "une lecture = un point · clic = page du contenu",
+        "x": "Début de la lecture",
+        "y": "Minutes regardées",
+        "capped": "{{value}} lectures les plus récentes",
+        "date": "Date",
+        "content": "Contenu",
+        "user": "Utilisateur",
+        "type": "Type",
+        "duration": "Durée",
+        "minutes": "Minutes",
+        "empty": "Aucune lecture sur la période"
+      },
+      "libraries": {
+        "title": "Lectures par bibliothèque",
+        "subtitle": "vues par jour et par bibliothèque",
+        "subtitleWeek": "vues par semaine et par bibliothèque",
+        "x": "Date",
+        "y": "Vues",
+        "library": "Bibliothèque",
+        "week": "Semaine du {{date}}",
+        "other": "Autres",
+        "empty": "Aucune vue sur la période"
       }
     },
     "live": {

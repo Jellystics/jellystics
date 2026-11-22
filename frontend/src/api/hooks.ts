@@ -6,7 +6,7 @@ import { get, seg, V2 } from './client'
 import { cleanParams, qk, type Filters, type HistoryFilters, type QueryParams } from './keys'
 import type {
   AlbumDetail, ArtistDetail, CalendarDay, EpisodeDetail, HistoryPage, LibraryCard, LibraryDetail, MovieDetail,
-  Overview, SearchResult, SeriesDetail, TrackDetail, UserDetail, UserRow,
+  LibrariesDaily, Overview, OverviewPlays, SearchResult, SeriesDetail, TrackDetail, UserDetail, UserRow,
 } from './types'
 
 /** Request params = current URL period + page filters (normalised). */
@@ -18,6 +18,24 @@ export function usePeriodParams(filters: Filters | HistoryFilters = {}): QueryPa
 export function useOverview(filters?: Filters) {
   const p = usePeriodParams(filters)
   return useQuery({ queryKey: qk.overview(p), queryFn: get<Overview>(`${V2}/overview`, p), placeholderData: keepPreviousData })
+}
+
+/** Request params = current URL period without compare + page filters. */
+function useRangeParams(filters: Filters = {}): QueryParams {
+  const [period] = usePeriod()
+  return cleanParams({ from: period.from, to: period.to, ...filters })
+}
+
+/** Plays of the period (one point each, capped server-side); compare is not used. */
+export function useOverviewPlays(filters?: Filters) {
+  const p = useRangeParams(filters)
+  return useQuery({ queryKey: qk.overviewPlays(p), queryFn: get<OverviewPlays>(`${V2}/overview/plays`, p), placeholderData: keepPreviousData })
+}
+
+/** Views per (day or ISO week, library) of the period; compare is not used. */
+export function useOverviewLibrariesDaily(filters?: Filters) {
+  const p = useRangeParams(filters)
+  return useQuery({ queryKey: qk.overviewLibrariesDaily(p), queryFn: get<LibrariesDaily>(`${V2}/overview/libraries-daily`, p), placeholderData: keepPreviousData })
 }
 
 export function useHistory(filters?: HistoryFilters) {

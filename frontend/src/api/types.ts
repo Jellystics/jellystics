@@ -48,6 +48,34 @@ export interface Overview {
   onThisDay: OnThisDayRow[]
 }
 
+// ── /overview/plays, /overview/libraries-daily (scatter charts) ──────────────
+export interface PlayPoint {
+  id: string
+  startedAt: ISOTime
+  /** Watched seconds (never negative). */
+  watchSeconds: number
+  type: MediaFamily
+  item: HistoryItem
+  user: RefUser
+}
+export interface OverviewPlays {
+  /** Plays in the period (before the cap). */
+  total: number
+  limit: number
+  /** True when only the `limit` most recent plays are returned. */
+  capped: boolean
+  /** Newest first. */
+  points: PlayPoint[]
+}
+export interface LibraryDayPoint { date: ISODate; libraryId: string; views: number }
+export interface LibrariesDaily {
+  bucket: 'day' | 'week'
+  /** Libraries with views in the period, by views desc. */
+  libraries: { id: string; name: string; views: number }[]
+  /** Non-zero (bucket, library) points. */
+  points: LibraryDayPoint[]
+}
+
 // ── /history ─────────────────────────────────────────────────────────────────
 export interface HistoryItem {
   id: string

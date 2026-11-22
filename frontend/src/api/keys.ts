@@ -38,6 +38,8 @@ export function cleanParams(p: Record<string, string | number | boolean | undefi
 export const qk = {
   all: ['v2'] as const,
   overview: (p: QueryParams) => ['v2', 'overview', p] as const,
+  overviewPlays: (p: QueryParams) => ['v2', 'overview', 'plays', p] as const,
+  overviewLibrariesDaily: (p: QueryParams) => ['v2', 'overview', 'libraries-daily', p] as const,
   history: (p: QueryParams) => ['v2', 'history', p] as const,
   historyCalendar: (p: QueryParams) => ['v2', 'history', 'calendar', p] as const,
   search: (q: string) => ['v2', 'search', q] as const,
