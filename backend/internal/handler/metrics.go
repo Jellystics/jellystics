@@ -38,18 +38,17 @@ type MetricsCollector struct {
 	playsByDayOfWeek *prometheus.Desc // label: day (0=Sun..6=Sat)
 	heatmapPlays     *prometheus.Desc // labels: day, hour
 
-
 	// ── Top content ───────────────────────────────────────────────────────────
 	itemPlayCount *prometheus.Desc // labels: name, type
 
 	// ── Completion ────────────────────────────────────────────────────────────
-	completedPlays   *prometheus.Desc
-	abandonedPlays   *prometheus.Desc
-	completionRate   *prometheus.Desc
+	completedPlays *prometheus.Desc
+	abandonedPlays *prometheus.Desc
+	completionRate *prometheus.Desc
 
 	// ── Library inventory ─────────────────────────────────────────────────────
-	itemsByType      *prometheus.Desc // label: type
-	unwatchedByType  *prometheus.Desc // label: type
+	itemsByType     *prometheus.Desc // label: type
+	unwatchedByType *prometheus.Desc // label: type
 
 	// ── Binge watching ────────────────────────────────────────────────────────
 	bingeSessions *prometheus.Desc
@@ -84,14 +83,14 @@ func NewMetricsCollector(repos *repository.Container, db *gorm.DB) *MetricsColle
 
 		itemPlayCount: prometheus.NewDesc(ns+"_item_play_count", "Play count per media item (top 50)", []string{"name", "type"}, nil),
 
-		completedPlays: prometheus.NewDesc(ns+"_completed_plays_total", "Number of plays considered complete (>= 90%)", nil, nil),
-		abandonedPlays: prometheus.NewDesc(ns+"_abandoned_plays_total", "Number of plays abandoned (< 90%)", nil, nil),
+		completedPlays: prometheus.NewDesc(ns+"_completed_plays_total", "Completed views: stop position or watched time >= 90% of runtime (one per user/item/local day)", nil, nil),
+		abandonedPlays: prometheus.NewDesc(ns+"_abandoned_plays_total", "Abandoned views: < 90% of runtime (one per user/item/local day)", nil, nil),
 		completionRate: prometheus.NewDesc(ns+"_completion_rate_percent", "Percentage of plays that are complete", nil, nil),
 
 		itemsByType:     prometheus.NewDesc(ns+"_items_by_type_total", "Total library items per type", []string{"type"}, nil),
 		unwatchedByType: prometheus.NewDesc(ns+"_unwatched_items_by_type", "Unwatched items per type", []string{"type"}, nil),
 
-		bingeSessions: prometheus.NewDesc(ns+"_binge_sessions_total", "Total binge-watching sessions (>= 3 episodes in one sitting)", nil, nil),
+		bingeSessions: prometheus.NewDesc(ns+"_binge_sessions_total", "Binge sessions: >= 3 distinct episodes of one series by one user on one local day", nil, nil),
 
 		activeSessions: prometheus.NewDesc(ns+"_active_sessions", "Number of currently active playback sessions", nil, nil),
 	}
@@ -137,187 +136,137 @@ func (c *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 
 	// ── Per-user stats ────────────────────────────────────────────────────────
 	if users, err := c.repos.Stats.GetTopUsers(ctx, 500); err == nil {
+		// One series per user id (labelled with the current name); a name shared
+		// by two ids gets a suffix so label sets never collide.
+		userLabels := labelDeduper{}
 		for _, u := range users {
-			ch <- prometheus.MustNewConstMetric(c.playsByUser, prometheus.CounterValue, float64(u.TotalPlays), u.UserName)
-			ch <- prometheus.MustNewConstMetric(c.hoursByUser, prometheus.CounterValue, u.TotalHours, u.UserName)
+			name := userLabels.unique(u.UserName)
+			ch <- prometheus.MustNewConstMetric(c.playsByUser, prometheus.CounterValue, float64(u.TotalPlays), name)
+			ch <- prometheus.MustNewConstMetric(c.hoursByUser, prometheus.CounterValue, u.TotalHours, name)
 		}
 	} else {
 		log.Printf("metrics: GetTopUsers: %v", err)
 	}
 
-	// ── Per-library stats ─────────────────────────────────────────────────────
+	// ── Per-library stats (views) ─────────────────────────────────────────────
 	type libRow struct {
 		Name       string
 		TotalPlays int
 	}
 	var libRows []libRow
-	c.db.WithContext(ctx).Raw(`
-		SELECT l."Name" AS name, COUNT(a."Id")::int AS total_plays
-		FROM jf_playback_activity a
-		JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId" AND i.archived = false
-		JOIN jf_libraries l ON l."Id" = i."ParentId" AND l.archived = false
-		GROUP BY l."Name"
+	q, args := acts().sql(`
+		SELECT l."Name" AS name, ` + aggPlays + ` AS total_plays
+		FROM acts JOIN jf_libraries l ON l."Id" = acts.library_id AND l.archived = false
+		GROUP BY l."Id", l."Name"
 		ORDER BY total_plays DESC
-		LIMIT 100
-	`).Scan(&libRows)
+		LIMIT 100`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&libRows)
+	libLabels := labelDeduper{}
 	for _, l := range libRows {
-		ch <- prometheus.MustNewConstMetric(c.playsByLibrary, prometheus.CounterValue, float64(l.TotalPlays), l.Name)
+		ch <- prometheus.MustNewConstMetric(c.playsByLibrary, prometheus.CounterValue, float64(l.TotalPlays), libLabels.unique(l.Name))
 	}
 
-	// ── Media type (raw SQL) ──────────────────────────────────────────────────
+	// ── Media type (views): Movie, Series (episodes), Audio (music tracks) ────
 	type typeRow struct {
-		Type  *string
-		Count int
+		MediaType string
+		Count     int
 	}
 	var typeRows []typeRow
-	c.db.Raw(`
-		SELECT COALESCE(i."Type", 'Other') AS type, COUNT(*)::int AS count
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		GROUP BY i."Type"
-	`).Scan(&typeRows)
-	totals := map[string]int{"Audio": 0, "Movie": 0, "Series": 0, "Other": 0}
+	q, args = acts().sql(`SELECT media_type, ` + aggPlays + ` AS count FROM acts GROUP BY media_type`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&typeRows)
+	totals := map[string]int{"Audio": 0, "Movie": 0, "Series": 0}
 	for _, r := range typeRows {
-		t := "Other"
-		if r.Type != nil {
-			t = *r.Type
-		}
-		switch t {
+		switch r.MediaType {
+		case "Movie":
+			totals["Movie"] += r.Count
+		case "Episode":
+			totals["Series"] += r.Count
 		case "Audio":
 			totals["Audio"] += r.Count
-		case "Movie", "Video":
-			totals["Movie"] += r.Count
-		case "Series", "Episode":
-			totals["Series"] += r.Count
-		default:
-			totals["Other"] += r.Count
 		}
 	}
 	for t, count := range totals {
 		ch <- prometheus.MustNewConstMetric(c.playsByMediaType, prometheus.CounterValue, float64(count), t)
 	}
 
-	// ── Per-client (raw SQL) ──────────────────────────────────────────────────
+	// ── Per-client (views) ────────────────────────────────────────────────────
 	type clientRow struct {
 		Client string
 		Count  int
 	}
 	var clientRows []clientRow
-	c.db.Raw(`
-		SELECT "Client" AS client, COUNT(*)::int AS count
-		FROM jf_playback_activity
-		WHERE "Client" IS NOT NULL AND "Client" <> ''
-		GROUP BY "Client" ORDER BY count DESC LIMIT 50
-	`).Scan(&clientRows)
+	q, args = acts().where(`a."Client" IS NOT NULL AND a."Client" <> ''`).sql(`
+		SELECT client, ` + aggPlays + ` AS count FROM acts
+		GROUP BY client ORDER BY count DESC LIMIT 50`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&clientRows)
 	for _, r := range clientRows {
 		ch <- prometheus.MustNewConstMetric(c.playsByClient, prometheus.CounterValue, float64(r.Count), r.Client)
 	}
 
-	// ── Playback method (raw SQL) ─────────────────────────────────────────────
+	// ── Playback method (views) ───────────────────────────────────────────────
 	type methodRow struct {
 		Method string
 		Count  int
 	}
 	var methodRows []methodRow
-	c.db.Raw(`
-		SELECT COALESCE("PlayMethod", 'Unknown') AS method, COUNT(*)::int AS count
-		FROM jf_playback_activity
-		GROUP BY "PlayMethod"
-	`).Scan(&methodRows)
+	q, args = acts().sql(`SELECT play_method AS method, ` + aggPlays + ` AS count FROM acts GROUP BY play_method`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&methodRows)
 	for _, r := range methodRows {
 		ch <- prometheus.MustNewConstMetric(c.playsByPlaybackMethod, prometheus.CounterValue, float64(r.Count), r.Method)
 	}
 
-	// ── Plays by hour of day (raw SQL) ────────────────────────────────────────
-	type hourRow struct {
-		Hour  int
-		Plays int
-	}
-	var hourRows []hourRow
-	c.db.Raw(`
-		SELECT EXTRACT(HOUR FROM "ActivityDateInserted"::timestamptz)::int AS hour, COUNT(*)::int AS plays
-		FROM jf_playback_activity
-		GROUP BY hour ORDER BY hour
-	`).Scan(&hourRows)
-	for _, r := range hourRows {
-		ch <- prometheus.MustNewConstMetric(c.playsByHour, prometheus.GaugeValue, float64(r.Plays), fmt.Sprint(r.Hour))
-	}
-
-	// ── Plays by day of week (raw SQL) ────────────────────────────────────────
-	type dayRow struct {
-		Day   int
-		Plays int
-	}
-	var dayRows []dayRow
-	c.db.Raw(`
-		SELECT EXTRACT(DOW FROM "ActivityDateInserted"::timestamptz)::int AS day, COUNT(*)::int AS plays
-		FROM jf_playback_activity
-		GROUP BY day ORDER BY day
-	`).Scan(&dayRows)
-	for _, r := range dayRows {
-		ch <- prometheus.MustNewConstMetric(c.playsByDayOfWeek, prometheus.GaugeValue, float64(r.Plays), fmt.Sprint(r.Day))
-	}
-
-	// ── Heatmap: plays by day+hour (raw SQL) ──────────────────────────────────
+	// ── Time patterns (views, display time zone) ──────────────────────────────
 	type heatRow struct {
 		Day   int
 		Hour  int
 		Plays int
 	}
 	var heatRows []heatRow
-	c.db.Raw(`
-		SELECT
-		  EXTRACT(DOW FROM "ActivityDateInserted"::timestamptz)::int AS day,
-		  EXTRACT(HOUR FROM "ActivityDateInserted"::timestamptz)::int AS hour,
-		  COUNT(*)::int AS plays
-		FROM jf_playback_activity
-		GROUP BY day, hour
-	`).Scan(&heatRows)
+	q, args = acts().sql(`
+		SELECT EXTRACT(DOW FROM local_ts)::int AS day, EXTRACT(HOUR FROM local_ts)::int AS hour,
+		       ` + aggPlays + ` AS plays
+		FROM acts GROUP BY 1, 2`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&heatRows)
+	byHour := map[int]int{}
+	byDay := map[int]int{}
 	for _, r := range heatRows {
+		byHour[r.Hour] += r.Plays
+		byDay[r.Day] += r.Plays
 		ch <- prometheus.MustNewConstMetric(c.heatmapPlays, prometheus.GaugeValue, float64(r.Plays), fmt.Sprint(r.Day), fmt.Sprint(r.Hour))
 	}
+	for hr, plays := range byHour {
+		ch <- prometheus.MustNewConstMetric(c.playsByHour, prometheus.GaugeValue, float64(plays), fmt.Sprint(hr))
+	}
+	for d, plays := range byDay {
+		ch <- prometheus.MustNewConstMetric(c.playsByDayOfWeek, prometheus.GaugeValue, float64(plays), fmt.Sprint(d))
+	}
 
-	// ── Top 50 items ──────────────────────────────────────────────────────────
+	// ── Top 50 items (movie / series / album level, views) ────────────────────
 	type itemRow struct {
 		Name  string
 		Type  string
 		Plays int
 	}
 	var itemRows []itemRow
-	c.db.Raw(`
-		SELECT COALESCE(i."Name", a."NowPlayingItemName") AS name,
-		       COALESCE(i."Type", 'Unknown') AS type,
-		       COUNT(*)::int AS plays
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		GROUP BY name, type ORDER BY plays DESC LIMIT 50
-	`).Scan(&itemRows)
+	q, args = acts().where(`a."IsView"`).sql(`
+		SELECT COALESCE(group_name, 'Unknown') AS name, display_type AS type, COUNT(*)::int AS plays
+		FROM acts
+		GROUP BY 1, 2 ORDER BY plays DESC LIMIT 50`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&itemRows)
 	for _, r := range itemRows {
 		ch <- prometheus.MustNewConstMetric(c.itemPlayCount, prometheus.GaugeValue, float64(r.Plays), r.Name, r.Type)
 	}
 
-	// ── Completion rate (raw SQL) ─────────────────────────────────────────────
-	type completionRow struct {
+	// ── Completion (same definition as /stats/getCompletionRate) ──────────────
+	var comp struct {
 		Completed int
 		Abandoned int
 	}
-	var comp completionRow
-	c.db.Raw(`
-		SELECT
-		  COUNT(*) FILTER (WHERE COALESCE("PlaybackDuration", 0) > 0 AND
-		    CASE WHEN i."RunTimeTicks" > 0
-		         THEN ("PlaybackDuration" * 10000000.0 / i."RunTimeTicks") >= 0.9
-		         ELSE false END
-		  )::int AS completed,
-		  COUNT(*) FILTER (WHERE COALESCE("PlaybackDuration", 0) > 0 AND
-		    CASE WHEN i."RunTimeTicks" > 0
-		         THEN ("PlaybackDuration" * 10000000.0 / i."RunTimeTicks") < 0.9
-		         ELSE true END
-		  )::int AS abandoned
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		WHERE COALESCE(a."PlaybackDuration", 0) > 0
-	`).Scan(&comp)
+	q, args = acts().sql(completionCTE + `
+		SELECT COUNT(*) FILTER (WHERE ` + completedCond + `)::int AS completed,
+		       COUNT(*) FILTER (WHERE NOT (` + completedCond + `))::int AS abandoned
+		FROM completion`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&comp)
 	total := comp.Completed + comp.Abandoned
 	rate := 0.0
 	if total > 0 {
@@ -327,48 +276,42 @@ func (c *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.abandonedPlays, prometheus.CounterValue, float64(comp.Abandoned))
 	ch <- prometheus.MustNewConstMetric(c.completionRate, prometheus.GaugeValue, rate)
 
-	// ── Inventory by type (raw SQL) ───────────────────────────────────────────
+	// ── Inventory and unwatched items by type ─────────────────────────────────
 	type invRow struct {
-		Type  string
-		Count int
+		Type      string
+		Total     int
+		Unwatched int
 	}
 	var invRows []invRow
-	c.db.Raw(`
-		SELECT COALESCE("Type", 'Unknown') AS type, COUNT(*)::int AS count
-		FROM jf_library_items
-		GROUP BY "Type"
-	`).Scan(&invRows)
+	q, args = acts().where(`a."IsView"`).sql(`,
+		watched_items  AS (SELECT DISTINCT item_id  FROM acts WHERE item_id  IS NOT NULL),
+		watched_groups AS (SELECT DISTINCT group_id FROM acts WHERE group_id IS NOT NULL)
+		SELECT 'Movie' AS type, COUNT(*)::int AS total,
+		       COUNT(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM watched_items w WHERE w.item_id = i."Id"))::int AS unwatched
+		FROM jf_library_items i WHERE i.archived = false AND i."Type" = 'Movie'
+		UNION ALL
+		SELECT 'Series', COUNT(*)::int,
+		       COUNT(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM watched_groups w WHERE w.group_id = i."Id"))::int
+		FROM jf_library_items i WHERE i.archived = false AND i."Type" = 'Series'
+		UNION ALL
+		SELECT 'Episode', COUNT(*)::int,
+		       COUNT(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM watched_items w WHERE w.item_id = e."Id"))::int
+		FROM jf_library_episodes e WHERE e.archived = false
+		UNION ALL
+		SELECT 'Audio', COUNT(*)::int,
+		       COUNT(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM watched_items w WHERE w.item_id = t."Id"))::int
+		FROM jf_music_tracks t WHERE t.archived = false`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&invRows)
 	for _, r := range invRows {
-		ch <- prometheus.MustNewConstMetric(c.itemsByType, prometheus.GaugeValue, float64(r.Count), r.Type)
+		ch <- prometheus.MustNewConstMetric(c.itemsByType, prometheus.GaugeValue, float64(r.Total), r.Type)
+		ch <- prometheus.MustNewConstMetric(c.unwatchedByType, prometheus.GaugeValue, float64(r.Unwatched), r.Type)
 	}
 
-	// ── Unwatched by type (raw SQL) ───────────────────────────────────────────
-	var uwRows []invRow
-	c.db.Raw(`
-		SELECT COALESCE(i."Type", 'Unknown') AS type, COUNT(*)::int AS count
-		FROM jf_library_items i
-		WHERE NOT EXISTS (
-		  SELECT 1 FROM jf_playback_activity a WHERE a."NowPlayingItemId" = i."Id"
-		)
-		GROUP BY i."Type"
-	`).Scan(&uwRows)
-	for _, r := range uwRows {
-		ch <- prometheus.MustNewConstMetric(c.unwatchedByType, prometheus.GaugeValue, float64(r.Count), r.Type)
-	}
-
-	// ── Binge sessions (raw SQL) ──────────────────────────────────────────────
-	type bingeRow struct{ Count int }
-	var binge bingeRow
-	c.db.Raw(`
-		SELECT COUNT(*)::int AS count FROM (
-		  SELECT "UserId", DATE("ActivityDateInserted"::timestamptz) AS day
-		  FROM jf_playback_activity a
-		  JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId" AND i."Type" = 'Episode'
-		  GROUP BY "UserId", day
-		  HAVING COUNT(*) >= 3
-		) AS binge_days
-	`).Scan(&binge)
-	ch <- prometheus.MustNewConstMetric(c.bingeSessions, prometheus.CounterValue, float64(binge.Count))
+	// ── Binge sessions (same definition as /stats/getBingeStats) ──────────────
+	var bingeCount int
+	q, args = acts().where(`a."MediaType" = 'Episode'`).sql(bingeCTE + `SELECT COUNT(*)::int FROM binge_sessions`)
+	c.db.WithContext(ctx).Raw(q, args...).Scan(&bingeCount)
+	ch <- prometheus.MustNewConstMetric(c.bingeSessions, prometheus.CounterValue, float64(bingeCount))
 
 	// ── Active sessions ───────────────────────────────────────────────────────
 	if sessions, err := c.repos.Watchdog.List(ctx); err == nil {
@@ -376,5 +319,16 @@ func (c *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	} else {
 		log.Printf("metrics: Watchdog.List: %v", err)
 	}
+}
 
+// labelDeduper makes label values unique within one metric family (duplicate
+// label sets make the whole /metrics scrape fail).
+type labelDeduper map[string]int
+
+func (d labelDeduper) unique(v string) string {
+	d[v]++
+	if n := d[v]; n > 1 {
+		return fmt.Sprintf("%s (%d)", v, n)
+	}
+	return v
 }
