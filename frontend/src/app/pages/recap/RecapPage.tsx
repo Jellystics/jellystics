@@ -69,6 +69,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
     <div className={shared.page}>
       <Card>
         <div className={styles.hero}>
+          <h1 className="sr-only">{`${t('app.crumb.recap')} · ${d.user.name} · ${label}`}</h1>
           <div className={shared.muted}>
             <AppLink to={`/users/${encodeURIComponent(d.user.id)}`}>{d.user.name}</AppLink>{` · ${label}`}
           </div>
