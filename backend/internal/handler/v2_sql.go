@@ -49,8 +49,9 @@ const itemKindExpr = `CASE media_type WHEN 'Movie' THEN 'movie' WHEN 'Episode' T
 // localDay formats acts.local_ts as YYYY-MM-DD.
 const localDay = `to_char(local_ts::date, 'YYYY-MM-DD')`
 
-// ratioExpr is the completion ratio of one acts row (NULL when no runtime).
-var ratioExpr = statsql.CompletionRatio("pos_end", "duration", "runtime_ticks")
+// ratioExpr is the completion ratio of one acts row (NULL when no runtime, and
+// for open Jellystics-plugin plays, which are provisional).
+var ratioExpr = `CASE WHEN plugin_open THEN NULL ELSE ` + statsql.CompletionRatio("pos_end", "duration", "runtime_ticks") + ` END`
 
 // methodValue maps a v2 method filter to the stored PlayMethod.
 func methodValue(m string) string {

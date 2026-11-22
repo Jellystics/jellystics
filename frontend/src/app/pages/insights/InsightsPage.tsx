@@ -4,10 +4,13 @@ import {
   useInsightsBinges, useInsightsCompletion, useInsightsGenres, useInsightsMoments, useInsightsPauses,
   useInsightsResumes, useInsightsRewatches, useInsightsRhythm, useInsightsSessions,
 } from '@/api/analytics'
+import { useInsightsSkips } from '@/api/pluginData'
+import { PluginSinceNote } from '@/app/widgets/PluginWidgets'
+import { usePeriod } from '@/lib/useUrlState'
 import { ChartFrame, Columns, SmallMultiples, StackedArea, WeekHeatmap } from '@/charts'
 import { AppLink, Art, BarList, Card, CardBody, CardHeader, PageHeader, SegBar } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { QueryCard } from '../_shared/shared'
+import { CaptureEmpty, QueryCard } from '../_shared/shared'
 import { entityPath } from '@/lib/routes'
 import { formatHours, formatMonth } from '../_shared/analyticsFormat'
 import styles from '../_shared/analytics.module.css'
@@ -28,6 +31,8 @@ export default function InsightsPage() {
   const pauses = useInsightsPauses()
   const binges = useInsightsBinges()
   const rhythm = useInsightsRhythm()
+  const skips = useInsightsSkips()
+  const [period] = usePeriod()
 
   const decimal = (n: number) => new Intl.NumberFormat(f.locale).format(n)
   const completionLabels = Array.from({ length: 10 }, (_, i) => t('app.insights.completion.range', { from: i * 10, to: i * 10 + 10 }))
@@ -184,6 +189,36 @@ export default function InsightsPage() {
             </Card>
           )}
         </QueryCard>
+
+        {/* Plugin-only: hidden while the Jellystics plugin has sent no play. */}
+        {skips.data?.collectedSince && (
+          <QueryCard
+            title={t('app.plugin.insights.title')} query={skips} isEmpty={(d) => d.series.length === 0}
+            empty={skips.data ? <CaptureEmpty since={skips.data.collectedSince} from={period.from} /> : undefined}
+          >
+            {(d) => (
+              <Card>
+                <CardHeader title={t('app.plugin.insights.title')} subtitle={t('app.plugin.insights.subtitle', { count: d.totals.plays })} />
+                <CardBody>
+                  <BarList
+                    labelHeader={t('app.plugin.insights.series')} valueLabel={t('app.plugin.skips.intro')} format={f.percent}
+                    rows={d.series.map((s) => ({
+                      key: s.id, label: s.name, value: s.introRate ?? 0, to: entityPath('series', s.id),
+                      badge: <span className={styles.muted}> · {t('app.plugin.insights.playsCount', { count: s.plays })}</span>,
+                      tooltip: [
+                        [t('app.plugin.insights.plays'), f.number(s.plays)],
+                        [t('app.plugin.skips.skipRate'), s.skipRate == null ? '—' : f.percent(s.skipRate)],
+                        [t('app.plugin.skips.avgSkipped'), s.avgSkippedSeconds == null ? '—' : f.duration(s.avgSkippedSeconds)],
+                      ],
+                    }))}
+                  />
+                  <p className={styles.note}>{t('app.plugin.skips.estimate')}</p>
+                  <PluginSinceNote since={d.collectedSince} />
+                </CardBody>
+              </Card>
+            )}
+          </QueryCard>
+        )}
 
         <QueryCard title={t('app.insights.genres.title')} query={genres} wide isEmpty={(d) => d.series.length === 0}>
           {(d) => {

@@ -323,12 +323,15 @@ func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2.GET("/movies/:id/sittings", h.MovieSittings)
 	v2.GET("/libraries/:id/decades", h.LibraryDecades)
 	v2.GET("/libraries/:id/growth", h.LibraryGrowth)
+	v2.GET("/libraries/:id/first-view-delay", h.LibraryFirstViewDelay)
+	v2.GET("/items/:id/marks", h.ItemMarks)
 	v2.GET("/albums/:id/full-listens", h.AlbumFullListens)
 
 	// Users.
 	v2.GET("/users/retention", h.UsersRetention)
 	v2.GET("/users/share", h.UsersShare)
 	v2.GET("/users/:id/languages", h.UserLanguages)
+	v2.GET("/users/:id/logins", h.UserLogins)
 	v2.GET("/concurrency", h.Concurrency)
 
 	// Analyses.
@@ -341,6 +344,7 @@ func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2.GET("/insights/pauses", h.InsightsPauses)
 	v2.GET("/insights/binges", h.InsightsBinges)
 	v2.GET("/insights/rhythm", h.InsightsRhythm)
+	v2.GET("/insights/skips", h.InsightsSkips)
 
 	v2.GET("/discover/unwatched", h.DiscoverUnwatched)
 	v2.GET("/discover/abandoned", h.DiscoverAbandoned)

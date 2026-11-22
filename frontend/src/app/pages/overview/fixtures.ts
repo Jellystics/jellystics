@@ -91,6 +91,8 @@ export function userFixture(id = 'u2', name = 'Léa'): UserDetail {
       { device: 'Chrome', client: 'Web', version: '10.11.0', views: 51 },
     ],
     streak: { current: 9, best: 23 },
+    playedToEnd: { plays: 100, finished: 82, measured: 40, measuredFinished: 31, ratio: 0.82 },
+    pluginSince: '2026-11-10',
   }
 }
 

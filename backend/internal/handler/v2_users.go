@@ -285,6 +285,15 @@ func (h *V2Handler) User(c *gin.Context) {
 	}
 	out["profile"] = profile
 
+	pte, err := h.playedToEnd(c, f)
+	if v2Fail(c, err) {
+		return
+	}
+	out["playedToEnd"] = pte
+	if out["pluginSince"], err = h.pluginSince(c, "plays"); v2Fail(c, err) {
+		return
+	}
+
 	var gen []struct {
 		MediaType, Name string
 		WatchSeconds    int64

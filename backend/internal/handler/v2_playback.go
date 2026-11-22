@@ -38,6 +38,7 @@ func ResetStatsCaches() {
 	collectedSinceCache.Lock()
 	collectedSinceCache.m = map[*gorm.DB]string{}
 	collectedSinceCache.Unlock()
+	resetPluginSinceCache()
 }
 
 // collectedSince is the local date of the first captured playback row (all

@@ -190,7 +190,9 @@ type JellysticsLibraryEvent struct {
 	LibraryId    *string  `json:"libraryId"`
 	RunTimeTicks *int64   `json:"runTimeTicks"`
 	SizeBytes    *int64   `json:"sizeBytes"`
-	Version      int64    `json:"version"`
+	// DateCreated: Jellyfin item DateCreated (added / present rows).
+	DateCreated *FlexTime `json:"dateCreated"`
+	Version     int64     `json:"version"`
 }
 
 // JellysticsUserDataEvent is a played / favorite change (spec §3.2).

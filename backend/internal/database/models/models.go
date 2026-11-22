@@ -246,6 +246,7 @@ type JFLibraryEvent struct {
 	LibraryId    *string   `gorm:"column:LibraryId"`
 	RunTimeTicks *int64    `gorm:"column:RunTimeTicks"`
 	SizeBytes    *int64    `gorm:"column:SizeBytes"`
+	DateCreated  *time.Time `gorm:"column:DateCreated"` // Jellyfin item DateCreated (added / present)
 	Version      int64     `gorm:"column:Version"`
 }
 

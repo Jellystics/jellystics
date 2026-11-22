@@ -121,8 +121,12 @@ func MapPlayWith(p jellyfin.JellysticsPlay, fb *repository.SourceVideo) (models.
 
 	secs := roundSec(p.WatchedMs)
 	paused := roundSec(p.PausedMs)
-	skipped := int(roundSec(p.SkippedMs))
-	seeks := p.SeekCount
+	// Seeks are only measured on the plugin's own plays: NULL for imports.
+	var skipped, seeks *int
+	if source == repository.SourceJellysticsPlugin {
+		sk, se := int(roundSec(p.SkippedMs)), p.SeekCount
+		skipped, seeks = &sk, &se
+	}
 	userName := nonEmpty(p.UserName)
 	if userName == nil {
 		userName = userId
@@ -170,8 +174,8 @@ func MapPlayWith(p jellyfin.JellysticsPlay, fb *repository.SourceVideo) (models.
 		PauseCount:           p.PauseCount,
 		IsRemote:             p.IsRemote,
 		PlaySessionId:        nonEmpty(p.PlaySessionId),
-		SeekCount:            &seeks,
-		SkippedSeconds:       &skipped,
+		SeekCount:            seeks,
+		SkippedSeconds:       skipped,
 		PlayedToCompletion:   p.PlayedToCompletion,
 		PluginOpen:           open,
 		// Contract extension: the plugin reports durations it repaired
@@ -377,6 +381,7 @@ func mapLibraryEvents(rows []jellyfin.JellysticsLibraryEvent) []models.JFLibrary
 			ItemId: normPtr(r.ItemId), ItemType: nonEmpty(r.ItemType), ItemName: nonEmpty(r.ItemName),
 			SeriesId: normPtr(r.SeriesId), AlbumId: normPtr(r.AlbumId), LibraryId: normPtr(r.LibraryId),
 			RunTimeTicks: r.RunTimeTicks, SizeBytes: r.SizeBytes, Version: r.Version,
+			DateCreated: flexPtr(r.DateCreated),
 		})
 	}
 	return out
@@ -410,4 +415,13 @@ func mapLogins(rows []jellyfin.JellysticsLogin) []models.JFUserLogin {
 		})
 	}
 	return out
+}
+
+// flexPtr converts an optional plugin timestamp to UTC (nil when absent).
+func flexPtr(t *jellyfin.FlexTime) *time.Time {
+	if t == nil || t.IsZero() {
+		return nil
+	}
+	v := t.UTC()
+	return &v
 }

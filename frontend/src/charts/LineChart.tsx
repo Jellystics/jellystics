@@ -5,7 +5,7 @@ import { useChartWidth } from './useChartWidth'
 import { linePath, niceMax, showXLabel, ticks, clamp01 } from './scale'
 import styles from './charts.module.css'
 
-export function LineChart({ labels, series, compare, area = true, height = 220, yFormat: yFormatProp, xEvery = 5, onPointClick }: {
+export function LineChart({ labels, series, compare, area = true, height = 220, yFormat: yFormatProp, xEvery = 5, onPointClick, preciseFrom }: {
   labels: string[]
   series: { name: string; color: string; values: number[] }[]
   compare?: { name: string; values: number[] }
@@ -14,6 +14,8 @@ export function LineChart({ labels, series, compare, area = true, height = 220, 
   yFormat?: (v: number) => string
   xEvery?: number
   onPointClick?: (index: number) => void
+  /** Points before this index are estimates: drawn dashed, with a marker where precise data starts. */
+  preciseFrom?: { index: number; label: string }
 }) {
   const defaultFmt = useDefaultFormat()
   const yFormat = yFormatProp ?? defaultFmt
@@ -29,6 +31,7 @@ export function LineChart({ labels, series, compare, area = true, height = 220, 
   const pts = (vals: number[]) => vals.map((v, i) => [x(i), y(v)] as [number, number])
   const step = iw / Math.max(1, labels.length - 1)
   const name = series.map((s) => s.name).join(', ')
+  const cut = preciseFrom ? Math.max(0, preciseFrom.index) : 0
 
   return (
     <div className={styles.chart} ref={ref}>
@@ -47,12 +50,19 @@ export function LineChart({ labels, series, compare, area = true, height = 220, 
           return (
             <g key={s.name}>
               {area && p.length > 0 && <path d={`${linePath(p)}L${last[0]},${y(0)}L${p[0][0]},${y(0)}Z`} fill={s.color} opacity={0.1} />}
-              <path d={linePath(p)} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+              {cut > 0 && <path d={linePath(p.slice(0, Math.min(cut, p.length - 1) + 1))} fill="none" stroke={s.color} strokeWidth={2} strokeDasharray="4 4" strokeLinejoin="round" strokeLinecap="round" data-estimated="" />}
+              {cut < p.length && <path d={linePath(p.slice(cut))} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
               {hover !== null && p[hover] && <circle cx={p[hover][0]} cy={p[hover][1]} r={4} fill={s.color} stroke="var(--surface)" strokeWidth={2} />}
               {last && <circle cx={last[0]} cy={last[1]} r={4} fill={s.color} stroke="var(--surface)" strokeWidth={2} />}
             </g>
           )
         })}
+        {preciseFrom && cut > 0 && cut < labels.length && (
+          <g data-precise-marker="">
+            <line x1={x(cut)} x2={x(cut)} y1={m.t} y2={y(0)} stroke="var(--axis)" strokeDasharray="2 3" />
+            <text x={x(cut) + 4} y={m.t + 10}>{preciseFrom.label}</text>
+          </g>
+        )}
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={m.t} y2={y(0)} stroke="var(--axis)" />}
         {labels.map((l, i) => {
           const rows = series.map((s) => ({ color: s.color, label: s.name, value: yFormat(s.values[i]) }))

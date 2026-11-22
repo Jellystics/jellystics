@@ -43,7 +43,7 @@ func (h *V2Handler) MovieSittings(c *gin.Context) {
 	var rows []struct{ Sittings, N int }
 	q, args := acts().forUser(p.UserID).where(`a."MediaType" = 'Movie' AND a."ItemId" = ?`, id).sql(`,
 		seq AS (
-		  SELECT user_id, started_at, COALESCE(`+ratioExpr+` >= ?, false) AS done FROM acts WHERE is_view
+		  SELECT user_id, started_at, COALESCE(trusted_ptc, `+ratioExpr+` >= ?, false) AS done FROM acts WHERE is_view AND NOT plugin_open
 		),
 		seg AS (
 		  SELECT user_id, started_at, done,
@@ -147,10 +147,14 @@ func (h *V2Handler) LibraryDecades(c *gin.Context) {
 // GET /api/v2/libraries/:id/growth
 // ---------------------------------------------------------------------------
 
+// libGrowthPoint: Removed is only known from plugin events; Precise is true
+// when every addition of the bucket comes from plugin events (real dates).
 type libGrowthPoint struct {
 	Date       string `json:"date"`
 	Added      int    `json:"added"`
+	Removed    int    `json:"removed"`
 	FirstViews int    `json:"firstViews"`
+	Precise    bool   `json:"precise"`
 }
 
 // growthBucket picks the bucket size for a range: day up to a month, week up
@@ -209,7 +213,10 @@ const libraryLeavesSQL = `
 // LibraryGrowth compares, per bucket of the range, the movies / episodes /
 // tracks added to the library with the ones viewed for the first time (all
 // time; by the userId user when given). `type` restricts both series to that
-// media type. Returns {bucket, points}.
+// media type. Additions come from the plugin library events (real addition
+// dates, removals too) from the first event of the library on, and from the
+// catalog DateCreated of the items still present before it (approximation).
+// Returns {bucket, source: events|catalog, preciseFrom, points}.
 func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 	p, ok := h.params(c)
 	if !ok {
@@ -223,13 +230,25 @@ func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 	trunc := func(expr string) string {
 		return `to_char(date_trunc('` + unit + `', ` + statsql.AtLocal(expr) + `)::date, 'YYYY-MM-DD')`
 	}
+	// Cutoff = first live plugin library event, all libraries: the plugin
+	// watches every library from then on.
+	cutoff, err := h.pluginFirst(c, "library")
+	if v2Fail(c, err) {
+		return
+	}
 	var added []struct {
-		Date string
-		N    int
+		Date       string
+		N, Removed int
 	}
 	if v2Fail(c, h.raw(c, &added, `
-		SELECT `+trunc("l.d")+` AS date, COUNT(*)::int AS n FROM (`+libraryLeavesSQL+`) l
-		WHERE l.d >= ? AND l.d < ? AND (? = '' OR l.kind = ?) GROUP BY 1`, id, id, id, p.Range.From, p.Range.To, p.MediaType, p.MediaType)) {
+		SELECT `+trunc("l.d")+` AS date, COUNT(*)::int AS n, 0 AS removed FROM (`+libraryLeavesSQL+`) l
+		WHERE l.d >= ? AND l.d < ? AND (? = '' OR l.kind = ?) AND (?::timestamptz IS NULL OR l.d < ?::timestamptz) GROUP BY 1
+		UNION ALL
+		SELECT `+trunc("e.at")+`, COUNT(*) FILTER (WHERE e.kind = 'added')::int, COUNT(*) FILTER (WHERE e.kind = 'removed')::int
+		FROM (`+libraryEventsSQL+`) e
+		WHERE e.at >= ? AND e.at < ? AND (? = '' OR e.item_type = ?) GROUP BY 1`,
+		append([]interface{}{id, id, id, p.Range.From, p.Range.To, p.MediaType, p.MediaType, cutoff, cutoff},
+			append(libraryEventsArgs(id), p.Range.From, p.Range.To, p.MediaType, p.MediaType)...)...)) {
 		return
 	}
 	var first []struct {
@@ -253,11 +272,12 @@ func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 	for d := bucketStart(p.Range.From.In(loc), unit); d.Before(p.Range.To); d = bucketNext(d, unit) {
 		key := d.Format(v2DateLayout)
 		idx[key] = len(points)
-		points = append(points, libGrowthPoint{Date: key})
+		points = append(points, libGrowthPoint{Date: key, Precise: cutoff != nil && !d.Before(*cutoff)})
 	}
 	for _, r := range added {
 		if i, ok := idx[r.Date]; ok {
-			points[i].Added = r.N
+			points[i].Added += r.N
+			points[i].Removed += r.Removed
 		}
 	}
 	for _, r := range first {
@@ -265,7 +285,12 @@ func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 			points[i].FirstViews = r.N
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"bucket": unit, "points": points})
+	source, preciseFrom := "catalog", (*string)(nil)
+	if cutoff != nil {
+		d := localDate(*cutoff)
+		source, preciseFrom = "events", &d
+	}
+	c.JSON(http.StatusOK, gin.H{"bucket": unit, "source": source, "preciseFrom": preciseFrom, "points": points})
 }
 
 // ---------------------------------------------------------------------------

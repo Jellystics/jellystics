@@ -5,6 +5,9 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { AppLink, Art, ButtonLink, Card, CardHeader, DataTable, EmptyState, EntityHeader, StatStrip, StatTile } from '@/ui'
 import { useFormat } from '@/lib/format'
 import { useEpisode, type EpisodeDetail, type EpisodeRef } from '@/api'
+import { useItemMarks } from '@/api/pluginData'
+import { FinishedTile, MarksCard, SkipsCard } from '@/app/widgets/PluginWidgets'
+import { hasMarks } from '@/app/widgets/plugin'
 import { CompletionCell, EntitySkeleton, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
 import { entityPath } from '@/lib/routes'
@@ -17,6 +20,9 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
   const { t } = useTranslation()
   const f = useFormat()
   const { item, totals } = data
+  const marks = useItemMarks(item.id).data
+  const showSkips = (data.skips?.plays ?? 0) > 0
+  const showMarks = hasMarks(marks)
   const sid = item.seriesId || seriesId
   // Neighbours may sit in another season (LAG/LEAD over the whole series).
   const code = (ref: EpisodeRef) => {
@@ -51,10 +57,11 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
         }
       />
       <Card>
-        <StatStrip columns={4}>
+        <StatStrip columns={5}>
           <StatTile label={t('app.entity.views')} value={f.number(totals.views)} />
           <StatTile label={t('app.entity.viewers')} value={f.number(totals.viewers)} />
           <StatTile label={t('app.metric.completionAvg')} value={totals.avgCompletion == null ? '—' : f.percent(totals.avgCompletion)} />
+          <FinishedTile data={data.playedToEnd} />
           <StatTile label={t('app.episode.pauses')} value={totals.pausedSecondsAvg == null ? '—' : f.duration(totals.pausedSecondsAvg)} foot={t('app.episode.pausesFoot')} />
         </StatStrip>
       </Card>
@@ -62,6 +69,12 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
         <FunnelCard funnel={data.funnel} title={t('app.episode.funnel')} subtitle={t('app.entity.funnelSub')} csvName={`episode-${item.id}-funnel`} />
         <StopsCard bins={data.stopPositions} runtimeSeconds={item.runtimeSeconds} title={t('app.episode.stops')} subtitle={t('app.episode.stopsSub')} csvName={`episode-${item.id}-stops`} />
       </div>
+      {(showSkips || showMarks) && (
+        <div className={showSkips && showMarks ? styles.g2 : undefined}>
+          {showSkips && <SkipsCard skips={data.skips} since={data.pluginSince} />}
+          {showMarks && <MarksCard data={marks} />}
+        </div>
+      )}
       <Card>
         <CardHeader title={t('app.episode.viewers')} />
         <DataTable columns={cols} data={data.viewers} empty={<EmptyState title={t('app.entity.noViewers')} />} />
