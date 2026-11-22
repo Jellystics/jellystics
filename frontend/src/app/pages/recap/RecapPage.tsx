@@ -41,11 +41,11 @@ export default function RecapPage() {
     </nav>
   )
 
-  if (!valid) return <EmptyState title={t('app.recap.badPeriod')} description={t('app.recap.badPeriodHint')} />
+  if (!valid) return <EmptyState headingLevel={1} title={t('app.recap.badPeriod')} description={t('app.recap.badPeriodHint')} />
   if (recap.data === undefined) {
     if (recap.isError) {
       if (recap.error instanceof ApiError && recap.error.status === 404) {
-        return <EmptyState icon={<UserX size={20} strokeWidth={1.6} />} title={t('app.recap.notFound')} />
+        return <EmptyState headingLevel={1} icon={<UserX size={20} strokeWidth={1.6} />} title={t('app.recap.notFound')} />
       }
       return <ErrorState title={t('app.error.generic')} onRetry={() => { recap.refetch() }} />
     }

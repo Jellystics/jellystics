@@ -176,6 +176,15 @@ it('/insights mounts the insights page with the global period picker', async () 
   expect(await screen.findByRole('heading', { name: 'app.insights.title' })).toBeInTheDocument()
   expect(screen.getAllByRole('button', { name: /app\.period\./ }).length).toBeGreaterThan(0)
 })
+it.each([['/settings/config', 'settings:config'], ['/settings', 'settings:config'], ['/nope', 'app.notFound.title']])('%s hides the global period picker', async (p, text) => {
+  renderApp(p)
+  await screen.findByText(text)
+  expect(screen.queryAllByRole('button', { name: /app\.period\./ })).toHaveLength(0)
+})
+it('the 404 page title is the page heading', async () => {
+  renderApp('/nope')
+  expect(await screen.findByRole('heading', { level: 1, name: 'app.notFound.title' })).toBeInTheDocument()
+})
 it('/live hides the global period picker', async () => {
   renderApp('/live')
   await screen.findByText('page-live')

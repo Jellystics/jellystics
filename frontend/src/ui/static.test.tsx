@@ -44,7 +44,12 @@ it('Breadcrumbs: last item is current page, others are links', () => {
 })
 it('EmptyState', () => {
   render(<EmptyState title="Aucune lecture" description="Élargis la période" />)
-  expect(screen.getByText('Aucune lecture')).toBeInTheDocument()
+  expect(screen.getByText('Aucune lecture').tagName).toBe('P')
+  expect(screen.queryByRole('heading')).toBeNull()
+})
+it('EmptyState renders its title as a heading when given a level', () => {
+  render(<EmptyState title="Page introuvable" headingLevel={1} />)
+  expect(screen.getByRole('heading', { level: 1, name: 'Page introuvable' })).toBeInTheDocument()
 })
 
 it('ButtonLink renders a single anchor with button classes', () => {

@@ -15,7 +15,7 @@ export function QueryView<T>({ query, skeleton, children }: { query: UseQueryRes
   const { t } = useTranslation()
   if (query.data !== undefined) return <>{children(query.data)}</>
   if (query.isError) {
-    if (isNotFound(query.error)) return <EmptyState icon={<SearchX size={20} strokeWidth={1.6} />} title={t('app.entity.notFound')} description={t('app.entity.notFoundHint')} />
+    if (isNotFound(query.error)) return <EmptyState headingLevel={1} icon={<SearchX size={20} strokeWidth={1.6} />} title={t('app.entity.notFound')} description={t('app.entity.notFoundHint')} />
     return <ErrorState title={t('app.entity.error')} onRetry={() => { void query.refetch() }} />
   }
   return <>{skeleton}</>
