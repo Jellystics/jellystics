@@ -1,6 +1,6 @@
 import { formatDuration, formatPosition, formatNumber, formatCompact, formatPercent, formatHour, formatDay, formatRelative, formatDelta, weekdayLabels } from './format'
 
-const nb = (s: string) => s.replace(/[  ]/g, ' ') // normalise fr spaces (NBSP, narrow NBSP)
+const nb = (s: string) => s.replace(/[\u{a0}\u{202f}]/gu, ' ') // normalise fr spaces (NBSP, narrow NBSP)
 
 describe('formatDuration', () => {
   it.each([[0, '0 s'], [45, '45 s'], [59.6, '1 min'], [720, '12 min'], [3900, '1 h 05'], [3600 * 99 + 59 * 60, '99 h 59'], [3600 * 1248, '1 248 h']])('%s s → %s', (s, out) => {

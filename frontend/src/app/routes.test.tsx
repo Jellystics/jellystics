@@ -13,18 +13,18 @@ vi.mock('@/features/libraries/LibrariesPage', () => ({ default: () => <p>legacy-
 vi.mock('@/features/libraries/LibraryDetailPage', () => ({ default: () => <p>legacy-library</p> }))
 vi.mock('@/features/libraries/ItemDetailPage', async () => {
   const { useParams } = await import('react-router-dom')
-  return { default: () => <p>legacy-item:{useParams().itemId}</p> }
+  return { default: function Item() { return <p>legacy-item:{useParams().itemId}</p> } }
 })
 vi.mock('@/features/libraries/AlbumDetailPage', async () => {
   const { useParams } = await import('react-router-dom')
-  return { default: () => <p>legacy-album:{useParams().albumId}</p> }
+  return { default: function Album() { return <p>legacy-album:{useParams().albumId}</p> } }
 })
 vi.mock('@/features/users/UsersPage', () => ({ default: () => <p>legacy-users</p> }))
 vi.mock('@/features/users/UserDetailPage', () => ({ default: () => <p>legacy-user</p> }))
 vi.mock('@/features/statistics/StatisticsPage', () => ({ default: () => <p>legacy-statistics</p> }))
 vi.mock('@/features/settings/SettingsPage', async () => {
   const { useSearchParams } = await import('react-router-dom')
-  return { default: () => <p>legacy-settings:{useSearchParams()[0].get('view')}</p> }
+  return { default: function Settings() { return <p>legacy-settings:{useSearchParams()[0].get('view')}</p> } }
 })
 vi.mock('@/features/about/AboutPage', () => ({ default: () => <p>legacy-about</p> }))
 
