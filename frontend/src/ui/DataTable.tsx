@@ -29,7 +29,7 @@ export function DataTable<T>({ columns, data, rowHref, pagination, sort, dense, 
   const sorting: SortingState = sort ? [{ id: sort.id, desc: sort.desc }] : []
   const table = useReactTable({
     columns, data, getCoreRowModel: getCoreRowModel(),
-    manualSorting: true, state: { sorting },
+    manualSorting: true, enableSortingRemoval: false, state: { sorting },
     onSortingChange: (u) => {
       if (!sort) return
       const next = (typeof u === 'function' ? u(sorting) : u)[0]

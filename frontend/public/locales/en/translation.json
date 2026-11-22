@@ -459,7 +459,6 @@
     },
     "session": {
       "paused": "Paused",
-      "playing": "Playing",
       "progress": "Progress"
     }
   }

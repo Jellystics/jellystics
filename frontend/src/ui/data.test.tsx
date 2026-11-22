@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { StatTile, BarList, DataTable } from '@/ui'
+import { StatTile, BarList, DataTable, SessionCard } from '@/ui'
 
 it('StatTile delta: arrow from sign, color from goodness', () => {
   const { container } = render(<StatTile label="Transcodages" value="18" unit="%" delta={{ text: '−4 pts', direction: 'down', good: true }} comparedTo="vs préc." />)
@@ -27,4 +27,28 @@ it('DataTable renders rows as links and paginates', async () => {
   expect(screen.getByRole('link', { name: 'Léa' })).toHaveAttribute('href', '/users/lea')
   await userEvent.click(screen.getByRole('button', { name: 'app.table.next' }))
   expect(onPageChange).toHaveBeenCalledWith(2)
+})
+it('DataTable sort toggles asc/desc on repeated clicks', async () => {
+  const onChange = vi.fn()
+  const Wrap = ({ sort }: { sort: { id: string; desc: boolean } }) => (
+    <DataTable columns={[{ accessorKey: 'name', header: 'Nom' }]} data={[{ name: 'a' }]} sort={{ ...sort, onChange }} />
+  )
+  const { rerender } = render(<Wrap sort={{ id: 'name', desc: true }} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Nom' }))
+  expect(onChange).toHaveBeenLastCalledWith({ id: 'name', desc: false })
+  rerender(<Wrap sort={{ id: 'name', desc: false }} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Nom' }))
+  expect(onChange).toHaveBeenLastCalledWith({ id: 'name', desc: true })
+  rerender(<Wrap sort={{ id: 'name', desc: true }} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Nom' }))
+  expect(onChange).toHaveBeenLastCalledWith({ id: 'name', desc: false })
+})
+it('SessionCard shows link, user, method, square art, paused badge', () => {
+  const { container } = render(<MemoryRouter><SessionCard session={{ id: '1', title: 'Halo', subtitle: 'Piste 3', itemHref: '/albums/1', type: 'music', user: { id: 'u', name: 'Hugo' }, device: 'Finamp', method: 'direct', paused: true, positionSec: 60, runtimeSec: 222 }} /></MemoryRouter>)
+  expect(screen.getByRole('link', { name: 'Halo' })).toHaveAttribute('href', '/albums/1')
+  expect(screen.getByText('Hugo')).toBeInTheDocument()
+  expect(screen.getByText('app.method.direct')).toBeInTheDocument()
+  expect(screen.getByText('app.session.paused')).toBeInTheDocument()
+  expect(container.querySelector('.square')).not.toBeNull()
+  expect(container.querySelector('.art')!.textContent).toContain('H')
 })
