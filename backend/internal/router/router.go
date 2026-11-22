@@ -156,6 +156,10 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 		api.GET("/getActivityMonitorSettings", configH.GetActivityMonitorSettings)
 		api.POST("/setActivityMonitorSettings", configH.SetActivityMonitorSettings)
 		api.GET("/CheckForUpdates", configH.CheckForUpdates)
+		// Jellystics plugin sync
+		if svcs.PluginSync != nil {
+			api.GET("/plugin/status", handler.PluginStatus(svcs.PluginSync))
+		}
 		// Tasks
 		api.GET("/getTasks", tasksH.List)
 		api.POST("/runTask/:name", tasksH.Run)

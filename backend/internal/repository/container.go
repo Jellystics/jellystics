@@ -20,6 +20,7 @@ type Container struct {
 	Webhook     WebhookRepository
 	Stats       StatsRepository
 	AuthSession AuthSessionRepository
+	PluginSync  PluginSyncRepository
 }
 
 // New wires all GORM-backed repository implementations.
@@ -41,5 +42,6 @@ func New(db *gorm.DB) *Container {
 		Webhook:     &webhookRepo{db},
 		Stats:       &statsRepo{db},
 		AuthSession: &authSessionRepo{db},
+		PluginSync:  &pluginSyncRepo{db},
 	}
 }

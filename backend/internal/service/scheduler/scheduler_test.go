@@ -182,3 +182,25 @@ func TestRunByName_Delegates(t *testing.T) {
 		t.Errorf("RunByName success error = %v, want nil", err)
 	}
 }
+
+func TestBackgroundJobs_EnabledByDefault(t *testing.T) {
+	s, db := newScheduler(t)
+	s.AddBackground("Jellystics Plugin Sync", "@every 30s", func(context.Context) {})
+	ctx := context.Background()
+	defer s.stop()
+
+	seedSettings(t, db, `{}`)
+	s.Start(ctx)
+	if n := len(s.c.Entries()); n != 1 {
+		t.Fatalf("entries = %d, want the background job", n)
+	}
+
+	seedSettings(t, db, `{"Tasks":{"Jellystics Plugin Sync":{"enabled":false}}}`)
+	s.Reload(ctx)
+	if n := len(s.c.Entries()); n != 1 { // Full Sync only
+		t.Fatalf("entries = %d, want Full Sync only", n)
+	}
+	if !s.backgroundDisabled(ctx, "Jellystics Plugin Sync") {
+		t.Fatal("explicit enabled=false must disable the job")
+	}
+}

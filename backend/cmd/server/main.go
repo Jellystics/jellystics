@@ -20,6 +20,7 @@ import (
 	"github.com/Jellystics/Jellystics/internal/service"
 	authsvc "github.com/Jellystics/Jellystics/internal/service/auth"
 	geosvc "github.com/Jellystics/Jellystics/internal/service/geo"
+	"github.com/Jellystics/Jellystics/internal/service/pluginsync"
 	"github.com/Jellystics/Jellystics/internal/service/scheduler"
 	statssvc "github.com/Jellystics/Jellystics/internal/service/stats"
 	syncsvc "github.com/Jellystics/Jellystics/internal/service/sync"
@@ -87,12 +88,14 @@ func main() {
 	taskSvc := tasksvc.New(repos, hub)
 
 	webhookSvc := webhooksvc.New(repos)
+	pluginSvc := pluginsync.New(repos)
 	svcs := &service.Container{
-		Auth:    authsvc.New(repos, jfClient, cfg),
-		Sync:    syncSvc,
-		Stats:   statssvc.New(repos),
-		Task:    taskSvc,
-		Webhook: webhookSvc,
+		Auth:       authsvc.New(repos, jfClient, cfg),
+		Sync:       syncSvc,
+		Stats:      statssvc.New(repos),
+		Task:       taskSvc,
+		Webhook:    webhookSvc,
+		PluginSync: pluginSvc,
 	}
 
 	taskSvc.SetFireFunc(func(ctx context.Context, eventType string, data map[string]any) {
@@ -129,6 +132,8 @@ func main() {
 	}
 	runner := scheduler.NewRunner(taskSvc, dispatch)
 	sched := scheduler.New(repos, runner)
+	// Jellystics plugin sync: every 30 s, enabled by default, no-op without the plugin.
+	sched.AddBackground(pluginsync.TaskName, pluginsync.CronSpec, pluginSvc.Tick)
 	sched.Start(context.Background())
 
 	// Daily: revoke and delete browser sessions unused for 30 days.

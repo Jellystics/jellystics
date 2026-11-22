@@ -342,6 +342,7 @@ func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActiv
 				"PausedSeconds", "StartedAt", "EndedAt", "IsView",
 				"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
 				"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
+				"PlaySessionId", "SeekCount", "SkippedSeconds", "PlayedToCompletion",
 			}),
 		}).
 		CreateInBatches(acts, 500).Error
