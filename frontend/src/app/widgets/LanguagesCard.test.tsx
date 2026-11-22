@@ -30,3 +30,10 @@ it('shows the collection empty state without captured data', async () => {
   expect(await screen.findByText('app.analytics.notCollected')).toBeInTheDocument()
   expect(screen.getByText('app.analytics.collectedNext')).toBeInTheDocument()
 })
+
+it('shows the usual empty state when the capture started before the period', async () => {
+  mockApi({ '/api/v2/users/u1/languages': { ...DATA, collectedSince: '2026-10-01', captured: 0, audio: [], subtitles: [], subtitleOff: 0 } })
+  renderPage(<LanguagesCard userId="u1" />, { path: '/users/:id', url: '/users/u1?from=2026-11-01&to=2026-11-22' })
+  expect(await screen.findByText('app.analytics.noData')).toBeInTheDocument()
+  expect(screen.queryByText('app.analytics.notCollected')).not.toBeInTheDocument()
+})

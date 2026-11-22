@@ -6,7 +6,8 @@ import { ApiError } from '@/lib/api'
 import { ChartFrame, Columns } from '@/charts'
 import { AppLink, Art, BarList, ButtonLink, Card, CardBody, CardHeader, EmptyState, ErrorState, Skeleton, StatStrip, StatTile } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { useSetCrumbLabel } from '@/app/shell/crumbs'
+import { useSetCrumbLabels } from '@/app/shell/crumbs'
+import { useServerConfig } from '@/lib/serverConfig'
 import { NoData } from '../_shared/shared'
 import { entityPath, formatHours, formatMonth } from '../_shared/analyticsFormat'
 import shared from '../_shared/analytics.module.css'
@@ -23,11 +24,13 @@ export default function RecapPage() {
   const valid = PERIOD_RE.test(period)
   const recap = useRecap(id, valid ? period : undefined)
   const label = (p: string) => (p.length === 4 ? p : new Intl.DateTimeFormat(f.locale, { month: 'long', year: 'numeric' }).format(new Date(Number(p.slice(0, 4)), Number(p.slice(5, 7)) - 1, 1)))
-  useSetCrumbLabel(valid ? t('app.recap.crumb', { period: label(period) }) : null)
+  // Users › Léa › Recap 2026 (the user name replaces the generic "user" crumb).
+  useSetCrumbLabels(valid ? [recap.data?.user.name, t('app.recap.crumb', { period: label(period) })] : null)
+  const tz = useServerConfig().data?.timezone
 
   const switcher = valid && (
     <nav className={styles.switch} aria-label={t('app.recap.periods')}>
-      {recapOptions(period).map((p) => (
+      {recapOptions(period, new Date(), tz).map((p) => (
         <ButtonLink key={p} size="sm" variant={p === period ? 'secondary' : 'ghost'} aria-current={p === period ? 'page' : undefined}
           to={`/users/${encodeURIComponent(id)}/recap/${p}`}>
           {p.length === 4 ? p : formatMonth(p, f.locale)}
@@ -69,7 +72,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
           <div className={shared.muted}>
             <AppLink to={`/users/${encodeURIComponent(d.user.id)}`}>{d.user.name}</AppLink>{` · ${label}`}
           </div>
-          <div className={styles.heroValue}>{f.number(Math.round(d.totals.watchSeconds / 3600))} h</div>
+          <div className={styles.heroValue}>{t('app.recap.hoursValue', { value: f.number(Math.round(d.totals.watchSeconds / 3600)) })}</div>
           <div className={styles.heroSub}>
             {t('app.recap.heroSub', { days: f.number(Math.floor(d.totals.watchSeconds / 86400)), views: f.number(d.totals.views), active: f.number(d.totals.activeDays) })}
           </div>
@@ -117,9 +120,9 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
           <Card>
             <StatStrip columns={3}>
               <StatTile label={d.granularity === 'month' ? t('app.recap.bestMonth') : t('app.recap.bestDay')}
-                value={d.records.bestBucket ? hours(d.records.bestBucket.watchSeconds) : '—'}
+                value={d.records.bestBucket ? hours(d.records.bestBucket.watchSeconds) : t('app.recap.noValue')}
                 foot={d.records.bestBucket ? (d.granularity === 'month' ? formatMonth(d.records.bestBucket.key, f.locale, true) : f.day(new Date(`${d.records.bestBucket.key}T12:00:00`))) : undefined} />
-              <StatTile label={t('app.recap.binge')} value={d.records.binge ? t('app.recap.episodes', { count: d.records.binge.episodes }) : '—'}
+              <StatTile label={t('app.recap.binge')} value={d.records.binge ? t('app.recap.episodes', { count: d.records.binge.episodes }) : t('app.recap.noValue')}
                 foot={d.records.binge ? (
                   <span><AppLink to={entityPath('series', d.records.binge.seriesId) ?? '/'}>{d.records.binge.seriesName}</AppLink>{` · ${f.day(new Date(`${d.records.binge.date}T12:00:00`))}`}</span>
                 ) : undefined} />
@@ -140,6 +143,14 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
               <CardHeader title={t('app.recap.ranking.title')} subtitle={t('app.recap.ranking.subtitle')} />
               <CardBody flush>
                 <table className={shared.table}>
+                  <thead className={shared.srHead}>
+                    <tr>
+                      <th scope="col"><span className="sr-only">{t('app.recap.ranking.rank')}</span></th>
+                      <th scope="col"><span className="sr-only">{t('app.recap.ranking.content')}</span></th>
+                      <th scope="col"><span className="sr-only">{t('app.recap.ranking.evolution')}</span></th>
+                      <th scope="col"><span className="sr-only">{t('app.chart.views')}</span></th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {d.ranking.map((r) => {
                       const delta = r.previousRank === null ? null : r.previousRank - r.rank

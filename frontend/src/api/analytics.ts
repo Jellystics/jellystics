@@ -33,7 +33,8 @@ export interface RewatchRow {
   user: RefUser
 }
 export interface GenresInsight {
-  /** YYYY-MM months overlapping the range. */
+  bucket: 'month'
+  /** YYYY-MM months overlapping the range (leading empty months trimmed on ranges > 400 days). */
   months: string[]
   /** Top 3 genres by watch seconds (per month). */
   series: { name: string; values: number[] }[]
@@ -41,7 +42,7 @@ export interface GenresInsight {
 }
 /** Views per local hour (24 values) per family. */
 export type MomentsInsight = ByType<number[]>
-export interface PauseRow { id: string; kind: GroupKind; name: string; ratio: number; pausedSeconds: number; watchSeconds: number }
+export interface PauseRow { id: string; kind: GroupKind; name: string; ratio: number; pausedSeconds: number; pauseCount: number; watchSeconds: number }
 export interface BingeRow { id: string; name: string; binges: number; users: number }
 export interface RhythmInsight { weekHour: number[][] }
 
@@ -62,12 +63,11 @@ export interface AbandonedRow {
 export interface AbandonedResult { count: number; items: AbandonedRow[] }
 export interface AddedResult { count: number; seen: number; items: (CatalogItem & { seen: boolean })[] }
 export interface StoragePoint { id: string; kind: GroupKind; name: string; sizeBytes: number; views: number }
-export interface DecadeRow { decade: number; items: number; views: number }
-export interface GrowthPoint { month: string; added: number; firstViews: number }
 
 // ── /playback ────────────────────────────────────────────────────────────────
 export interface MethodDay extends MethodSplit { date: ISODate }
-export interface PlaybackMethods { totals: MethodSplit; previous?: MethodSplit; daily: MethodDay[] }
+/** `daily`: one point per day, or per ISO week (date = its Monday) when bucket is "week" (ranges > 400 days). */
+export interface PlaybackMethods { bucket: 'day' | 'week'; totals: MethodSplit; previous?: MethodSplit; daily: MethodDay[] }
 export interface ClientRow {
   client: string
   clicks: number
@@ -80,6 +80,7 @@ export interface ClientRow {
 }
 export interface LabelCount { label: string; views: number }
 export interface ConversionRow { videoFrom: string; videoTo: string; audioFrom: string; audioTo: string; views: number }
+export interface CodecPair { videoFrom: string; videoTo: string; views: number }
 export interface PlaybackQuality {
   /** Local date of the first row captured with the new fields (migration 011); null = nothing yet. */
   collectedSince: ISODate | null
@@ -90,7 +91,10 @@ export interface PlaybackQuality {
   resolution: { served: Record<'4K' | '1080p' | '720p' | 'SD', number>; sourceUhd: number; downscaledUhd: number }
   hdr: { native: number; toneMapped: number; sdr: number }
   reasons: LabelCount[]
+  /** Top 12 video + audio conversions. */
   conversions: ConversionRow[]
+  /** Every video source → output codec pair (untruncated), for the codec matrix. */
+  codecPairs: CodecPair[]
   streams: { audioOnly: number; videoOnly: number; both: number }
   hwAccel: LabelCount[]
   /** bit/s; buckets: < 2, 2–5, 5–10, 10–20, 20–40, ≥ 40 Mb/s. */
@@ -170,21 +174,23 @@ export const useDiscoverUnwatched = (f?: Filters) => useSection<UnwatchedResult>
 export const useDiscoverAbandoned = (f?: Filters) => useSection<AbandonedResult>('discover', 'abandoned', f)
 export const useDiscoverAdded = (f?: Filters) => useSection<AddedResult>('discover', 'added', f)
 export const useDiscoverStorage = (f?: Filters) => useSection<StoragePoint[]>('discover', 'storage', f)
-export const useDiscoverDecades = (f?: Filters) => useSection<DecadeRow[]>('discover', 'decades', f)
-export const useDiscoverGrowth = (f?: Filters) => useSection<GrowthPoint[]>('discover', 'growth', f)
 
 export const usePlaybackMethods = (f?: Filters) => useSection<PlaybackMethods>('playback', 'methods', f)
 export const usePlaybackClients = (f?: Filters) => useSection<ClientRow[]>('playback', 'clients', f)
 export const usePlaybackQuality = (f?: Filters) => useSection<PlaybackQuality>('playback', 'quality', f)
 export const usePlaybackNetwork = (f?: Filters) => useSection<PlaybackNetwork>('playback', 'network', f)
 
-/** Recap of one user for a period `YYYY` or `YYYY-MM` (the URL period is not used). */
+/**
+ * Recap of one user for a period `YYYY` or `YYYY-MM` (the URL period is not
+ * used). The previous recap stays on screen while switching periods of the
+ * same user, never across users.
+ */
 export function useRecap(userId: string | undefined, period: string | undefined) {
   return useQuery({
     queryKey: analyticsKeys.recap(userId ?? '', period ?? ''),
     queryFn: get<Recap>(`${V2}/recap/${seg(userId ?? '')}/${seg(period ?? '')}`, {}),
     enabled: !!userId && !!period,
-    placeholderData: keepPreviousData,
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2] === (userId ?? '') ? prev : undefined),
   })
 }
 

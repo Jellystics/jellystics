@@ -26,10 +26,15 @@ export function formatBytes(bytes: number, locale = 'fr'): string {
   return `${new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(v)} ${units[i]}`
 }
 
+/** Bit/s → "8,5" (Mb/s, unit added by the caller's translation). */
+export function formatMbps(bps: number, locale = 'fr'): string {
+  const mb = bps / 1_000_000
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: mb < 10 ? 1 : 0 }).format(mb)
+}
+
 /** Bit/s → "8,5 Mb/s". */
 export function formatBitrate(bps: number, locale = 'fr'): string {
-  const mb = bps / 1_000_000
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: mb < 10 ? 1 : 0 }).format(mb)} Mb/s`
+  return `${formatMbps(bps, locale)} Mb/s`
 }
 
 /** Hours with one decimal under 10 (y axes of watch-time charts). */

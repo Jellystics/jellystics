@@ -2,7 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { useUserLanguages } from '@/api/analytics'
 import { BarList, Card, CardBody, CardHeader, SegBar } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { CollectedEmpty, QueryCard } from '@/app/pages/_shared/shared'
+import { usePeriod } from '@/lib/useUrlState'
+import { CaptureEmpty, QueryCard } from '@/app/pages/_shared/shared'
 import styles from '@/app/pages/_shared/analytics.module.css'
 
 /** ISO 639-2 (as stored by Jellyfin) → BCP 47, for Intl.DisplayNames. */
@@ -29,11 +30,12 @@ export function LanguagesCard({ userId }: { userId: string }) {
   const { t } = useTranslation()
   const f = useFormat()
   const q = useUserLanguages(userId)
+  const [period] = usePeriod()
   const name = (code: string) => (code ? languageName(code, f.locale) : t('app.languages.unknown'))
   return (
     <QueryCard
       title={t('app.languages.title')} subtitle={t('app.languages.subtitle')} query={q}
-      isEmpty={(d) => d.captured === 0} empty={q.data ? <CollectedEmpty since={q.data.collectedSince} /> : undefined}
+      isEmpty={(d) => d.captured === 0} empty={q.data ? <CaptureEmpty since={q.data.collectedSince} from={period.from} /> : undefined}
     >
       {(d) => {
         const known = d.split.originalSubtitled + d.split.original + d.split.dubbed

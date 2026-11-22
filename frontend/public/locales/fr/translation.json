@@ -1342,7 +1342,8 @@
       "completion": {
         "title": "Distribution de complétion",
         "subtitle": "vues par % atteint · le pic à 100 % = terminés",
-        "bucket": "Complétion"
+        "bucket": "Complétion",
+        "range": "{{from}}–{{to}} %"
       },
       "byType": {
         "title": "Complétion par type",
@@ -1360,7 +1361,8 @@
         "subtitle": "temps en pause / temps regardé",
         "value": "Ratio",
         "paused": "En pause",
-        "watched": "Regardé"
+        "watched": "Regardé",
+        "count": "Pauses"
       },
       "rhythm": {
         "title": "Rythme hebdomadaire",
@@ -1370,7 +1372,11 @@
         "title": "Durée des séances",
         "median": "médiane {{value}}",
         "length": "Durée",
-        "value": "Séances"
+        "value": "Séances",
+        "under": "< {{value}} min",
+        "minutes": "{{from}}–{{to}} min",
+        "hours": "{{from}}–{{to}} h",
+        "over": "> {{value}} h"
       },
       "resumes": {
         "title": "Reprises vs depuis le début",
@@ -1405,7 +1411,8 @@
         "subtitle": "du plus ancien ajout au plus récent",
         "foot": "{{share}} du catalogue · {{size}}",
         "added": "ajouté {{when}}",
-        "addedUnknown": "date d’ajout inconnue"
+        "addedUnknown": "date d’ajout inconnue",
+        "kind": "Type"
       },
       "abandoned": {
         "title": "Abandonnés",
@@ -1413,7 +1420,8 @@
         "foot": "arrêtés entre 10 et 80 %, > 60 j",
         "episodes": "{{viewed}} ép. sur {{total}}",
         "stoppedAt": "arrêté à {{position}}",
-        "progress": "Progression {{value}}"
+        "progress": "Progression {{value}}",
+        "progressCol": "Progression"
       },
       "added": {
         "title": "Ajoutés sur la période",
@@ -1427,7 +1435,8 @@
         "sizeGb": "Taille",
         "neverViewed": "Jamais vu",
         "viewed": "Vu",
-        "quadrant": "gros et jamais vus ↘"
+        "quadrant": "gros et jamais vus ↘",
+        "sizeGbColumn": "Taille (Go)"
       }
     },
     "playback": {
@@ -1522,8 +1531,13 @@
       "bitrate": {
         "title": "Débit",
         "subtitle": "moyenne {{avg}} · 95e centile {{p95}}",
-        "bucket": "Débit"
-      }
+        "bucket": "Débit",
+        "value": "{{value}} Mb/s"
+      },
+      "week": "Semaine",
+      "weekOf": "sem. du {{date}}",
+      "noValue": "—",
+      "unknownCodec": "—"
     },
     "recap": {
       "crumb": "Récap {{period}}",
@@ -1558,11 +1572,16 @@
         "new": "nouveau",
         "up": "monte",
         "down": "descend",
-        "same": "stable"
+        "same": "stable",
+        "rank": "Rang",
+        "content": "Contenu",
+        "evolution": "Évolution"
       },
       "notFound": "Utilisateur introuvable",
       "badPeriod": "Période invalide",
-      "badPeriodHint": "Utilisez une année (2026) ou un mois (2026-11)."
+      "badPeriodHint": "Utilisez une année (2026) ou un mois (2026-11).",
+      "hoursValue": "{{value}} h",
+      "noValue": "—"
     },
     "languages": {
       "title": "VO ou VF",

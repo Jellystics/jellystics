@@ -54,6 +54,12 @@ export default function DiscoverPage() {
               <CardHeader title={t('app.discover.unwatched.title')} subtitle={t('app.discover.unwatched.subtitle')} />
               <CardBody flush>
                 <table className={styles.table}>
+                  <thead className={styles.srHead}>
+                    <tr>
+                      <th scope="col"><span className="sr-only">{t('app.insights.content')}</span></th>
+                      <th scope="col"><span className="sr-only">{t('app.discover.unwatched.kind')}</span></th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {d.items.map((it) => {
                       const to = entityPath(it.kind, it.id)
@@ -88,6 +94,12 @@ export default function DiscoverPage() {
               <CardHeader title={t('app.discover.abandoned.title')} subtitle={t('app.discover.abandoned.subtitle')} />
               <CardBody flush>
                 <table className={styles.table}>
+                  <thead className={styles.srHead}>
+                    <tr>
+                      <th scope="col"><span className="sr-only">{t('app.insights.content')}</span></th>
+                      <th scope="col"><span className="sr-only">{t('app.discover.abandoned.progressCol')}</span></th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {d.items.map((it) => (
                       <tr key={`${it.kind}/${it.id}/${it.user.id}`}>
@@ -125,7 +137,7 @@ export default function DiscoverPage() {
             <ChartFrame
               title={t('app.discover.storage.title')} subtitle={t('app.discover.storage.subtitle')} csvName="storage-vs-views"
               legend={[{ label: t('app.discover.storage.neverViewed'), color: 'var(--serious)' }, { label: t('app.discover.storage.viewed'), color: 'var(--accent)' }]}
-              table={{ columns: [t('app.insights.content'), t('app.discover.storage.size'), t('app.chart.views')], rows: d.map((p) => [p.name, bytes(p.sizeBytes), p.views]) }}
+              table={{ columns: [t('app.insights.content'), t('app.discover.storage.sizeGbColumn'), t('app.chart.views')], rows: d.map((p) => [p.name, Math.round((p.sizeBytes / GB) * 100) / 100, p.views]) }}
             >
               <Scatter
                 points={d.map((p) => ({ label: p.name, x: p.sizeBytes / GB, y: p.views, color: p.views === 0 ? 'var(--serious)' : 'var(--accent)' }))}
