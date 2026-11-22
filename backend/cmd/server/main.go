@@ -46,6 +46,9 @@ func main() {
 	hub := ws.NewHub()
 	jfClient := jellyfin.NewClient(cfg.JFHost, cfg.JFApiKey)
 	repos := repository.New(db)
+	if err := repos.PluginData.BackfillImportedStartedAt(context.Background()); err != nil {
+		log.Printf("backfill imported play dates: %v", err)
+	}
 
 	// Seed METRICS_API_KEY into app_config if provided (required for headless mode).
 	if cfg.MetricsAPIKey != "" {
@@ -111,10 +114,10 @@ func main() {
 	sched := scheduler.New(repos, runner)
 	sched.Start(context.Background())
 
-	// Every 10 s: broadcast live sessions, update watchdog, promote finished
+	// Every PollInterval: broadcast live sessions, update watchdog, promote finished
 	// sessions to jf_playback_activity (ActivityMonitor equivalent).
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(syncsvc.PollInterval)
 		defer ticker.Stop()
 		ctx := context.Background()
 		for range ticker.C {

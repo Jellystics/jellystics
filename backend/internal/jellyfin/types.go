@@ -178,6 +178,13 @@ type SessionInfo struct {
 	RemoteEndPoint       *string        `json:"RemoteEndPoint"`
 	ServerId             *string        `json:"ServerId"`
 	IsActive             bool           `json:"IsActive"`
+	// LastPlaybackCheckIn is only updated by real client progress reports;
+	// LastActivityDate is also bumped by the server-side 1 s position
+	// extrapolation. Their gap tells whether a playing client went silent.
+	LastPlaybackCheckIn FlexTime `json:"LastPlaybackCheckIn"`
+	LastActivityDate    FlexTime `json:"LastActivityDate"`
+	LastPausedDate      FlexTime `json:"LastPausedDate"`
+	PlaylistItemId      *string  `json:"PlaylistItemId"`
 }
 
 type SessionItem struct {
@@ -193,6 +200,8 @@ type SessionItem struct {
 	AlbumId      *string       `json:"AlbumId"`
 	AlbumArtist  *string       `json:"AlbumArtist"`
 	Album        *string       `json:"Album"`
+	RunTimeTicks *int64        `json:"RunTimeTicks"`
+	ExtraType    *string       `json:"ExtraType"` // ThemeSong, ThemeVideo, Trailer... (not real plays)
 }
 
 type PlayState struct {
@@ -224,3 +233,11 @@ type CustomQueryResponse struct {
 // Column order: [0]=rowid [1]=DateCreated [2]=UserId [3]=ItemId [4]=ItemType
 //               [5]=ItemName [6]=PlaybackMethod [7]=ClientName [8]=DeviceName [9]=PlayDuration
 type PlaybackReportingRow = []interface{}
+
+// UserItemData is the per-user playback state of an item.
+type UserItemData struct {
+	PlaybackPositionTicks int64    `json:"PlaybackPositionTicks"`
+	Played                bool     `json:"Played"`
+	PlayCount             int      `json:"PlayCount"`
+	LastPlayedDate        FlexTime `json:"LastPlayedDate"`
+}

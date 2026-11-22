@@ -6,22 +6,22 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	gosync "sync"
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
 	"github.com/Jellystics/Jellystics/internal/jellyfin"
 	"github.com/Jellystics/Jellystics/internal/repository"
 	"github.com/Jellystics/Jellystics/internal/ws"
-	"github.com/google/uuid"
 	"gorm.io/datatypes"
 )
 
 type Service struct {
-	repos *repository.Container
-	jf    *jellyfin.Client
-	hub   *ws.Hub
+	repos  *repository.Container
+	jf     *jellyfin.Client
+	hub    *ws.Hub
+	tickMu gosync.Mutex // serialises SessionTick (ticker + manual task)
 }
-
 
 func New(repos *repository.Container, jf *jellyfin.Client, hub *ws.Hub) *Service {
 	return &Service{repos: repos, jf: jf, hub: hub}
@@ -54,320 +54,6 @@ func (s *Service) refreshClient(ctx context.Context) error {
 	log.Printf("[sync] refreshClient: using host=%s", *cfg.JFHost)
 	s.jf = jellyfin.NewClient(*cfg.JFHost, apiKey)
 	return nil
-}
-
-const (
-	ticksPerSecond     = 10_000_000 // Jellyfin PositionTicks are 100-nanosecond intervals
-	minPlaybackSeconds = 30         // ignore sessions shorter than 30 s
-	maxTickDelta       = 15         // cap per-tick increment to avoid jumps after missed ticks
-)
-
-// watchIncrement computes how many seconds of *real* playback to add for one tick.
-//
-// It prefers the change in the media position (PositionTicks): the position is
-// frozen while paused or buffering, so pause time is never counted — regardless
-// of whether the IsPaused snapshot happened to catch the pause at the tick edge.
-// The increment is clamped to the wall-clock elapsed time so that seeking forward
-// does not count skipped content as watched, and capped at maxTickDelta to absorb
-// missed ticks / restarts.
-//
-// When the position is unavailable (e.g. live TV, or the very first tick of a
-// session before a baseline exists) it falls back to wall-clock time gated by the
-// IsPaused flag.
-//
-// curPos is the current PositionTicks for the same item as prev (nil if unknown).
-func watchIncrement(prev models.JFActivityWatchdog, isPaused bool, curPos *int64, now time.Time) int64 {
-	if prev.LastTickAt == nil {
-		return 0
-	}
-	wall := int64(now.Sub(*prev.LastTickAt).Seconds())
-	if wall <= 0 {
-		return 0
-	}
-
-	// Position-based accounting (accurate: excludes pause & buffering).
-	if curPos != nil && prev.PlaybackDuration != nil {
-		posDelta := (*curPos - *prev.PlaybackDuration) / ticksPerSecond
-		if posDelta <= 0 {
-			return 0 // paused, buffering, or seeked backward → no real progress
-		}
-		inc := posDelta
-		if inc > wall {
-			inc = wall // seeked forward: only count time actually elapsed
-		}
-		if inc > maxTickDelta {
-			inc = maxTickDelta
-		}
-		return inc
-	}
-
-	// Fallback: no position info. Use wall-clock, gated by the pause flag.
-	if isPaused {
-		return 0
-	}
-	if wall > maxTickDelta {
-		wall = maxTickDelta
-	}
-	return wall
-}
-
-// itemKey builds a stable identity for the currently playing media so that a
-// session switching to a different item can be detected. Music tracks and TV
-// episodes are identified by parent|child (album|track, series|episode); movies
-// and everything else only have the parent id.
-func itemKey(nowPlayingItemId string, episodeId *string) string {
-	key := nowPlayingItemId
-	if episodeId != nil {
-		key += "|" + *episodeId
-	}
-	return key
-}
-
-// SessionTick is called every ~10 s. It:
-//  1. Fetches live Jellyfin sessions and broadcasts them via WebSocket.
-//  2. Upserts active sessions to jf_activity_watchdog, accumulating real watch time.
-//  3. Detects sessions that have ended and promotes them to jf_playback_activity.
-func (s *Service) SessionTick(ctx context.Context) {
-	if err := s.refreshClient(ctx); err != nil {
-		return
-	}
-
-	sessions, err := s.jf.GetSessions(ctx)
-	if err != nil {
-		return
-	}
-
-	// 1. Broadcast to frontend
-	s.hub.Emit("sessions", sessions)
-
-	// Load existing watchdog entries so we can accumulate WatchedSeconds.
-	existingWatchdog, err := s.repos.Watchdog.List(ctx)
-	if err != nil {
-		return
-	}
-	wdMap := make(map[string]models.JFActivityWatchdog, len(existingWatchdog))
-	for _, wd := range existingWatchdog {
-		wdMap[wd.Id] = wd
-	}
-
-	// 2. Build watchdog entries for currently active sessions.
-	// Detect media switches (same Jellyfin session, different item) and promote the old item.
-	now := time.Now()
-	liveIDs := make(map[string]struct{}, len(sessions))
-	entries := make([]models.JFActivityWatchdog, 0)
-	var switchPromotions []models.JFPlaybackActivity
-	for _, sess := range sessions {
-		if sess.NowPlayingItem == nil {
-			continue
-		}
-		liveIDs[sess.Id] = struct{}{}
-
-		nowPlayingItemId := sess.NowPlayingItem.Id
-		var episodeId *string
-		seriesName := sess.NowPlayingItem.SeriesName
-		seasonId := sess.NowPlayingItem.SeasonId
-
-		if sess.NowPlayingItem.SeriesId != nil && *sess.NowPlayingItem.SeriesId != "" {
-			// TV show: parent = series, child = episode
-			nowPlayingItemId = *sess.NowPlayingItem.SeriesId
-			episodeId = &sess.NowPlayingItem.Id
-		} else if sess.NowPlayingItem.AlbumId != nil && *sess.NowPlayingItem.AlbumId != "" {
-			// Music track: parent = album, child = track
-			nowPlayingItemId = *sess.NowPlayingItem.AlbumId
-			episodeId = &sess.NowPlayingItem.Id
-			seriesName = sess.NowPlayingItem.Album
-			seasonId = nil
-		}
-
-		isPaused := false
-		var curPos *int64
-		if sess.PlayState != nil {
-			isPaused = sess.PlayState.IsPaused
-			curPos = sess.PlayState.PositionTicks
-		}
-
-		// Calculate accumulated real watch time.
-		var watchedSeconds int64
-		var activityId string
-		nowStr := now.Format("2006-01-02 15:04:05.000-07:00")
-
-		if prev, exists := wdMap[sess.Id]; exists {
-			// Detect media switch: same session, different item.
-			prevItemKey := itemKey(deref(prev.NowPlayingItemId), prev.EpisodeId)
-			newItemKey := itemKey(nowPlayingItemId, episodeId)
-
-			if prevItemKey != "" && prevItemKey != newItemKey {
-				// Item changed — promote the old watchdog entry before starting fresh.
-				prevPaused := prev.IsPaused != nil && *prev.IsPaused
-				oldDuration := prev.WatchedSeconds + watchIncrement(prev, prevPaused, nil, now)
-				if oldDuration >= minPlaybackSeconds {
-					oldActId := prev.Id
-					if prev.ActivityId != nil {
-						oldActId = *prev.ActivityId
-					}
-					switchPromotions = append(switchPromotions, models.JFPlaybackActivity{
-						Id:                   oldActId,
-						IsPaused:             prev.IsPaused,
-						UserId:               prev.UserId,
-						UserName:             prev.UserName,
-						Client:               prev.Client,
-						DeviceName:           prev.DeviceName,
-						DeviceId:             prev.DeviceId,
-						ApplicationVersion:   prev.ApplicationVersion,
-						NowPlayingItemId:     prev.NowPlayingItemId,
-						NowPlayingItemName:   prev.NowPlayingItemName,
-						EpisodeId:            prev.EpisodeId,
-						SeasonId:             prev.SeasonId,
-						SeriesName:           prev.SeriesName,
-						PlaybackDuration:     &oldDuration,
-						PlayMethod:           prev.PlayMethod,
-						ActivityDateInserted: prev.ActivityDateInserted,
-						MediaStreams:          prev.MediaStreams,
-						TranscodingInfo:      prev.TranscodingInfo,
-						PlayState:            prev.PlayState,
-						OriginalContainer:    prev.OriginalContainer,
-						RemoteEndPoint:       prev.RemoteEndPoint,
-						ServerId:             prev.ServerId,
-						Source:               "watchdog",
-					})
-				}
-				// Reset counters for the new item.
-				watchedSeconds = 0
-				activityId = uuid.New().String()
-			} else {
-				// Same item — keep accumulating real watch time.
-				watchedSeconds = prev.WatchedSeconds + watchIncrement(prev, isPaused, curPos, now)
-				// Preserve the original ActivityId and start time.
-				if prev.ActivityId != nil {
-					activityId = *prev.ActivityId
-				} else {
-					activityId = uuid.New().String()
-				}
-				// Preserve the original start time.
-				if prev.ActivityDateInserted != nil {
-					nowStr = *prev.ActivityDateInserted
-				}
-			}
-		} else {
-			// Brand new session.
-			activityId = uuid.New().String()
-		}
-
-		entry := models.JFActivityWatchdog{
-			Id:                   sess.Id,
-			ActivityId:           &activityId,
-			UserId:               &sess.UserId,
-			UserName:             &sess.UserName,
-			Client:               &sess.Client,
-			DeviceName:           &sess.DeviceName,
-			DeviceId:             &sess.DeviceId,
-			ApplicationVersion:   &sess.ApplicationVersion,
-			NowPlayingItemId:     &nowPlayingItemId,
-			NowPlayingItemName:   &sess.NowPlayingItem.Name,
-			EpisodeId:            episodeId,
-			SeasonId:             seasonId,
-			SeriesName:           seriesName,
-			ActivityDateInserted: &nowStr,
-			RemoteEndPoint:       sess.RemoteEndPoint,
-			ServerId:             sess.ServerId,
-			WatchedSeconds:       watchedSeconds,
-			LastTickAt:           &now,
-		}
-		if sess.PlayState != nil {
-			entry.IsPaused = &isPaused
-			entry.PlayMethod = sess.PlayState.PlayMethod
-			entry.PlaybackDuration = sess.PlayState.PositionTicks
-		}
-		// Persist media metadata so promoted rows carry it (parity with SyncSessions).
-		if len(sess.NowPlayingItem.MediaStreams) > 0 {
-			if b, err := json.Marshal(sess.NowPlayingItem.MediaStreams); err == nil {
-				entry.MediaStreams = datatypes.JSON(b)
-			}
-		}
-		if sess.TranscodingInfo != nil {
-			if b, err := json.Marshal(sess.TranscodingInfo); err == nil {
-				entry.TranscodingInfo = datatypes.JSON(b)
-			}
-		}
-		if sess.PlayState != nil {
-			if b, err := json.Marshal(sess.PlayState); err == nil {
-				entry.PlayState = datatypes.JSON(b)
-			}
-		}
-		entry.OriginalContainer = sess.NowPlayingItem.Container
-		entries = append(entries, entry)
-	}
-	// Promote items from media switches.
-	if len(switchPromotions) > 0 {
-		if err := s.repos.Playback.Upsert(ctx, switchPromotions); err == nil {
-			log.Printf("[monitor] promoted %d media-switch session(s) to jf_playback_activity", len(switchPromotions))
-		}
-	}
-	if len(entries) > 0 {
-		_ = s.repos.Watchdog.Upsert(ctx, entries)
-	}
-
-	// 3. Promote finished sessions (in watchdog but no longer live)
-	type promotion struct {
-		sessionID string
-		activity  models.JFPlaybackActivity
-	}
-	var promotions []promotion
-	for _, wd := range existingWatchdog {
-		if _, alive := liveIDs[wd.Id]; alive {
-			continue
-		}
-		// Use accumulated real watch time instead of PositionTicks.
-		durationSecs := wd.WatchedSeconds
-		if durationSecs < minPlaybackSeconds {
-			_ = s.repos.Watchdog.Delete(ctx, wd.Id)
-			continue
-		}
-		actId := wd.Id
-		if wd.ActivityId != nil {
-			actId = *wd.ActivityId
-		}
-		promotions = append(promotions, promotion{
-			sessionID: wd.Id,
-			activity: models.JFPlaybackActivity{
-				Id:                   actId,
-				IsPaused:             wd.IsPaused,
-				UserId:               wd.UserId,
-				UserName:             wd.UserName,
-				Client:               wd.Client,
-				DeviceName:           wd.DeviceName,
-				DeviceId:             wd.DeviceId,
-				ApplicationVersion:   wd.ApplicationVersion,
-				NowPlayingItemId:     wd.NowPlayingItemId,
-				NowPlayingItemName:   wd.NowPlayingItemName,
-				EpisodeId:            wd.EpisodeId,
-				SeasonId:             wd.SeasonId,
-				SeriesName:           wd.SeriesName,
-				PlaybackDuration:     &durationSecs,
-				PlayMethod:           wd.PlayMethod,
-				ActivityDateInserted: wd.ActivityDateInserted,
-				MediaStreams:         wd.MediaStreams,
-				TranscodingInfo:      wd.TranscodingInfo,
-				PlayState:            wd.PlayState,
-				OriginalContainer:    wd.OriginalContainer,
-				RemoteEndPoint:       wd.RemoteEndPoint,
-				ServerId:             wd.ServerId,
-				Source:               "watchdog",
-			},
-		})
-	}
-	if len(promotions) > 0 {
-		acts := make([]models.JFPlaybackActivity, len(promotions))
-		for i, p := range promotions {
-			acts[i] = p.activity
-		}
-		if err := s.repos.Playback.Upsert(ctx, acts); err == nil {
-			for _, p := range promotions {
-				_ = s.repos.Watchdog.Delete(ctx, p.sessionID)
-			}
-			log.Printf("[monitor] promoted %d finished session(s) to jf_playback_activity", len(promotions))
-		}
-	}
 }
 
 // BroadcastSessions fetches live Jellyfin sessions and emits them to all WS clients.
@@ -427,7 +113,9 @@ func (s *Service) FullSync(ctx context.Context) error {
 		case "music":
 			syncErr = s.SyncMusicLibrary(ctx, libId)
 		default:
-			syncErr = s.SyncGenericLibrary(ctx, libId)
+			// Only movies, TV shows and music are tracked.
+			s.log("[%d%%] Skipping library %s (type %q not tracked).", pctEnd, deref(lib.Name), collType)
+			continue
 		}
 
 		if syncErr != nil {
@@ -447,7 +135,6 @@ func (s *Service) FullSync(ctx context.Context) error {
 	s.log("[100%%] Full sync complete in %dms.", time.Since(start).Milliseconds())
 	return nil
 }
-
 
 // SyncUsers syncs all Jellyfin users.
 func (s *Service) SyncUsers(ctx context.Context) error {
@@ -755,177 +442,6 @@ func (s *Service) SyncGenericLibrary(ctx context.Context, libraryId string) erro
 	return s.repos.ItemInfo.Upsert(ctx, infos)
 }
 
-// SyncSessions fetches active sessions and updates the watchdog table.
-// This is called manually from tasks; it preserves existing WatchedSeconds
-// and sets LastTickAt so the next SessionTick can accumulate properly.
-func (s *Service) SyncSessions(ctx context.Context) error {
-	if err := s.refreshClient(ctx); err != nil {
-		return err
-	}
-	sessions, err := s.jf.GetSessions(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Load existing watchdog to preserve WatchedSeconds.
-	existingWatchdog, err := s.repos.Watchdog.List(ctx)
-	if err != nil {
-		return err
-	}
-	wdMap := make(map[string]models.JFActivityWatchdog, len(existingWatchdog))
-	for _, wd := range existingWatchdog {
-		wdMap[wd.Id] = wd
-	}
-
-	now := time.Now()
-	entries := make([]models.JFActivityWatchdog, 0)
-	for _, sess := range sessions {
-		if sess.NowPlayingItem == nil {
-			continue
-		}
-
-		nowStr := now.Format("2006-01-02 15:04:05.000-07:00")
-
-		nowPlayingItemId := sess.NowPlayingItem.Id
-		var episodeId *string
-		seriesName := sess.NowPlayingItem.SeriesName
-		seasonId := sess.NowPlayingItem.SeasonId
-
-		if sess.NowPlayingItem.SeriesId != nil && *sess.NowPlayingItem.SeriesId != "" {
-			nowPlayingItemId = *sess.NowPlayingItem.SeriesId
-			episodeId = &sess.NowPlayingItem.Id
-		} else if sess.NowPlayingItem.AlbumId != nil && *sess.NowPlayingItem.AlbumId != "" {
-			nowPlayingItemId = *sess.NowPlayingItem.AlbumId
-			episodeId = &sess.NowPlayingItem.Id
-			seriesName = sess.NowPlayingItem.Album
-			seasonId = nil
-		}
-
-		isPaused := false
-		var curPos *int64
-		if sess.PlayState != nil {
-			isPaused = sess.PlayState.IsPaused
-			curPos = sess.PlayState.PositionTicks
-		}
-
-		// Preserve accumulated watch time and detect media switches.
-		var watchedSeconds int64
-		var activityId string
-
-		if prev, exists := wdMap[sess.Id]; exists {
-			// Detect media switch.
-			prevItemKey := itemKey(deref(prev.NowPlayingItemId), prev.EpisodeId)
-			newItemKey := itemKey(nowPlayingItemId, episodeId)
-
-			if prevItemKey != "" && prevItemKey != newItemKey {
-				// Item changed — promote old entry, reset counters.
-				prevPaused := prev.IsPaused != nil && *prev.IsPaused
-				oldDuration := prev.WatchedSeconds + watchIncrement(prev, prevPaused, nil, now)
-				if oldDuration >= minPlaybackSeconds {
-					oldActId := prev.Id
-					if prev.ActivityId != nil {
-						oldActId = *prev.ActivityId
-					}
-					_ = s.repos.Playback.Upsert(ctx, []models.JFPlaybackActivity{{
-						Id:                   oldActId,
-						IsPaused:             prev.IsPaused,
-						UserId:               prev.UserId,
-						UserName:             prev.UserName,
-						Client:               prev.Client,
-						DeviceName:           prev.DeviceName,
-						DeviceId:             prev.DeviceId,
-						ApplicationVersion:   prev.ApplicationVersion,
-						NowPlayingItemId:     prev.NowPlayingItemId,
-						NowPlayingItemName:   prev.NowPlayingItemName,
-						EpisodeId:            prev.EpisodeId,
-						SeasonId:             prev.SeasonId,
-						SeriesName:           prev.SeriesName,
-						PlaybackDuration:     &oldDuration,
-						PlayMethod:           prev.PlayMethod,
-						ActivityDateInserted: prev.ActivityDateInserted,
-						MediaStreams:          prev.MediaStreams,
-						TranscodingInfo:      prev.TranscodingInfo,
-						PlayState:            prev.PlayState,
-						OriginalContainer:    prev.OriginalContainer,
-						RemoteEndPoint:       prev.RemoteEndPoint,
-						ServerId:             prev.ServerId,
-						Source:               "watchdog",
-					}})
-				}
-				watchedSeconds = 0
-				activityId = uuid.New().String()
-			} else {
-				// Same item — keep accumulating real watch time.
-				watchedSeconds = prev.WatchedSeconds + watchIncrement(prev, isPaused, curPos, now)
-				if prev.ActivityId != nil {
-					activityId = *prev.ActivityId
-				} else {
-					activityId = uuid.New().String()
-				}
-				// Preserve original start time.
-				if prev.ActivityDateInserted != nil {
-					nowStr = *prev.ActivityDateInserted
-				}
-			}
-		} else {
-			activityId = uuid.New().String()
-		}
-
-		entry := models.JFActivityWatchdog{
-			Id:                   sess.Id,
-			ActivityId:           &activityId,
-			UserId:               &sess.UserId,
-			UserName:             &sess.UserName,
-			Client:               &sess.Client,
-			DeviceName:           &sess.DeviceName,
-			DeviceId:             &sess.DeviceId,
-			ApplicationVersion:   &sess.ApplicationVersion,
-			NowPlayingItemId:     &nowPlayingItemId,
-			NowPlayingItemName:   &sess.NowPlayingItem.Name,
-			EpisodeId:            episodeId,
-			SeasonId:             seasonId,
-			SeriesName:           seriesName,
-			ActivityDateInserted: &nowStr,
-			RemoteEndPoint:       sess.RemoteEndPoint,
-			ServerId:             sess.ServerId,
-			WatchedSeconds:       watchedSeconds,
-			LastTickAt:           &now,
-		}
-
-		if sess.PlayState != nil {
-			entry.IsPaused = &isPaused
-			entry.PlayMethod = sess.PlayState.PlayMethod
-		}
-
-		if sess.PlayState != nil && sess.PlayState.PositionTicks != nil {
-			entry.PlaybackDuration = sess.PlayState.PositionTicks
-		}
-
-		if len(sess.NowPlayingItem.MediaStreams) > 0 {
-			if b, err := json.Marshal(sess.NowPlayingItem.MediaStreams); err == nil {
-				entry.MediaStreams = datatypes.JSON(b)
-			}
-		}
-
-		if sess.TranscodingInfo != nil {
-			if b, err := json.Marshal(sess.TranscodingInfo); err == nil {
-				entry.TranscodingInfo = datatypes.JSON(b)
-			}
-		}
-
-		if sess.PlayState != nil {
-			if b, err := json.Marshal(sess.PlayState); err == nil {
-				entry.PlayState = datatypes.JSON(b)
-			}
-		}
-
-		entry.OriginalContainer = sess.NowPlayingItem.Container
-
-		entries = append(entries, entry)
-	}
-	return s.repos.Watchdog.Upsert(ctx, entries)
-}
-
 // SyncRecentlyAdded syncs only recently added items (partial sync equivalent).
 // It fetches the latest items per library for an admin user and upserts them.
 func (s *Service) SyncRecentlyAdded(ctx context.Context) error {
@@ -973,6 +489,9 @@ func (s *Service) SyncRecentlyAdded(ctx context.Context) error {
 			collType = *lib.CollectionType
 		}
 
+		if !trackedCollection(collType) {
+			continue
+		}
 		s.log("Syncing recently added for library: %s (%s)...", deref(lib.Name), collType)
 
 		items, err := s.jf.GetRecentlyAdded(ctx, adminId, libId, recentLimit, jellyfin.StandardFields)
@@ -1311,19 +830,20 @@ func mapItemInfo(item jellyfin.Item, ms jellyfin.MediaSource, typeOverride strin
 		t = item.Type
 	}
 	return models.JFItemInfo{
-		Id:          item.Id,
-		Path:        strPtr(ms.Path),
-		Name:        &item.Name,
-		Size:        ms.Size,
-		Bitrate:     ms.Bitrate,
+		Id:           item.Id,
+		Path:         strPtr(ms.Path),
+		Name:         &item.Name,
+		Size:         ms.Size,
+		Bitrate:      ms.Bitrate,
 		MediaStreams: streamsJSON,
-		Type:        &t,
+		Type:         &t,
 	}
 }
 
 // mapPluginRow converts a raw PlaybackReporting plugin result row into a JFPluginData.
 // Row order: [0]=rowid [1]=DateCreated [2]=UserId [3]=ItemId [4]=ItemType
-//            [5]=ItemName [6]=PlaybackMethod [7]=ClientName [8]=DeviceName [9]=PlayDuration
+//
+//	[5]=ItemName [6]=PlaybackMethod [7]=ClientName [8]=DeviceName [9]=PlayDuration
 func mapPluginRow(row jellyfin.PlaybackReportingRow) *models.JFPluginData {
 	if len(row) < 10 {
 		return nil
@@ -1382,4 +902,13 @@ func mapPluginRow(row jellyfin.PlaybackReportingRow) *models.JFPluginData {
 		DeviceName:     getString(row[8]),
 		PlayDuration:   &duration,
 	}
+}
+
+// trackedCollection reports whether a library type is synced and tracked.
+func trackedCollection(collectionType string) bool {
+	switch collectionType {
+	case "movies", "tvshows", "music":
+		return true
+	}
+	return false
 }

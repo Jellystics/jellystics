@@ -281,3 +281,25 @@ func (c *Client) SubmitCustomQuery(ctx context.Context, query string) ([]Playbac
 	}
 	return res.Results, nil
 }
+
+// GetUserItemData returns the user's playback state for an item: after a
+// playback stops, Jellyfin stores the stop position there (reset to 0 and
+// Played=true past MaxResumePct, reset to 0 below MinResumePct).
+func (c *Client) GetUserItemData(ctx context.Context, userId, itemId string) (*UserItemData, error) {
+	var res struct {
+		UserData *UserItemData `json:"UserData"`
+	}
+	q := url.Values{"userId": []string{userId}}
+	err := c.get(ctx, "/Items/"+url.PathEscape(itemId), q, &res)
+	if err != nil {
+		// Jellyfin < 10.9 only has the legacy route.
+		err = c.get(ctx, "/Users/"+url.PathEscape(userId)+"/Items/"+url.PathEscape(itemId), nil, &res)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if res.UserData == nil {
+		return nil, fmt.Errorf("no user data for item %s", itemId)
+	}
+	return res.UserData, nil
+}
