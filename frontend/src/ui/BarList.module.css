@@ -1,8 +1,8 @@
-.barlist { display: flex; flex-direction: column; }
-.row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); height: 38px; padding: 0 var(--s-2); border-radius: var(--r-md); color: inherit; text-decoration: none; }
+.barlist { display: flex; flex-direction: column; gap: 2px; }
+.row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); min-height: 38px; padding: 4px var(--s-2); border-radius: var(--r-md); color: inherit; text-decoration: none; }
 .link { cursor: pointer; }
 .row:hover { background: var(--surface-2); }
-.fill { position: absolute; left: 0; top: 4px; bottom: 4px; border-radius: var(--r-sm); background: var(--accent-wash); }
+.fill { position: absolute; left: 0; top: 2px; bottom: 2px; border-radius: var(--r-sm); background: var(--accent-wash); }
 .label { position: relative; display: flex; align-items: center; gap: var(--s-2); min-width: 0; font-size: var(--fs-md); }
 .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .val { position: relative; font-size: var(--fs-md); font-variant-numeric: tabular-nums; color: var(--ink-2); }
