@@ -68,7 +68,8 @@ const catalogJoins = `
 //	item_name, library_id, genres (NULL when the item is not in the catalog),
 //	started_at, ended_at (timestamptz), local_ts (display-zone wall time),
 //	duration (s), is_view, play_method, client, device_name, runtime_ticks,
-//	pos_end, now_playing_item_id, now_playing_item_name, series_name
+//	pos_end, now_playing_item_id, now_playing_item_name, series_name,
+//	paused_seconds, app_version, pos_start
 func actsSelect() string {
 	started := statsql.StartedAt("a")
 	return `
@@ -109,7 +110,10 @@ func actsSelect() string {
 	  a."PositionTicksEnd" AS pos_end,
 	  a."NowPlayingItemId" AS now_playing_item_id,
 	  a."NowPlayingItemName" AS now_playing_item_name,
-	  a."SeriesName" AS series_name
+	  a."SeriesName" AS series_name,
+	  COALESCE(a."PausedSeconds", 0)::bigint AS paused_seconds,
+	  a."ApplicationVersion" AS app_version,
+	  a."PositionTicksStart" AS pos_start
 	FROM jf_playback_activity a` + catalogJoins + `
 	WHERE ` + statsql.MediaFilter("a")
 }
