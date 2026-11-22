@@ -590,6 +590,272 @@
         "apikeys": "API keys",
         "about": "About"
       }
+    },
+    "sidePanel": {
+      "close": "Close panel"
+    },
+    "entity": {
+      "views": "Views",
+      "viewers": "Viewers",
+      "clicks": "Clicks",
+      "watchTime": "Watch time",
+      "completion": "Completion",
+      "skip": "Skip",
+      "skipRate": "Skip rate",
+      "clicksFoot_one": "{{count}} click",
+      "clicksFoot_other": "{{count}} clicks",
+      "viewersFoot_one": "{{count}} viewer",
+      "viewersFoot_other": "{{count}} viewers",
+      "episodeCode": "S{{season}} · E{{episode}}",
+      "funnelSub": "clicks → views → half → end",
+      "funnel": {
+        "stage": "Stage",
+        "clicks": "Clicks",
+        "views": "Views (≥ 30 s)",
+        "half": "Reached half",
+        "completed": "Finished (≥ 90 %)"
+      },
+      "stops": {
+        "slice": "Slice",
+        "count": "Stops"
+      },
+      "tab": {
+        "viewers": "Viewers",
+        "history": "History"
+      },
+      "col": {
+        "when": "When",
+        "user": "User",
+        "item": "Item",
+        "watched": "Watched",
+        "completion": "Completion",
+        "device": "Device",
+        "method": "Method",
+        "type": "Type",
+        "views": "Views",
+        "viewers": "Viewers",
+        "lastWatched": "Last watched"
+      },
+      "noHistory": "No playback in this period",
+      "noViewers": "Nobody watched in this period",
+      "notFound": "Item not found",
+      "notFoundHint": "It may have been removed from Jellyfin.",
+      "error": "Could not load the data",
+      "loading": "Loading…"
+    },
+    "libraries": {
+      "title": "Libraries",
+      "subtitle_one": "{{count}} library",
+      "subtitle_other": "{{count}} libraries",
+      "items": {
+        "movie_one": "{{count}} movie",
+        "movie_other": "{{count}} movies",
+        "series_one": "{{count}} series",
+        "series_other": "{{count}} series",
+        "music_one": "{{count}} album",
+        "music_other": "{{count}} albums"
+      },
+      "empty": "No libraries",
+      "emptyHint": "Run a sync to import your Jellyfin libraries."
+    },
+    "library": {
+      "tab": {
+        "items": "Items",
+        "stats": "Statistics",
+        "activity": "Activity"
+      },
+      "neverWatched": "Never watched",
+      "ofCatalog": "{{pct}} of the catalog",
+      "search": "Search this library",
+      "layout": "Layout",
+      "layoutTable": "Table",
+      "layoutGrid": "Grid",
+      "col": {
+        "movie": "Movie",
+        "series": "Series",
+        "music": "Album",
+        "retention": "Retention S1E1 → end",
+        "trend": "Last 14 days"
+      },
+      "viewsCount_one": "{{count}} view",
+      "viewsCount_other": "{{count}} views",
+      "noItems": "No items",
+      "genres": "Genres",
+      "genresSub": "watch time in this period",
+      "genre": "Genre",
+      "noGenres": "No genre watched",
+      "methods": "Playback method",
+      "methodsSub": "share of views",
+      "noViews": "No views in this period",
+      "timeToWatch": "Time to watch",
+      "timeToWatchSub": "days between being added and the first view",
+      "ttwMedian": "Median",
+      "ttwAvg": "Average",
+      "ttwCount": "Items watched",
+      "days": "d",
+      "unwatched": "Never watched",
+      "unwatchedSub_one": "{{count}} title never watched",
+      "unwatchedSub_other": "{{count}} titles never watched",
+      "allWatched": "Everything was watched at least once",
+      "added": "added {{date}}",
+      "decades": {
+        "title": "Decades watched vs catalog",
+        "subtitle": "share of views and of the catalog per release decade",
+        "views": "Share of views",
+        "catalog": "Share of catalog",
+        "decade": "Decade",
+        "label": "{{decade}}s",
+        "empty": "No known release year"
+      },
+      "growth": {
+        "title": "Growth vs consumption",
+        "subtitle": "added vs watched for the first time",
+        "added": "Added",
+        "firstViews": "First watched",
+        "date": "Period",
+        "empty": "Nothing added or first watched in this period"
+      }
+    },
+    "movie": {
+      "completed": "Finished",
+      "completedFoot": "{{done}} of {{count}} views",
+      "transcoded": "Transcoded",
+      "funnel": "Completion funnel",
+      "stops": "Where people stop",
+      "stopsSub": "stop position of views",
+      "bestCompletion": "Best completion",
+      "sittings": {
+        "title": "Sittings to finish the movie",
+        "subtitle": "is a movie watched in one go?",
+        "col": "Sittings",
+        "count": "Finished movies",
+        "share": "Share of finished movies",
+        "empty": "No finished viewing in this period",
+        "n1": "Once",
+        "n2": "Twice",
+        "n3": "3 times",
+        "n4": "4 +"
+      }
+    },
+    "series": {
+      "counts": "{{seasons}} seasons · {{episodes}} episodes",
+      "viewersCount_one": "{{count}} viewer",
+      "viewersCount_other": "{{count}} viewers",
+      "clicksNoView": "{{pct}} clicks without a view",
+      "retention": "Retention",
+      "retentionFoot": "S1E1 → last episode",
+      "binges": "Binges",
+      "bingesFoot": "≥ 3 episodes on the same day",
+      "retentionTitle": "Retention per episode",
+      "retentionSub": "unique viewers per episode · click = episode page",
+      "tab": {
+        "episodes": "Episodes"
+      },
+      "season": "Season {{n}}",
+      "specials": "Specials",
+      "seasonPicker": "Season",
+      "noEpisodes": "No episodes",
+      "col": {
+        "number": "E",
+        "title": "Title",
+        "episode": "Episode",
+        "avgCompletion": "Average completion",
+        "abandons": "Drop-offs",
+        "episodesWatched": "Episodes watched"
+      },
+      "cadence": {
+        "title": "Cadence between episodes",
+        "subtitle": "delay before the next episode",
+        "gap": "Delay",
+        "count": "Transitions",
+        "empty": "No transition in this period",
+        "b": {
+          "<1min": "< 1 min",
+          "1-15min": "1–15 min",
+          "15-60min": "15–60 min",
+          "sameDay": "same day",
+          "nextDay": "next day",
+          "2-7d": "2–7 d",
+          ">7d": "> 7 d"
+        }
+      },
+      "lag": {
+        "title": "Release → watch delay",
+        "subtitle": "watched on release or caught up later?",
+        "delay": "Delay",
+        "count": "Episodes",
+        "empty": "No known air date",
+        "b": {
+          "<24h": "< 24 h",
+          "1-7d": "1–7 d",
+          "1-4w": "1–4 wk",
+          "1-6m": "1–6 mo",
+          "6-12m": "6–12 mo",
+          ">1y": "> 1 yr"
+        }
+      }
+    },
+    "episode": {
+      "trail": "Series, season and episode",
+      "number": "Episode {{n}}",
+      "short": "E{{n}}",
+      "aired": "aired {{date}}",
+      "prev": "Previous episode",
+      "next": "Next episode",
+      "prevShort": "Previous",
+      "nextShort": "Next",
+      "avgCompletion": "Average completion",
+      "pauses": "Pauses",
+      "pausesFoot": "on average per view",
+      "funnel": "Funnel",
+      "stops": "Stop positions",
+      "stopsSub": "final peak = end credits",
+      "viewers": "Who watched"
+    },
+    "artist": {
+      "counts": "{{albums}} albums · {{tracks}} tracks",
+      "listenTime": "Listening time",
+      "skipFoot": "clicks without a ≥ 30 s listen",
+      "topTracks": "Top tracks",
+      "topTracksSub": "skip = clicks − listens · click = track panel",
+      "noTracks": "No listens in this period",
+      "col": {
+        "album": "Album"
+      },
+      "albums": "Albums",
+      "noAlbums": "No albums",
+      "albumMeta_one": "{{count}} track · {{listens}} listens",
+      "albumMeta_other": "{{count}} tracks · {{listens}} listens",
+      "skipByHour": "Skips by hour",
+      "skipByHourSub": "do people skip more at certain times?",
+      "hour": "Hour",
+      "noSkips": "No clicks in this period"
+    },
+    "album": {
+      "listens": "Listens",
+      "listeners": "Listeners",
+      "fullListens": "Full listens",
+      "wholeAlbum_one": "whole album: {{count}} time",
+      "wholeAlbum_other": "whole album: {{count}} times",
+      "tracksMeta_one": "{{count}} track · {{duration}}",
+      "tracksMeta_other": "{{count}} tracks · {{duration}}",
+      "tracks": "Tracks",
+      "tracksSub": "click a row = track panel",
+      "noTracks": "No tracks",
+      "col": {
+        "title": "Title",
+        "duration": "Length"
+      },
+      "track": "Track",
+      "recent": "Latest listens",
+      "noRecent": "No listens in this period",
+      "full": {
+        "title": "Albums listened in full",
+        "subtitle": "every track listened to on the same day",
+        "album": "Album",
+        "count": "Full listens",
+        "empty": "No albums"
+      }
     }
   }
 }

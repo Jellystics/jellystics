@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { entityApi, libraryHistoryFixture } from '../src/app/pages/library/fixtures' // phase 4
 
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
 export const FAKE_JWT = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ userId: 'u1', userName: 'Céline', isAdmin: true, sid: 's' })}.sig`
@@ -15,6 +16,11 @@ const OBJECTS: Record<string, unknown> = {
   '/stats/getViewingDiversity': { uniqueGenres: 0, uniqueLibraries: 0, uniqueItems: 0, diversityScore: 0, genreBreakdown: [] },
   '/sessions/current': [],
 }
+
+// --- phase 4 ---
+// Entity pages: realistic payloads for the fixture ids (lib-s, m1, s1, e5, ar1, al1, t3).
+Object.assign(OBJECTS, entityApi, { '/api/v2/history': libraryHistoryFixture })
+// --- end phase 4 ---
 
 const json = (body: unknown, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
 

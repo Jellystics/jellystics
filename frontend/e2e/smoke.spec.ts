@@ -3,6 +3,14 @@ import { mockApi, login } from './mockApi'
 
 const ROUTES = ['/', '/live', '/history', '/history?view=calendar', '/libraries', '/users', '/insights', '/discover', '/playback', '/settings/config', '/settings/about', '/nope']
 
+// --- phase 4 ---
+ROUTES.push(
+  '/libraries/lib-s', '/libraries/lib-s?tab=stats', '/libraries/lib-s?tab=activity', '/libraries/lib-s?layout=grid',
+  '/movies/m1', '/movies/m1?tab=history', '/series/s1', '/series/s1?tab=history', '/series/s1/episodes/e5',
+  '/artists/ar1', '/albums/al1', '/albums/al1?track=t3',
+)
+// --- end phase 4 ---
+
 test.beforeEach(async ({ page }) => { await mockApi(page) })
 
 test('login page renders without errors', async ({ page }) => {

@@ -590,6 +590,272 @@
         "apikeys": "Clés API",
         "about": "À propos"
       }
+    },
+    "sidePanel": {
+      "close": "Fermer le panneau"
+    },
+    "entity": {
+      "views": "Vues",
+      "viewers": "Spectateurs",
+      "clicks": "Clics",
+      "watchTime": "Temps de lecture",
+      "completion": "Complétion",
+      "skip": "Skip",
+      "skipRate": "Taux de skip",
+      "clicksFoot_one": "{{count}} clic",
+      "clicksFoot_other": "{{count}} clics",
+      "viewersFoot_one": "{{count}} spectateur",
+      "viewersFoot_other": "{{count}} spectateurs",
+      "episodeCode": "S{{season}} · É{{episode}}",
+      "funnelSub": "clics → vues → moitié → fin",
+      "funnel": {
+        "stage": "Étape",
+        "clicks": "Clics",
+        "views": "Vues (≥ 30 s)",
+        "half": "Moitié atteinte",
+        "completed": "Terminé (≥ 90 %)"
+      },
+      "stops": {
+        "slice": "Tranche",
+        "count": "Arrêts"
+      },
+      "tab": {
+        "viewers": "Spectateurs",
+        "history": "Historique"
+      },
+      "col": {
+        "when": "Quand",
+        "user": "Utilisateur",
+        "item": "Contenu",
+        "watched": "Regardé",
+        "completion": "Complétion",
+        "device": "Appareil",
+        "method": "Méthode",
+        "type": "Type",
+        "views": "Vues",
+        "viewers": "Spectateurs",
+        "lastWatched": "Dernière vue"
+      },
+      "noHistory": "Aucune lecture sur la période",
+      "noViewers": "Personne n’a regardé sur la période",
+      "notFound": "Contenu introuvable",
+      "notFoundHint": "Il a peut-être été supprimé de Jellyfin.",
+      "error": "Impossible de charger les données",
+      "loading": "Chargement…"
+    },
+    "libraries": {
+      "title": "Bibliothèques",
+      "subtitle_one": "{{count}} bibliothèque",
+      "subtitle_other": "{{count}} bibliothèques",
+      "items": {
+        "movie_one": "{{count}} film",
+        "movie_other": "{{count}} films",
+        "series_one": "{{count}} série",
+        "series_other": "{{count}} séries",
+        "music_one": "{{count}} album",
+        "music_other": "{{count}} albums"
+      },
+      "empty": "Aucune bibliothèque",
+      "emptyHint": "Lancez une synchronisation pour importer vos bibliothèques Jellyfin."
+    },
+    "library": {
+      "tab": {
+        "items": "Contenus",
+        "stats": "Statistiques",
+        "activity": "Activité"
+      },
+      "neverWatched": "Jamais vus",
+      "ofCatalog": "{{pct}} du catalogue",
+      "search": "Rechercher dans la bibliothèque",
+      "layout": "Disposition",
+      "layoutTable": "Tableau",
+      "layoutGrid": "Grille",
+      "col": {
+        "movie": "Film",
+        "series": "Série",
+        "music": "Album",
+        "retention": "Rétention S1É1 → fin",
+        "trend": "14 derniers jours"
+      },
+      "viewsCount_one": "{{count}} vue",
+      "viewsCount_other": "{{count}} vues",
+      "noItems": "Aucun contenu",
+      "genres": "Genres",
+      "genresSub": "temps de lecture sur la période",
+      "genre": "Genre",
+      "noGenres": "Aucun genre regardé",
+      "methods": "Méthode de lecture",
+      "methodsSub": "part des vues",
+      "noViews": "Aucune vue sur la période",
+      "timeToWatch": "Temps jusqu’au visionnage",
+      "timeToWatchSub": "jours entre l’ajout et la première vue",
+      "ttwMedian": "Médiane",
+      "ttwAvg": "Moyenne",
+      "ttwCount": "Contenus vus",
+      "days": "j",
+      "unwatched": "Jamais vus",
+      "unwatchedSub_one": "{{count}} titre jamais regardé",
+      "unwatchedSub_other": "{{count}} titres jamais regardés",
+      "allWatched": "Tout a été regardé au moins une fois",
+      "added": "ajouté le {{date}}",
+      "decades": {
+        "title": "Décennies regardées vs catalogue",
+        "subtitle": "part des vues et du catalogue par décennie de sortie",
+        "views": "Part des vues",
+        "catalog": "Part du catalogue",
+        "decade": "Décennie",
+        "label": "Années {{decade}}",
+        "empty": "Aucune année de sortie connue"
+      },
+      "growth": {
+        "title": "Croissance vs consommation",
+        "subtitle": "ajoutés vs vus pour la première fois",
+        "added": "Ajoutés",
+        "firstViews": "Vus pour la 1ʳᵉ fois",
+        "date": "Période",
+        "empty": "Aucun ajout ni première vue sur la période"
+      }
+    },
+    "movie": {
+      "completed": "Terminé",
+      "completedFoot": "{{done}} vues sur {{count}}",
+      "transcoded": "Transcodé",
+      "funnel": "Entonnoir de complétion",
+      "stops": "Où les gens s’arrêtent",
+      "stopsSub": "position d’arrêt des vues",
+      "bestCompletion": "Meilleure complétion",
+      "sittings": {
+        "title": "Séances pour finir le film",
+        "subtitle": "un film se regarde-t-il d’une traite ?",
+        "col": "Séances",
+        "count": "Films terminés",
+        "share": "Part des films terminés",
+        "empty": "Aucun visionnage terminé sur la période",
+        "n1": "1 fois",
+        "n2": "2 fois",
+        "n3": "3 fois",
+        "n4": "4 +"
+      }
+    },
+    "series": {
+      "counts": "{{seasons}} saisons · {{episodes}} épisodes",
+      "viewersCount_one": "{{count}} spectateur",
+      "viewersCount_other": "{{count}} spectateurs",
+      "clicksNoView": "{{pct}} de clics sans vue",
+      "retention": "Rétention",
+      "retentionFoot": "S1É1 → dernier épisode",
+      "binges": "Binges",
+      "bingesFoot": "≥ 3 épisodes le même jour",
+      "retentionTitle": "Rétention par épisode",
+      "retentionSub": "spectateurs uniques par épisode · clic = page de l’épisode",
+      "tab": {
+        "episodes": "Épisodes"
+      },
+      "season": "Saison {{n}}",
+      "specials": "Spéciaux",
+      "seasonPicker": "Saison",
+      "noEpisodes": "Aucun épisode",
+      "col": {
+        "number": "É",
+        "title": "Titre",
+        "episode": "Épisode",
+        "avgCompletion": "Complétion moyenne",
+        "abandons": "Abandons",
+        "episodesWatched": "Épisodes vus"
+      },
+      "cadence": {
+        "title": "Cadence entre épisodes",
+        "subtitle": "délai avant l’épisode suivant",
+        "gap": "Délai",
+        "count": "Enchaînements",
+        "empty": "Pas d’enchaînement sur la période",
+        "b": {
+          "<1min": "< 1 min",
+          "1-15min": "1–15 min",
+          "15-60min": "15–60 min",
+          "sameDay": "même jour",
+          "nextDay": "lendemain",
+          "2-7d": "2–7 j",
+          ">7d": "> 7 j"
+        }
+      },
+      "lag": {
+        "title": "Délai sortie → visionnage",
+        "subtitle": "vus dès la sortie ou rattrapés plus tard ?",
+        "delay": "Délai",
+        "count": "Épisodes",
+        "empty": "Aucune date de diffusion connue",
+        "b": {
+          "<24h": "< 24 h",
+          "1-7d": "1–7 j",
+          "1-4w": "1–4 sem.",
+          "1-6m": "1–6 mois",
+          "6-12m": "6–12 mois",
+          ">1y": "> 1 an"
+        }
+      }
+    },
+    "episode": {
+      "trail": "Série, saison et épisode",
+      "number": "Épisode {{n}}",
+      "short": "É{{n}}",
+      "aired": "diffusé le {{date}}",
+      "prev": "Épisode précédent",
+      "next": "Épisode suivant",
+      "prevShort": "Précédent",
+      "nextShort": "Suivant",
+      "avgCompletion": "Complétion moyenne",
+      "pauses": "Pauses",
+      "pausesFoot": "en moyenne par vue",
+      "funnel": "Entonnoir",
+      "stops": "Positions d’arrêt",
+      "stopsSub": "pic final = générique",
+      "viewers": "Qui a regardé"
+    },
+    "artist": {
+      "counts": "{{albums}} albums · {{tracks}} pistes",
+      "listenTime": "Temps d’écoute",
+      "skipFoot": "clics sans écoute ≥ 30 s",
+      "topTracks": "Top pistes",
+      "topTracksSub": "skip = clics − écoutes · clic = panneau de la piste",
+      "noTracks": "Aucune écoute sur la période",
+      "col": {
+        "album": "Album"
+      },
+      "albums": "Albums",
+      "noAlbums": "Aucun album",
+      "albumMeta_one": "{{count}} piste · {{listens}} écoutes",
+      "albumMeta_other": "{{count}} pistes · {{listens}} écoutes",
+      "skipByHour": "Skip selon l’heure",
+      "skipByHourSub": "zappe-t-on plus à certains moments ?",
+      "hour": "Heure",
+      "noSkips": "Aucun clic sur la période"
+    },
+    "album": {
+      "listens": "Écoutes",
+      "listeners": "Auditeurs",
+      "fullListens": "Écoutes complètes",
+      "wholeAlbum_one": "album en entier : {{count}} fois",
+      "wholeAlbum_other": "album en entier : {{count}} fois",
+      "tracksMeta_one": "{{count}} piste · {{duration}}",
+      "tracksMeta_other": "{{count}} pistes · {{duration}}",
+      "tracks": "Pistes",
+      "tracksSub": "clic sur une ligne = panneau de la piste",
+      "noTracks": "Aucune piste",
+      "col": {
+        "title": "Titre",
+        "duration": "Durée"
+      },
+      "track": "Piste",
+      "recent": "Dernières écoutes",
+      "noRecent": "Aucune écoute sur la période",
+      "full": {
+        "title": "Albums écoutés en entier",
+        "subtitle": "toutes les pistes écoutées le même jour",
+        "album": "Album",
+        "count": "Écoutes complètes",
+        "empty": "Aucun album"
+      }
     }
   }
 }

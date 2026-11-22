@@ -11,10 +11,13 @@ import { ComingSoon } from './pages/ComingSoon'
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import ActivityPage from '@/features/activity/ActivityPage'
 import TimelinePage from '@/features/activity/TimelinePage'
-import LibrariesPage from '@/features/libraries/LibrariesPage'
-import LibraryDetailPage from '@/features/libraries/LibraryDetailPage'
-import ItemDetailPage from '@/features/libraries/ItemDetailPage'
-import AlbumDetailPage from '@/features/libraries/AlbumDetailPage'
+import LibrariesPage from './pages/libraries/LibrariesPage'
+import LibraryPage from './pages/library/LibraryPage'
+import MoviePage from './pages/movie/MoviePage'
+import SeriesPage from './pages/series/SeriesPage'
+import EpisodePage from './pages/episode/EpisodePage'
+import ArtistPage from './pages/artist/ArtistPage'
+import AlbumPage from './pages/album/AlbumPage'
 import UsersPage from '@/features/users/UsersPage'
 import UserDetailPage from '@/features/users/UserDetailPage'
 import StatisticsPage from '@/features/statistics/StatisticsPage'
@@ -51,17 +54,6 @@ function SettingsIndex() {
   return <To to={`/settings/${view || 'config'}`} search={search ? `?${search}` : ''} />
 }
 
-function ItemPage() {
-  const { id, episodeId } = useParams()
-  const itemId = episodeId ?? id ?? ''
-  return <LegacyAt path="/items/:itemId" location={{ pathname: `/items/${itemId}` }}><ItemDetailPage /></LegacyAt>
-}
-
-function AlbumPage() {
-  const { id = '' } = useParams()
-  return <LegacyAt path="/libraries/_/albums/:albumId" location={{ pathname: `/libraries/_/albums/${id}` }}><AlbumDetailPage /></LegacyAt>
-}
-
 function SettingsSection() {
   const { section = 'config' } = useParams()
   const sp = new URLSearchParams(useLocation().search); sp.set('view', section)
@@ -89,12 +81,12 @@ export const routes: RouteObject[] = [
       { path: '/', ...ownPeriod('overview'), element: legacy(<DashboardPage />) },
       { path: '/live', ...nav('live'), element: <ComingSoon nav="live" /> },
       { path: '/history', ...ownPeriod('history'), element: <History /> },
-      { path: '/libraries', ...nav('libraries'), element: legacy(<LibrariesPage />) },
-      { path: '/libraries/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.library' })), element: legacy(<LibraryDetailPage />) },
-      { path: '/movies/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.movie' })), element: <ItemPage /> },
-      { path: '/series/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.series' })), element: <ItemPage /> },
-      { path: '/series/:id/episodes/:episodeId', ...nav('libraries', (m) => [LIBS, { label: 'app.crumb.series', to: `/series/${m.params.id}` }, { label: 'app.crumb.episode' }]), element: <ItemPage /> },
-      { path: '/artists/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.artist' })), element: <ComingSoon nav="libraries" /> },
+      { path: '/libraries', ...nav('libraries'), element: <LibrariesPage /> },
+      { path: '/libraries/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.library' })), element: <LibraryPage /> },
+      { path: '/movies/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.movie' })), element: <MoviePage /> },
+      { path: '/series/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.series' })), element: <SeriesPage /> },
+      { path: '/series/:id/episodes/:episodeId', ...nav('libraries', (m) => [LIBS, { label: 'app.crumb.series', to: `/series/${m.params.id}` }, { label: 'app.crumb.episode' }]), element: <EpisodePage /> },
+      { path: '/artists/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.artist' })), element: <ArtistPage /> },
       { path: '/albums/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.album' })), element: <AlbumPage /> },
       { path: '/users', ...nav('users'), element: legacy(<UsersPage />) },
       { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: legacy(<UserDetailPage />) },
