@@ -94,6 +94,7 @@
     "overview": {
       "title": "Vue d'ensemble",
       "hoursUnit": "h",
+      "hoursValue": "{{value}} h",
       "subtitle": "{{views}} vues · {{users}} utilisateurs actifs sur la période",
       "metric": {
         "time": "Temps de lecture",

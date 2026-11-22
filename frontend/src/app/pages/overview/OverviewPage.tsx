@@ -67,7 +67,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
   const values = daily.map(pick(metric))
   const prevValues = data.previousDaily?.map(pick(metric))
   const metricLabel = t(`app.overview.metric.${metric}`)
-  const yFormat = metric === 'time' ? (v: number) => t('app.overview.hoursUnit', { value: f.number(v) }) : f.compact
+  const yFormat = metric === 'time' ? (v: number) => t('app.overview.hoursValue', { value: f.number(v) }) : f.compact
   const xEvery = Math.max(1, Math.ceil(daily.length / 7))
 
   const topRows = useMemo(() => (data.topItems ?? [])

@@ -94,6 +94,7 @@
     "overview": {
       "title": "Overview",
       "hoursUnit": "h",
+      "hoursValue": "{{value}} h",
       "subtitle": "{{views}} views · {{users}} active users in this period",
       "metric": {
         "time": "Watch time",

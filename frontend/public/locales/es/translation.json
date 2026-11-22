@@ -94,6 +94,7 @@
     "overview": {
       "title": "Resumen",
       "hoursUnit": "h",
+      "hoursValue": "{{value}} h",
       "subtitle": "{{views}} vistas · {{users}} usuarios activos en el periodo",
       "metric": {
         "time": "Tiempo de reproducción",
