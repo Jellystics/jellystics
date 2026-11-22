@@ -35,3 +35,6 @@ Thumbs.db
 .direnv/
 
 dist/
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
