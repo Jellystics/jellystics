@@ -56,6 +56,39 @@ func TestPluginMerge_TimezoneAndDedup(t *testing.T) {
 	}
 }
 
+// One play = one row: the legacy merge skips plays already recorded by an
+// imported source (plugin PBR import, Jellystics history, TSV import).
+func TestPluginMerge_SkipsPlaysCoveredByImports(t *testing.T) {
+	t.Setenv("TZ", "UTC")
+	ctx := context.Background()
+	p := func(s string) *string { return &s }
+	d := func(v int64) *int64 { return &v }
+	start := time.Date(2026, 11, 10, 20, 0, 0, 0, time.UTC)
+	for _, source := range []string{"import-pbr", "import-jellystics", "import"} {
+		t.Run(source, func(t *testing.T) {
+			db := setupTestDB(t)
+			repos := repository.New(db)
+			s, e := start.Add(5*time.Second), start.Add(10*time.Minute)
+			if err := repos.Playback.Upsert(ctx, []models.JFPlaybackActivity{{Id: "existing", UserId: p("u1"), ItemId: p("mov-1"), MediaType: p("Movie"),
+				PlaybackDuration: d(600), StartedAt: &s, EndedAt: &e, Source: source, Imported: true}}); err != nil {
+				t.Fatal(err)
+			}
+			_ = repos.Item.Upsert(ctx, []models.JFLibraryItem{{Id: "mov-1", Name: p("Film"), Type: p("Movie"), Genres: datatypes.JSON("[]")}})
+			_ = repos.PluginData.Upsert(ctx, []models.JFPluginData{
+				{RowId: "1", ItemId: p("mov-1"), UserId: p("u1"), ItemType: p("Movie"), PlayDuration: d(600), DateCreated: p("2026-11-10 20:00:20")},
+			})
+			if err := repos.PluginData.MergeIntoPlaybackActivity(ctx); err != nil {
+				t.Fatal(err)
+			}
+			var n int64
+			db.Model(&models.JFPlaybackActivity{}).Count(&n)
+			if n != 1 {
+				t.Fatalf("rows = %d, want 1", n)
+			}
+		})
+	}
+}
+
 // Without TZ (Docker default) plugin dates are read as UTC, hours off; the
 // same play must still be recognised (similar duration, start within ±14 h).
 func TestPluginMerge_DedupWithoutTZ(t *testing.T) {

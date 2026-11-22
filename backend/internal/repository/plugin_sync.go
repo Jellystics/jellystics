@@ -39,6 +39,25 @@ const (
 	importOverlapSlack  = "interval '2 minutes'" // imported plays have imprecise times
 )
 
+func (r *playbackRepo) DeleteCoveredTSVImports(ctx context.Context, ids []string) (int64, error) {
+	var total int64
+	for start := 0; start < len(ids); start += 500 {
+		end := min(start+500, len(ids))
+		res := r.db.WithContext(ctx).Exec(`
+			DELETE FROM jf_playback_activity t
+			WHERE t.source = @tsv AND t."Id" IN @ids AND t."StartedAt" IS NOT NULL
+			  AND EXISTS (
+				SELECT 1 FROM jf_playback_activity a
+				WHERE a.source <> @tsv AND a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`)`,
+			map[string]any{"tsv": SourceTSVImport, "ids": ids[start:end]})
+		if res.Error != nil {
+			return total, res.Error
+		}
+		total += res.RowsAffected
+	}
+	return total, nil
+}
+
 // overlapImport: rows a and t overlap in time within importOverlapSlack.
 func overlapImport(a, t string) string {
 	return a + `."StartedAt" <= COALESCE(` + t + `."EndedAt", ` + t + `."StartedAt") + ` + importOverlapSlack +

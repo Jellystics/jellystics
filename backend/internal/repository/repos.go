@@ -532,6 +532,15 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 				 AND abs(COALESCE(a."PlaybackDuration", 0) - src.dur) <= GREATEST(60, 0.15 * GREATEST(COALESCE(a."PlaybackDuration", 0), src.dur)))
 			  )
 		  )
+		  -- One play = one row: also skipped when an imported row of another
+		  -- origin (plugin PBR import, Jellystics history, TSV import) records it.
+		  AND NOT EXISTS (
+			SELECT 1 FROM jf_playback_activity a
+			WHERE a.imported AND a.source IN ('import-pbr', 'import-jellystics', 'import')
+			  AND a."UserId" = src."UserId" AND a."ItemId" = src."ItemId"
+			  AND a."StartedAt" <= src.started_at + make_interval(secs => src.dur) + interval '2 minutes'
+			  AND COALESCE(a."EndedAt", a."StartedAt") >= src.started_at - interval '2 minutes'
+		  )
 		ON CONFLICT ("Id") DO NOTHING
 	`, sql.Named("tz", displayTZ())).Error
 }
