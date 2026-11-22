@@ -37,3 +37,19 @@ func TestSyncPlaybackPlugin_SkippedWhenJellysticsPluginDetected(t *testing.T) {
 		t.Fatalf("queries = %d, staged = %d; want the legacy sync skipped", mock.pbrQueries, n)
 	}
 }
+
+func TestSyncPlaybackPlugin_RunsWhenJellysticsPluginIncompatible(t *testing.T) {
+	mock := newMockJF(t)
+	mock.pbrRows = [][]any{pbrRow()}
+	mock.jellysticsPlugin = true
+	mock.jellysticsSchema = 2 // ignored by the plugin sync: the legacy import must run
+	svc, db := newTestService(t, mock)
+	if err := svc.SyncPlaybackPlugin(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var n int64
+	db.Raw(`SELECT COUNT(*) FROM jf_playback_reporting_plugin_data`).Scan(&n)
+	if mock.pbrQueries != 1 || n != 1 {
+		t.Fatalf("queries = %d, staged = %d; want the legacy sync to run", mock.pbrQueries, n)
+	}
+}

@@ -702,19 +702,20 @@ func (s *Service) SyncPlaybackPlugin(ctx context.Context) error {
 	return nil
 }
 
-// jellysticsPluginDetected asks Jellyfin whether the Jellystics plugin is
-// installed; if Jellyfin cannot tell (error), the last plugin sync state
+// jellysticsPluginDetected asks Jellyfin whether a compatible Jellystics
+// plugin is installed (an incompatible one is ignored by the plugin sync, so
+// the legacy import must keep running); if Jellyfin cannot tell (error), the last plugin sync state
 // decides.
 func (s *Service) jellysticsPluginDetected(ctx context.Context) bool {
 	info, err := s.jf.GetJellysticsInfo(ctx)
 	if err == nil {
-		return info != nil
+		return info != nil && info.SchemaVersion == jellyfin.JellysticsSchemaVersion
 	}
 	if s.repos.PluginSync == nil {
 		return false
 	}
 	st, serr := s.repos.PluginSync.GetState(ctx)
-	return serr == nil && st.Detected
+	return serr == nil && st.Detected && st.SchemaVersion != nil && *st.SchemaVersion == jellyfin.JellysticsSchemaVersion
 }
 
 // --- helpers ---

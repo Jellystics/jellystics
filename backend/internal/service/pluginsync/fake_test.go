@@ -26,6 +26,8 @@ type fakePlugin struct {
 	mu            gosync.Mutex
 	absent        bool
 	schemaVersion int
+	infoCursor    *int64 // overrides the reported cursor
+	emptyNextZero bool   // a broken plugin answering next = 0 on empty pages
 	pageSize      int
 	failOn        map[string]int // path -> fail the n-th request (1-based) with 500
 	calls         map[string]int
@@ -51,7 +53,7 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 		if f.fail(w, r.URL.Path) {
 			return
 		}
-		writeJSON(w, map[string]any{"pluginVersion": "1.0.0.0", "schemaVersion": f.schemaVersion, "cursor": f.seq,
+		writeJSON(w, map[string]any{"pluginVersion": "1.0.0.0", "schemaVersion": f.schemaVersion, "cursor": f.cursor(),
 			"counts": map[string]int{"plays": len(f.plays)}, "serverTimeZone": "UTC"})
 	})
 	page := func(path string, versions func() []int64, item func(v int64) any) {
@@ -84,6 +86,9 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 			}
 			items := []any{}
 			next := since
+			if f.emptyNextZero && len(vs) == 0 {
+				next = 0
+			}
 			for _, v := range vs {
 				items = append(items, item(v))
 				next = v
@@ -216,4 +221,21 @@ func moviePlay(id string, start time.Time, watchedMs int64) jellyfin.JellysticsP
 		ItemType: sptr("Movie"), DeviceId: sptr("dev-1"), DeviceName: sptr("TV"), Client: sptr("Jellyfin Web"),
 		StartedAt: jellyfin.FlexTime{Time: start}, EndedAt: &end, LastEventAt: end, WatchedMs: watchedMs,
 	}
+}
+
+// cursor must be called with f.mu held.
+func (f *fakePlugin) cursor() int64 {
+	if f.infoCursor != nil {
+		return *f.infoCursor
+	}
+	return f.seq
+}
+
+// wipe simulates a plugin reinstall: empty database, sequence restarted.
+func (f *fakePlugin) wipe() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.seq = 0
+	f.plays = map[string]jellyfin.JellysticsPlay{}
+	f.library, f.userData, f.logins = nil, nil, nil
 }

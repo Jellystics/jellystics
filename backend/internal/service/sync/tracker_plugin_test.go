@@ -153,7 +153,7 @@ func TestSwitchOver_TrackerToPlugin(t *testing.T) {
 		pluginPlay("plug-m2", "m2", start2, 15*time.Second, false),
 	)
 	m1, m2 := d.rowsFor("m1"), d.rowsFor("m2")
-	if len(m1) != 1 || m1[0].Id != "plug-m1" || m1[0].Source != "plugin" {
+	if len(m1) != 1 || m1[0].Id != "plug-m1" || m1[0].Source != "jellystics-plugin" {
 		t.Fatalf("m1 rows = %+v (want the plugin row only)", m1)
 	}
 	if len(m2) != 1 || m2[0].Id != "plug-m2" {

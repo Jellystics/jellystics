@@ -400,6 +400,13 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 	}
 	h.emitLog(fmt.Sprintf("Successfully restored %d rows", total))
 	ResetStatsCaches()
+	// Restored rows replace local plays: re-pull everything from the
+	// Jellystics plugin (idempotent upserts, dedupe runs again).
+	if h.repos.PluginSync != nil {
+		if err := h.repos.PluginSync.ResetCursors(c.Request.Context()); err != nil {
+			h.emitLog("WARNING: reset plugin sync cursors: " + err.Error())
+		}
+	}
 
 	go func() {
 		bgCtx := context.Background()

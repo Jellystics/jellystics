@@ -62,7 +62,11 @@ func roundSec(ms int64) int64 {
 //   - Audio: NowPlayingItemId = album (else track), EpisodeId = track, SeriesName = album name
 //
 // ok is false for item types Jellystics does not track.
-func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) {
+func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) { return MapPlayWith(p, nil) }
+
+// MapPlayWith is MapPlay with the item's source video stream from the
+// catalog (jf_item_info), used when the plugin does not send it.
+func MapPlayWith(p jellyfin.JellysticsPlay, fb *repository.SourceVideo) (models.JFPlaybackActivity, bool) {
 	mt, tracked := "", false
 	if p.ItemType != nil {
 		mt, tracked = trackedTypes[*p.ItemType]
@@ -72,7 +76,7 @@ func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) {
 	}
 
 	itemId := normID(p.ItemId)
-	userId := normID(p.UserId)
+	userId := normPtr(&p.UserId)
 	parentId := itemId
 	var childId, seasonId, groupName *string
 	switch mt {
@@ -91,12 +95,19 @@ func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) {
 		}
 	}
 
-	source := p.Source
-	switch source {
-	case repository.SourcePlugin, repository.SourceImportPBR, repository.SourceImportJellystics:
-	default:
-		source = repository.SourcePlugin
+	// The plugin sends "plugin" for its own plays: stored as
+	// "jellystics-plugin" (legacy Playback Reporting imports use "plugin").
+	source := repository.SourceJellysticsPlugin
+	switch p.Source {
+	case repository.SourceImportPBR, repository.SourceImportJellystics:
+		source = p.Source
 	}
+	var open *bool
+	if source == repository.SourceJellysticsPlugin {
+		v := p.State == "open"
+		open = &v
+	}
+	sv := sourceVideo(p, fb)
 
 	started := p.StartedAt.UTC()
 	ended := p.LastEventAt.UTC() // open play: last checkpoint
@@ -114,7 +125,7 @@ func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) {
 	seeks := p.SeekCount
 	userName := nonEmpty(p.UserName)
 	if userName == nil {
-		userName = &userId
+		userName = userId
 	}
 	isPaused := false
 	name := nonEmpty(p.ItemName)
@@ -122,7 +133,7 @@ func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) {
 	a := models.JFPlaybackActivity{
 		Id:                   p.Id,
 		IsPaused:             &isPaused,
-		UserId:               &userId,
+		UserId:               userId,
 		UserName:             userName,
 		Client:               nonEmpty(p.Client),
 		DeviceName:           nonEmpty(p.DeviceName),
@@ -138,7 +149,7 @@ func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) {
 		ActivityDateInserted: &startedStr,
 		RemoteEndPoint:       nonEmpty(p.RemoteEndPoint),
 		Source:               source,
-		Imported:             source != repository.SourcePlugin,
+		Imported:             source != repository.SourceJellysticsPlugin,
 		ItemId:               &itemId,
 		MediaType:            &mt,
 		RunTimeTicks:         p.RunTimeTicks,
@@ -155,16 +166,17 @@ func MapPlay(p jellyfin.JellysticsPlay) (models.JFPlaybackActivity, bool) {
 		TranscodeReasons:     reasonsJSON(p.TranscodeReasons),
 		Bitrate:              p.Bitrate,
 		HwAccel:              hwAccel(p.HwAccel),
-		VideoRange:           videoRange(p.VideoRange),
+		VideoRange:           sv.rangeColumn(),
 		PauseCount:           p.PauseCount,
 		IsRemote:             p.IsRemote,
 		PlaySessionId:        nonEmpty(p.PlaySessionId),
 		SeekCount:            &seeks,
 		SkippedSeconds:       &skipped,
 		PlayedToCompletion:   p.PlayedToCompletion,
+		PluginOpen:           open,
 		PlayState:            playState(p),
 		TranscodingInfo:      transcodingInfo(p),
-		MediaStreams:         mediaStreams(p),
+		MediaStreams:         mediaStreams(p, sv),
 	}
 	if a.SubtitleStreamIndex != nil && *a.SubtitleStreamIndex < 0 {
 		a.SubtitleStreamIndex = nil // -1 = none
@@ -204,16 +216,10 @@ func marshal(v any) datatypes.JSON {
 	return datatypes.JSON(b)
 }
 
-// playState keeps the plugin play state: State "open" marks a play still in
-// progress (repository.PluginPlayOpen), used by the tracker switch-over.
+// playState keeps the last known playback position and the stream changes.
+// (Open / closed lives in the PluginOpen column.)
 func playState(p jellyfin.JellysticsPlay) datatypes.JSON {
-	st := p.State
-	if st == "" {
-		st = "closed"
-	}
 	m := map[string]any{
-		"State":         st,
-		"Version":       p.Version,
 		"PositionTicks": p.PositionEndTicks,
 		"IsPaused":      false,
 		"PlayMethod":    p.PlayMethod,
@@ -227,20 +233,60 @@ func playState(p jellyfin.JellysticsPlay) datatypes.JSON {
 	return marshal(m)
 }
 
+// srcVideo is the source video stream: plugin fields first, then the catalog.
+type srcVideo struct {
+	width, height         *int
+	videoRange, rangeType *string
+}
+
+func sourceVideo(p jellyfin.JellysticsPlay, fb *repository.SourceVideo) srcVideo {
+	sv := srcVideo{width: p.SourceWidth, height: p.SourceHeight, videoRange: videoRange(p.VideoRange), rangeType: videoRange(p.VideoRangeType)}
+	if fb != nil {
+		if sv.width == nil {
+			sv.width = fb.Width
+		}
+		if sv.height == nil {
+			sv.height = fb.Height
+		}
+		if sv.videoRange == nil {
+			sv.videoRange = videoRange(fb.VideoRange)
+		}
+		if sv.rangeType == nil {
+			sv.rangeType = videoRange(fb.VideoRangeType)
+		}
+	}
+	return sv
+}
+
+// rangeColumn is the VideoRange capture column: VideoRangeType (SDR, HDR10,
+// DOVI...) is finer than VideoRange (SDR / HDR), as in the tracker.
+func (sv srcVideo) rangeColumn() *string {
+	if sv.rangeType != nil {
+		return sv.rangeType
+	}
+	return sv.videoRange
+}
+
 // transcodingInfo rebuilds the Jellyfin TranscodingInfo subset read by the
 // playback quality analyses, when the play was transcoded / remuxed.
+// IsVideoDirect / IsAudioDirect come from the plugin only (never guessed
+// from codecs: a same-codec transcode is not direct).
 func transcodingInfo(p jellyfin.JellysticsPlay) datatypes.JSON {
-	if p.VideoCodecTo == nil && p.AudioCodecTo == nil && p.Width == nil {
+	if p.VideoCodecTo == nil && p.AudioCodecTo == nil && p.Width == nil && p.IsVideoDirect == nil && p.IsAudioDirect == nil {
 		return nil
 	}
 	m := map[string]any{}
 	if p.VideoCodecTo != nil {
 		m["VideoCodec"] = *p.VideoCodecTo
-		m["IsVideoDirect"] = p.VideoCodecFrom != nil && strings.EqualFold(*p.VideoCodecFrom, *p.VideoCodecTo)
 	}
 	if p.AudioCodecTo != nil {
 		m["AudioCodec"] = *p.AudioCodecTo
-		m["IsAudioDirect"] = p.AudioCodecFrom != nil && strings.EqualFold(*p.AudioCodecFrom, *p.AudioCodecTo)
+	}
+	if p.IsVideoDirect != nil {
+		m["IsVideoDirect"] = *p.IsVideoDirect
+	}
+	if p.IsAudioDirect != nil {
+		m["IsAudioDirect"] = *p.IsAudioDirect
 	}
 	if p.Width != nil {
 		m["Width"] = *p.Width
@@ -264,13 +310,26 @@ func transcodingInfo(p jellyfin.JellysticsPlay) datatypes.JSON {
 }
 
 // mediaStreams rebuilds the source streams known by the plugin (codecs,
-// selected audio / subtitle) in the Jellyfin MediaStream shape.
-func mediaStreams(p jellyfin.JellysticsPlay) datatypes.JSON {
+// source video size and range, selected audio / subtitle) in the Jellyfin
+// MediaStream shape.
+func mediaStreams(p jellyfin.JellysticsPlay, sv srcVideo) datatypes.JSON {
 	var streams []map[string]any
-	if p.VideoCodecFrom != nil {
-		v := map[string]any{"Type": "Video", "Codec": *p.VideoCodecFrom, "IsDefault": true}
-		if r := videoRange(p.VideoRange); r != nil {
-			v["VideoRange"] = *r
+	if p.VideoCodecFrom != nil || sv.width != nil || sv.rangeType != nil || sv.videoRange != nil {
+		v := map[string]any{"Type": "Video", "IsDefault": true}
+		if p.VideoCodecFrom != nil {
+			v["Codec"] = *p.VideoCodecFrom
+		}
+		if sv.width != nil {
+			v["Width"] = *sv.width
+		}
+		if sv.height != nil {
+			v["Height"] = *sv.height
+		}
+		if sv.videoRange != nil {
+			v["VideoRange"] = *sv.videoRange
+		}
+		if sv.rangeType != nil {
+			v["VideoRangeType"] = *sv.rangeType
 		}
 		streams = append(streams, v)
 	}

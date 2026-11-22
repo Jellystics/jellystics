@@ -336,6 +336,7 @@ func TestMapPlay(t *testing.T) {
 	ep.SkippedMs = 90_000
 	ep.PlayMethod = sptr("Transcode")
 	ep.VideoCodecFrom, ep.VideoCodecTo = sptr("hevc"), sptr("h264")
+	ep.IsVideoDirect = new(bool) // explicit false
 	ep.AudioCodecFrom, ep.AudioCodecTo = sptr("eac3"), sptr("eac3")
 	ep.TranscodeReasons = jellyfin.EmbeddedJSON(`["VideoCodecNotSupported"]`)
 	ep.HwAccel = sptr("None")
@@ -351,13 +352,13 @@ func TestMapPlay(t *testing.T) {
 		t.Fatalf("ids = %+v", a)
 	}
 	if *a.PlaybackDuration != 29 || a.IsView || *a.PausedSeconds != 61 || a.PauseCount != 2 || *a.SeekCount != 3 ||
-		*a.SkippedSeconds != 90 || a.Source != "plugin" || a.Imported || a.HwAccel != nil || a.SubtitleStreamIndex != nil ||
+		*a.SkippedSeconds != 90 || a.Source != "jellystics-plugin" || a.Imported || a.HwAccel != nil || a.SubtitleStreamIndex != nil ||
 		a.IsRemote == nil || *a.IsRemote {
 		t.Fatalf("fields = %+v", a)
 	}
 	var ti map[string]any
 	_ = json.Unmarshal(a.TranscodingInfo, &ti)
-	if ti["VideoCodec"] != "h264" || ti["IsVideoDirect"] != false || ti["IsAudioDirect"] != true {
+	if _, guessed := ti["IsAudioDirect"]; ti["VideoCodec"] != "h264" || ti["IsVideoDirect"] != false || guessed {
 		t.Fatalf("TranscodingInfo = %s", a.TranscodingInfo)
 	}
 	if string(a.TranscodeReasons) != `["VideoCodecNotSupported"]` {
@@ -389,7 +390,11 @@ func TestMapPlay(t *testing.T) {
 }
 
 func playStateOf(a models.JFPlaybackActivity) string {
-	var ps struct{ State string }
-	_ = json.Unmarshal(a.PlayState, &ps)
-	return ps.State
+	switch {
+	case a.PluginOpen == nil:
+		return ""
+	case *a.PluginOpen:
+		return "open"
+	}
+	return "closed"
 }

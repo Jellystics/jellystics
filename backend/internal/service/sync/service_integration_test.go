@@ -35,6 +35,7 @@ type mockJF struct {
 	// pbrRows is what the Playback Reporting custom query returns (the
 	// official plugin is listed in /Plugins when non-nil).
 	jellysticsPlugin bool
+	jellysticsSchema int // 0 = 1
 	pbrRows          [][]any
 	pbrQueries       int
 }
@@ -90,7 +91,11 @@ func newMockJF(t *testing.T) *mockJF {
 			http.NotFound(w, r)
 			return
 		}
-		writeJSON(w, map[string]any{"pluginVersion": "1.0.0.0", "schemaVersion": 1})
+		schema := m.jellysticsSchema
+		if schema == 0 {
+			schema = 1
+		}
+		writeJSON(w, map[string]any{"pluginVersion": "1.0.0.0", "schemaVersion": schema})
 	})
 
 	mux.HandleFunc("/Plugins", func(w http.ResponseWriter, r *http.Request) {
