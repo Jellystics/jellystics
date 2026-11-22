@@ -9,7 +9,8 @@ import { useSearchParam } from '@/lib/useUrlState'
 import { useSeries, type SeriesDetail, type SeriesEpisode } from '@/api'
 import { useSeriesHistory } from '@/api/entityExtras'
 import { CompletionCell, EntitySkeleton, HistoryTable, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
-import { entityPath, formatWhen, itemArt, share, useEntityCrumbs } from '../library/entity'
+import { entityPath } from '@/lib/routes'
+import { formatWhen, itemArt, share, useEntityCrumbs } from '../library/entity'
 import { CADENCE, RELEASE_LAG, fixedBuckets, seasonViews } from './series'
 import styles from '../library/entity.module.css'
 
@@ -58,7 +59,7 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
     },
     { id: 'views', header: t('app.entity.col.views'), meta: { numeric: true }, cell: ({ row }) => f.number(row.original.views) },
     { id: 'viewers', header: t('app.entity.col.viewers'), meta: { numeric: true }, cell: ({ row }) => f.number(row.original.viewers) },
-    { id: 'completion', header: t('app.series.col.avgCompletion'), cell: ({ row }) => <CompletionCell value={row.original.avgCompletion} /> },
+    { id: 'completion', header: t('app.metric.completionAvg'), cell: ({ row }) => <CompletionCell value={row.original.avgCompletion} /> },
     {
       id: 'abandons', header: t('app.series.col.abandons'), meta: { numeric: true },
       cell: ({ row }) => row.original.abandons > 0

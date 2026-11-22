@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Card, CardBody, CardHeader, SegmentedControl } from '@/ui'
+import { Button, Card, CardBody, CardHeader } from '@/ui'
 import styles from './charts.module.css'
 
 type Legend = { label: string; color: string; line?: boolean }[]
@@ -18,11 +18,14 @@ function download(name: string, table: TableData) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+/**
+ * Card around a chart: title, legend, CSV export, and the chart's data as a
+ * visually hidden table so screen readers get the values.
+ */
 export function ChartFrame({ title, subtitle, legend, table, csvName, action, children }: {
   title: string; subtitle?: string; legend?: Legend; table: TableData; csvName: string; action?: ReactNode; children: ReactNode
 }) {
   const { t } = useTranslation()
-  const [view, setView] = useState<'chart' | 'table'>('chart')
   return (
     <Card>
       <CardHeader
@@ -31,15 +34,6 @@ export function ChartFrame({ title, subtitle, legend, table, csvName, action, ch
         action={
           <div className={styles.actions}>
             {action}
-            <SegmentedControl
-              aria-label={title}
-              value={view}
-              onValueChange={setView}
-              options={[
-                { value: 'chart', label: t('app.chart.chart') },
-                { value: 'table', label: t('app.chart.table') },
-              ]}
-            />
             <Button size="sm" variant="ghost" onClick={() => download(csvName, table)}>{t('app.chart.csv')}</Button>
           </div>
         }
@@ -50,14 +44,14 @@ export function ChartFrame({ title, subtitle, legend, table, csvName, action, ch
             {legend.map((l) => <span key={l.label}><i className={l.line ? styles.line : undefined} style={{ background: l.color }} />{l.label}</span>)}
           </div>
         )}
-        {view === 'chart' ? children : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead><tr>{table.columns.map((c) => <th key={c} scope="col">{c}</th>)}</tr></thead>
-              <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
-            </table>
-          </div>
-        )}
+        {children}
+        {/* Wrapper carries .sr-only: a <table> itself ignores the 1px width / overflow clip. */}
+        <div className="sr-only">
+          <table aria-label={title}>
+            <thead><tr>{table.columns.map((c) => <th key={c} scope="col">{c}</th>)}</tr></thead>
+            <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
       </CardBody>
     </Card>
   )

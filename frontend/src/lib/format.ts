@@ -46,6 +46,14 @@ export function formatDelta(ratio: number, locale = 'fr'): { text: string; direc
   const body = formatPercent(Math.abs(ratio), locale)
   return ratio > 0 ? { text: `+${body}`, direction: 'up' } : { text: `−${body}`, direction: 'down' }
 }
+/** File size: "412 Go" / "18,2 Go" / "950 Mo" (decimal units like file managers, one decimal under 100). */
+export function formatBytes(bytes: number, locale = 'fr'): string {
+  const units = locale.startsWith('fr') ? ['o', 'Ko', 'Mo', 'Go', 'To'] : ['B', 'KB', 'MB', 'GB', 'TB']
+  let v = Math.max(0, bytes), i = 0
+  while (v >= 1000 && i < units.length - 1) { v /= 1000; i++ }
+  const digits = v >= 100 || i === 0 ? 0 : 1
+  return `${nf(locale, { maximumFractionDigits: digits }).format(v)} ${units[i]}`
+}
 export function weekdayLabels(locale = 'fr'): string[] {
   const monday = new Date(2024, 0, 1) // a Monday
   return Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(monday.getTime() + i * 86400000)))
@@ -57,7 +65,7 @@ export function useFormat() {
   return useMemo(() => ({
     duration: (s: number) => formatDuration(s, l), position: formatPosition, number: (n: number) => formatNumber(n, l),
     compact: (n: number) => formatCompact(n, l), percent: (r: number) => formatPercent(r, l), hour: formatHour,
-    day: (d: Date) => formatDay(d, l), relative: (d: Date) => formatRelative(d, l), delta: (r: number) => formatDelta(r, l),
+    day: (d: Date) => formatDay(d, l), relative: (d: Date) => formatRelative(d, l), delta: (r: number) => formatDelta(r, l), bytes: (b: number) => formatBytes(b, l),
     weekdays: () => weekdayLabels(l), locale: l,
   }), [l])
 }

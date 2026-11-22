@@ -8,7 +8,8 @@ import { ChartFrame, Columns, SmallMultiples, StackedArea, WeekHeatmap } from '@
 import { AppLink, Art, BarList, Card, CardBody, CardHeader, PageHeader, SegBar } from '@/ui'
 import { useFormat } from '@/lib/format'
 import { QueryCard } from '../_shared/shared'
-import { entityPath, formatHours, formatMonth } from '../_shared/analyticsFormat'
+import { entityPath } from '@/lib/routes'
+import { formatHours, formatMonth } from '../_shared/analyticsFormat'
 import styles from '../_shared/analytics.module.css'
 
 const TYPES = ['movie', 'series', 'music'] as const
@@ -60,7 +61,7 @@ export default function InsightsPage() {
               <CardHeader title={t('app.insights.byType.title')} subtitle={t('app.insights.byType.subtitle')} />
               <CardBody>
                 <BarList
-                  labelHeader={t('app.insights.type')} valueLabel={t('app.insights.byType.value')} max={1} format={f.percent}
+                  labelHeader={t('app.insights.type')} valueLabel={t('app.metric.finishedViews')} max={1} format={f.percent}
                   rows={TYPES.filter((k) => d.byType[k] !== null).map((k) => ({ key: k, label: typeLabel(k), value: d.byType[k] ?? 0, fill: typeFill(k) }))}
                 />
               </CardBody>
@@ -167,7 +168,7 @@ export default function InsightsPage() {
                             <div className={styles.media}>
                               <Art title={r.parentName ?? r.name} seed={r.parentId ?? r.id} src={itemImage(r.parentId ?? r.id)} kind={r.kind === 'track' ? 'square' : 'poster'} />
                               <div>
-                                {to ? <AppLink className={styles.title} to={to}>{r.name}</AppLink> : <span className={styles.title}>{r.name}</span>}
+                                <AppLink className={styles.title} to={to}>{r.name}</AppLink>
                                 {r.parentName && <div className={styles.sub}>{r.parentName}</div>}
                               </div>
                             </div>

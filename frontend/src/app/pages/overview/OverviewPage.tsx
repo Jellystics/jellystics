@@ -10,7 +10,8 @@ import {
   AppLink, Art, Avatar, BarList, Card, CardBody, CardHeader, EmptyState, ErrorState, MediaTypeBadge, PageHeader,
   SegBar, SegmentedControl, Skeleton, StatStrip, StatTile,
 } from '@/ui'
-import { dateOf, groupFamily, groupHref, userHref } from '../history/links'
+import { entityPath, familyOf, userPath } from '@/lib/routes'
+import { dateOf } from '../history/links'
 import { pointsDelta, ratioDelta } from './delta'
 import { LiveCard } from './LiveCard'
 import l from './layout.module.css'
@@ -74,9 +75,9 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
     .filter((it) => top === 'all' || it.kind === top)
     .slice(0, 8)
     .map((it) => ({
-      key: `${it.kind}:${it.id}`, label: it.name, value: it.views, to: groupHref(it.kind, it.id),
+      key: `${it.kind}:${it.id}`, label: it.name, value: it.views, to: entityPath(it.kind, it.id),
       lead: <Art title={it.name} kind={it.kind === 'album' ? 'square' : 'poster'} src={itemImageUrl(it.artId || it.id, 64)} />,
-      badge: top === 'all' ? <MediaTypeBadge type={groupFamily(it.kind)} /> : undefined,
+      badge: top === 'all' ? <MediaTypeBadge type={familyOf(it.kind)} /> : undefined,
     })), [data.topItems, top])
 
   const typeSeconds = daily.reduce((a, d) => ({
@@ -114,7 +115,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
           {tile('clicks', f.number(totals.clicks))}
           <StatTile label={t('app.overview.activeUsers')} value={f.number(totals.activeUsers)} delta={previous ? ratioDelta(totals.activeUsers, previous.activeUsers, f) : undefined} />
           <StatTile
-            label={t('app.overview.completion')}
+            label={t('app.metric.completionAvg')}
             value={totals.completion === null ? '—' : f.number(totals.completion * 100)}
             unit={totals.completion === null ? undefined : '%'}
             delta={previous ? pointsDelta(totals.completion, previous.completion, t) : undefined}
@@ -181,7 +182,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
                 labelHeader={t('app.overview.users.user')}
                 valueLabel={t('app.overview.metric.time')}
                 format={f.duration}
-                rows={data.topUsers.slice(0, 8).map((u) => ({ key: u.id, label: u.name, value: u.watchSeconds, to: userHref(u.id), lead: <Avatar id={u.id} name={u.name} size="sm" /> }))}
+                rows={data.topUsers.slice(0, 8).map((u) => ({ key: u.id, label: u.name, value: u.watchSeconds, to: userPath(u.id), lead: <Avatar id={u.id} name={u.name} size="sm" /> }))}
               />
             )}
           </CardBody>
@@ -237,10 +238,10 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
                   <li key={`${r.itemId}:${r.date}`} className={l.cellMedia}>
                     <Art title={r.name} kind={r.kind === 'album' ? 'square' : 'poster'} src={itemImageUrl(r.itemId, 64)} />
                     <div className={`${l.ellipsis} ${l.grow}`}>
-                      <AppLink to={groupHref(r.kind, r.itemId)}>{r.name}</AppLink>
+                      <AppLink to={entityPath(r.kind, r.itemId)}>{r.name}</AppLink>
                       <div className={l.cellSub}>{[r.users.join(', '), dateOf(r.date).getFullYear()].filter(Boolean).join(' · ')}</div>
                     </div>
-                    <MediaTypeBadge type={groupFamily(r.kind)} />
+                    <MediaTypeBadge type={familyOf(r.kind)} />
                   </li>
                 ))}
               </ul>

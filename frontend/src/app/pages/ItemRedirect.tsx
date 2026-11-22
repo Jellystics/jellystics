@@ -2,20 +2,14 @@ import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, apiFetch } from '@/lib/api'
+import { entityRoute } from '@/lib/routes'
 import { ErrorState, Skeleton, withPeriod } from '@/ui'
 import { NotFoundPage } from './NotFoundPage'
 
-export type ItemRoute = { type: 'movie' | 'series' | 'episode' | 'album' | 'track' | 'other'; id: string; seriesId?: string; albumId?: string }
+export type ItemRoute = { type: 'movie' | 'series' | 'episode' | 'album' | 'track' | 'artist' | 'other'; id: string; seriesId?: string; albumId?: string }
 
-export function itemPath(r: ItemRoute): string {
-  switch (r.type) {
-    case 'series': return `/series/${r.id}`
-    case 'episode': return r.seriesId ? `/series/${r.seriesId}/episodes/${r.id}` : `/movies/${r.id}`
-    case 'album': return `/albums/${r.id}`
-    case 'track': return r.albumId ? `/albums/${r.albumId}?track=${encodeURIComponent(r.id)}` : `/movies/${r.id}`
-    default: return `/movies/${r.id}`
-  }
-}
+/** Typed page of a resolved item; undefined when it has no page (episode without series, track without album, other). */
+export const itemPath = (r: ItemRoute): string | undefined => entityRoute(r.type, r.id, r.type === 'episode' ? r.seriesId : r.albumId)
 
 /** Legacy /items/:id URLs: resolve the item kind server-side, then redirect to its page. */
 export function ItemRedirect() {
@@ -33,6 +27,7 @@ export function ItemRedirect() {
     return <ErrorState title={t('app.error.generic')} onRetry={() => void q.refetch()} />
   }
   const target = itemPath(q.data)
+  if (!target) return <NotFoundPage />
   if (target.includes('?')) return <Navigate to={withPeriod(target, new URLSearchParams(search))} replace />
   return <Navigate to={target + search} replace />
 }

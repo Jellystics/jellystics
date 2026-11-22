@@ -7,7 +7,8 @@ import { useFormat } from '@/lib/format'
 import { useEpisode, type EpisodeDetail, type EpisodeRef } from '@/api'
 import { CompletionCell, EntitySkeleton, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
-import { entityPath, formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
+import { entityPath } from '@/lib/routes'
+import { formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
 import styles from '../library/entity.module.css'
 
 type Viewer = EpisodeDetail['viewers'][number]
@@ -53,7 +54,7 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
         <StatStrip columns={4}>
           <StatTile label={t('app.entity.views')} value={f.number(totals.views)} />
           <StatTile label={t('app.entity.viewers')} value={f.number(totals.viewers)} />
-          <StatTile label={t('app.episode.avgCompletion')} value={totals.avgCompletion == null ? '—' : f.percent(totals.avgCompletion)} />
+          <StatTile label={t('app.metric.completionAvg')} value={totals.avgCompletion == null ? '—' : f.percent(totals.avgCompletion)} />
           <StatTile label={t('app.episode.pauses')} value={totals.pausedSecondsAvg == null ? '—' : f.duration(totals.pausedSecondsAvg)} foot={t('app.episode.pausesFoot')} />
         </StatStrip>
       </Card>

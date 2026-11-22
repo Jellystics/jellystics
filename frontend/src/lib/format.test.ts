@@ -1,4 +1,4 @@
-import { formatDuration, formatPosition, formatNumber, formatCompact, formatPercent, formatHour, formatDay, formatRelative, formatDelta, weekdayLabels } from './format'
+import { formatDuration, formatPosition, formatNumber, formatCompact, formatPercent, formatHour, formatDay, formatRelative, formatDelta, weekdayLabels, formatBytes } from './format'
 
 const nb = (s: string) => s.replace(/[\u{a0}\u{202f}]/gu, ' ') // normalise fr spaces (NBSP, narrow NBSP)
 
@@ -59,5 +59,16 @@ describe('rounding edge cases', () => {
   it('a tiny ratio is flat, not +0,0 %', () => {
     expect(formatDelta(0.0001, 'fr').direction).toBe('flat')
     expect(formatDelta(-0.0001, 'fr').direction).toBe('flat')
+  })
+})
+
+describe('formatBytes', () => {
+  it('uses decimal units with one decimal under 100', () => {
+    expect(formatBytes(18_200_000_000, 'fr')).toBe('18,2 Go')
+    expect(formatBytes(4_000_000_000, 'fr')).toBe('4 Go')
+    expect(formatBytes(412_400_000_000, 'fr')).toBe('412 Go')
+    expect(formatBytes(1_234_000_000_000, 'en')).toBe('1.2 TB')
+    expect(formatBytes(950, 'en')).toBe('950 B')
+    expect(formatBytes(-5, 'en')).toBe('0 B')
   })
 })

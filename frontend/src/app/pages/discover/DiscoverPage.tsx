@@ -4,8 +4,8 @@ import { useDiscoverAbandoned, useDiscoverAdded, useDiscoverStorage, useDiscover
 import { ChartFrame, Scatter } from '@/charts'
 import { AppLink, Art, Card, CardBody, CardHeader, ErrorState, MediaTypeBadge, Meter, PageHeader, Skeleton, StatStrip, StatTile } from '@/ui'
 import { useFormat } from '@/lib/format'
+import { entityPath, familyOf } from '@/lib/routes'
 import { QueryCard } from '../_shared/shared'
-import { entityPath, familyOf, formatBytes } from '../_shared/analyticsFormat'
 import styles from '../_shared/analytics.module.css'
 
 const GB = 1_000_000_000
@@ -21,7 +21,7 @@ export default function DiscoverPage() {
   const tiles = [unwatched, abandoned, added]
   const tilesFailed = tiles.some((q) => q.isError && q.data === undefined)
   const tilesLoading = tiles.some((q) => q.data === undefined) && !tilesFailed
-  const bytes = (b: number) => formatBytes(b, f.locale)
+  const bytes = f.bytes
 
   return (
     <div className={styles.page}>
@@ -70,7 +70,7 @@ export default function DiscoverPage() {
                             <div className={styles.media}>
                               <Art title={it.name} seed={it.id} src={itemImage(it.id)} kind={it.kind === 'album' ? 'square' : 'poster'} />
                               <div>
-                                {to ? <AppLink className={styles.title} to={to}>{it.name}</AppLink> : <span className={styles.title}>{it.name}</span>}
+                                <AppLink className={styles.title} to={to}>{it.name}</AppLink>
                                 <div className={styles.sub}>
                                   {it.dateAdded ? t('app.discover.unwatched.added', { when: f.relative(new Date(`${it.dateAdded}T12:00:00`)) }) : t('app.discover.unwatched.addedUnknown')}
                                   {it.sizeBytes > 0 && ` · ${bytes(it.sizeBytes)}`}
@@ -108,7 +108,7 @@ export default function DiscoverPage() {
                           <div className={styles.media}>
                             <Art title={it.name} seed={it.id} src={itemImage(it.id)} />
                             <div>
-                              <AppLink className={styles.title} to={entityPath(it.kind, it.id) ?? '/'}>{it.name}</AppLink>
+                              <AppLink className={styles.title} to={entityPath(it.kind, it.id)}>{it.name}</AppLink>
                               <div className={styles.sub}>
                                 <AppLink to={`/users/${encodeURIComponent(it.user.id)}`}>{it.user.name}</AppLink>
                                 {' · '}

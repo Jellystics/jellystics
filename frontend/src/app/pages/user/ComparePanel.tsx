@@ -5,7 +5,7 @@ import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { avatarColor } from '@/ui/Avatar'
 import { AppLink, Avatar, Button, Card, CardBody, CardHeader, EmptyState, ErrorState, SearchMenu, Skeleton } from '@/ui'
-import { userHref } from '../history/links'
+import { userPath } from '@/lib/routes'
 import s from './user.module.css'
 
 const seriesShare = (r?: UserRow) => {
@@ -29,7 +29,7 @@ export function ComparePanel({ user }: { user: UserDetail }) {
   const metrics: { label: string; a: number | null; b: number | null; fmt: (v: number) => string }[] = b ? [
     { label: t('app.userPage.compare.time'), a: user.totals.watchSeconds, b: b.totals.watchSeconds, fmt: f.duration },
     { label: t('app.userPage.compare.views'), a: user.totals.views, b: b.totals.views, fmt: f.number },
-    { label: t('app.userPage.compare.completion'), a: user.totals.completion, b: b.totals.completion, fmt: f.percent },
+    { label: t('app.metric.completionAvg'), a: user.totals.completion, b: b.totals.completion, fmt: f.percent },
     { label: t('app.userPage.compare.regularity'), a: user.profile.regularity, b: b.profile.regularity, fmt: f.percent },
     { label: t('app.userPage.compare.seriesShare'), a: seriesShare(rowA), b: seriesShare(rowB), fmt: f.percent },
   ] : []
@@ -68,7 +68,7 @@ export function ComparePanel({ user }: { user: UserDetail }) {
             <div className={s.compareHead}>
               <span className={s.compareWho}><Avatar id={user.id} name={user.name} size="sm" />{user.name}</span>
               <span className="muted">{t('app.userPage.compare.vs')}</span>
-              <AppLink to={userHref(b.id)} className={s.compareWho}>{b.name}<Avatar id={b.id} name={b.name} size="sm" /></AppLink>
+              <AppLink to={userPath(b.id)} className={s.compareWho}>{b.name}<Avatar id={b.id} name={b.name} size="sm" /></AppLink>
             </div>
             <div className={s.tabBody}>
               {metrics.map((m) => {

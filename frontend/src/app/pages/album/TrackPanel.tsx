@@ -5,7 +5,8 @@ import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { useTrack } from '@/api'
 import { UserCell } from '../library/EntityParts'
-import { entityPath, itemArt } from '../library/entity'
+import { entityPath } from '@/lib/routes'
+import { itemArt } from '../library/entity'
 import styles from '../library/entity.module.css'
 
 /**

@@ -61,7 +61,7 @@ function UserTaste({ user }: { user: UserDetail }) {
   )
 }
 
-/** /users/:id — tabs overview | history | taste (?tab=), compare (?compare=). */
+/** /users/:id — tabs overview | history | taste (?tab=), compare with another user (?vs=). */
 export default function UserPage() {
   const { t } = useTranslation()
   const f = useFormat()
@@ -82,7 +82,7 @@ export default function UserPage() {
       <div className={l.page}>
         <Card>
           {notFound
-            ? <EmptyState icon={<UserX size={20} strokeWidth={1.6} />} title={t('app.userPage.notFound')} role="alert" />
+            ? <EmptyState headingLevel={1} icon={<UserX size={20} strokeWidth={1.6} />} title={t('app.userPage.notFound')} role="alert" />
             : <ErrorState title={t('app.userPage.error')} onRetry={() => q.refetch()} />}
         </Card>
       </div>

@@ -1,23 +1,19 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { apiFetch } from '@/lib/api'
+import { handleUnauthorized } from '@/lib/api'
 import { getToken } from '@/lib/auth'
 import { usePeriod } from '@/lib/useUrlState'
+import { get, seg, V2 } from './client'
 import { cleanParams, qk, type Filters, type HistoryFilters, type QueryParams } from './keys'
 import type {
   AlbumDetail, ArtistDetail, CalendarDay, EpisodeDetail, HistoryPage, LibraryCard, LibraryDetail, MovieDetail,
   Overview, SearchResult, SeriesDetail, TrackDetail, UserDetail, UserRow,
 } from './types'
 
-const V2 = '/api/v2'
-
 /** Request params = current URL period + page filters (normalised). */
 export function usePeriodParams(filters: Filters | HistoryFilters = {}): QueryParams {
   const [period] = usePeriod()
   return cleanParams({ from: period.from, to: period.to, compare: period.compare, ...filters })
 }
-
-const get = <T,>(path: string, params: QueryParams) => ({ signal }: { signal: AbortSignal }) => apiFetch<T>(path, { params, signal })
-const seg = encodeURIComponent
 
 export function useOverview(filters?: Filters) {
   const p = usePeriodParams(filters)
@@ -89,6 +85,7 @@ export async function downloadHistoryCsv(params: QueryParams): Promise<void> {
   const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
   const token = getToken()
   const res = await fetch(`${V2}/history.csv?${qs}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (res.status === 401) handleUnauthorized()
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const blob = await res.blob()
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'history.csv'

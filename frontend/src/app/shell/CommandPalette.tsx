@@ -6,8 +6,8 @@ import { AppLink, Dialog, SearchInput, toast, withPeriod } from '@/ui'
 import { apiFetch } from '@/lib/api'
 import { useThemeMode } from '@/lib/themeMode'
 import { PERIOD_PARAMS } from '@/lib/period'
+import { entityPath } from '@/lib/routes'
 import { useSearch, type SearchKind } from '@/api'
-import { searchItemPath } from './searchRoutes'
 import { NAV_ENTRIES } from './nav'
 import styles from './CommandPalette.module.css'
 
@@ -65,8 +65,7 @@ function PaletteBody({ open, onOpenChange }: { open: boolean; onOpenChange: (o: 
     // Only show results that match what is typed (not a stale previous term).
     if (!term || term !== query.trim() || !found.data || found.isPlaceholderData) return []
     const items = found.data.items.flatMap((it): Entry[] => {
-      const to = searchItemPath(it)
-      if (!to) return []
+      const to = entityPath(it.kind, it.id, it.parentId)
       const sub = [t(`app.command.kind.${it.kind}`), it.parentName, it.year].filter(Boolean).join(' · ')
       return [{ id: `item-${it.kind}-${it.id}`, label: it.name, sub, icon: KIND_ICON[it.kind], to }]
     })

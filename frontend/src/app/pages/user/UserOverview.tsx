@@ -46,6 +46,8 @@ export function UserOverview({ user }: { user: UserDetail }) {
     ['concentration', user.profile.concentration],
     ['completion', user.profile.completion],
   ] as const
+  // profile.completion is the share of finished views (≥ 90 %), not the average completion of the tiles.
+  const scoreLabel = (k: (typeof scores)[number][0]) => (k === 'completion' ? t('app.metric.finishedViews') : t(`app.userPage.profile.${k}`))
 
   return (
     <div className={s.tabBody}>
@@ -56,7 +58,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
           <StatTile label={t('app.userPage.tiles.activeDays')} value={f.number(active)} unit={`/ ${f.number(days)}`} />
           <StatTile label={t('app.userPage.tiles.streak')} value={f.number(user.streak.current)} unit={t('app.userPage.tiles.daysUnit')} foot={t('app.userPage.tiles.record', { count: user.streak.best })} />
           <StatTile
-            label={t('app.userPage.tiles.completion')}
+            label={t('app.metric.completionAvg')}
             value={totals.completion === null ? '—' : f.number(totals.completion * 100)}
             unit={totals.completion === null ? undefined : '%'}
             delta={previous ? pointsDelta(totals.completion, previous.completion, t) : undefined}
@@ -113,8 +115,8 @@ export function UserOverview({ user }: { user: UserDetail }) {
             <div className={s.profile}>
               {scores.map(([k, v]) => (
                 <div key={k} className={s.score}>
-                  <div className={s.scoreHead}><span>{t(`app.userPage.profile.${k}`)}</span><b className="num">{v === null ? '—' : f.percent(v)}</b></div>
-                  <Meter value={v ?? 0} label={t(`app.userPage.profile.${k}`)} />
+                  <div className={s.scoreHead}><span>{scoreLabel(k)}</span><b className="num">{v === null ? '—' : f.percent(v)}</b></div>
+                  <Meter value={v ?? 0} label={scoreLabel(k)} />
                   <div className={s.scoreSub}>{t(`app.userPage.profile.${k}Hint`)}</div>
                 </div>
               ))}

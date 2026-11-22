@@ -51,6 +51,20 @@
   /* Sequential blue (heatmaps) */
   --seq-0: #f0efec; --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5; --seq-5: #256abf; --seq-6: #184f95;
 
+  /* Identity palettes: avatar initials and artwork placeholders (same in both themes) */
+  --avatar-1: #6250d6; --avatar-2: #2a78d6; --avatar-3: #d55181; --avatar-4: #1baf7a;
+  --avatar-5: #eb6834; --avatar-6: #52514e; --avatar-7: #eda100; --avatar-8: #e34948;
+  --art-1: #3b4a63; --art-2: #5b3f4f; --art-3: #2f5a54; --art-4: #5a4a2f; --art-5: #3f3b5e;
+  --art-6: #4d5a2f; --art-7: #5e3b3b; --art-8: #2f4f5e; --art-9: #4a3b5e; --art-10: #3d5a45;
+  --on-art: #ffffff;                 /* text on avatars and art placeholders */
+  --on-art-soft: rgba(255,255,255,.9);
+  --art-shade: #000000;              /* bottom of the art placeholder gradient */
+  --art-edge: rgba(0,0,0,.08);       /* inset hairline over artwork */
+
+  /* Matrix cell text: low / high fill cells */
+  --matrix-ink-lo: var(--ink-2);
+  --matrix-ink-hi: #ffffff;
+
   /* Shape — 3 radii, nothing else */
   --r-sm: 4px;    /* badges, chips, inputs inside dense tables, bar data-ends */
   --r-md: 6px;    /* buttons, inputs, segmented, menu items, tooltips */
@@ -68,6 +82,8 @@
 
   /* Elevation — borders, not shadows. Shadow only for floating layers. */
   --shadow-pop: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.10);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.06);   /* selected segment */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.2);    /* switch thumb */
   --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-ring);
 
   --dur: 120ms;
@@ -89,6 +105,7 @@
     --seq-0: #232321; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
     --m-direct: #9ec5f4; --m-stream: #5598e7; --m-transcode: #256abf; --m-direct-ink: #0b0b0b; --m-stream-ink: #0b0b0b; --m-transcode-ink: #ffffff;
     --shadow-pop: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+    --matrix-ink-lo: #ffffff; --matrix-ink-hi: #0b0b0b;
   }
 }
 :root[data-theme="dark"] {
@@ -104,4 +121,5 @@
   --seq-0: #232321; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
     --m-direct: #9ec5f4; --m-stream: #5598e7; --m-transcode: #256abf; --m-direct-ink: #0b0b0b; --m-stream-ink: #0b0b0b; --m-transcode-ink: #ffffff;
   --shadow-pop: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+  --matrix-ink-lo: #ffffff; --matrix-ink-hi: #0b0b0b;
 }

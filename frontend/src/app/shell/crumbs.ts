@@ -12,7 +12,7 @@ export type CrumbLabels = Record<string, string | undefined>
 export type NavKey = 'overview' | 'live' | 'history' | 'libraries' | 'users' | 'insights' | 'discover' | 'playback' | 'settings'
 export type RouteHandle = { /** Static trail (i18n keys as labels, translated by useCrumbs), refined by the page's labels. */
   crumb?: (match: UIMatch, labels: CrumbLabels) => Crumb | Crumb[] | null; nav?: NavKey
-  /** false hides the global period picker (legacy pages with their own date controls). */
+  /** false hides the global period picker (pages the period does not affect, or with their own date controls). */
   period?: boolean }
 
 /** Override of the last crumb label, or of the last crumbs (aligned on the end; null keeps a crumb). */

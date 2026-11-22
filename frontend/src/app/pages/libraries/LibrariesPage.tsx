@@ -3,7 +3,7 @@ import { Library } from 'lucide-react'
 import { AppLink, Card, EmptyState, ErrorState, MediaTypeBadge, PageHeader, Skeleton } from '@/ui'
 import { useFormat } from '@/lib/format'
 import { useLibraries, type LibraryCard } from '@/api'
-import { formatBytes, libraryFamily } from '../library/entity'
+import { libraryFamily } from '../library/entity'
 import styles from './libraries.module.css'
 
 function LibraryTile({ lib }: { lib: LibraryCard }) {
@@ -16,7 +16,7 @@ function LibraryTile({ lib }: { lib: LibraryCard }) {
         <span className={styles.name}>{lib.name}</span>
         <MediaTypeBadge type={family} />
       </span>
-      <span className={styles.meta}>{t(`app.libraries.items.${family}`, { count: lib.items })} · {formatBytes(lib.sizeBytes, f.locale)}</span>
+      <span className={styles.meta}>{t(`app.libraries.items.${family}`, { count: lib.items })} · {f.bytes(lib.sizeBytes)}</span>
       <span className={styles.figures}>
         <span><b className="num">{f.duration(lib.totals.watchSeconds)}</b><small>{t('app.entity.watchTime')}</small></span>
         <span><b className="num">{f.number(lib.totals.views)}</b><small>{t('app.entity.views')}</small></span>

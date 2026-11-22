@@ -24,10 +24,14 @@ it('tooltip appears on hover and on focus', () => {
   fireEvent.blur(hit)
   expect(screen.queryByRole('tooltip')).toBeNull()
 })
-it('ChartFrame toggles to a table view', () => {
-  render(<ChartFrame title="Vues" csvName="vues" table={{ columns: ['Jour', 'Vues'], rows: [['lun.', 4]] }}><div /></ChartFrame>)
-  fireEvent.click(screen.getByRole('radio', { name: 'app.chart.table' }))
-  expect(screen.getByRole('table')).toHaveTextContent('lun.')
+it('ChartFrame always shows the chart, with its data as a screen-reader table', () => {
+  render(<ChartFrame title="Vues" csvName="vues" table={{ columns: ['Jour', 'Vues'], rows: [['lun.', 4]] }}><div>the-chart</div></ChartFrame>)
+  expect(screen.getByText('the-chart')).toBeInTheDocument()
+  expect(screen.queryByRole('radio')).toBeNull()
+  const table = screen.getByRole('table', { name: 'Vues' })
+  expect(table.closest('.sr-only')).not.toBeNull()
+  expect(table).toHaveTextContent('lun.')
+  expect(screen.getByRole('button', { name: 'app.chart.csv' })).toBeInTheDocument()
 })
 it('toCsv escapes quotes, commas and newlines', () => {
   expect(toCsv({ columns: ['a', 'b'], rows: [['x"y', 'p,q'], ['l1\nl2', 3]] })).toBe('a,b\n"x""y","p,q"\n"l1\nl2",3')

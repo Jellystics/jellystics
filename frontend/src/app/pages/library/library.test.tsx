@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event'
 import LibraryPage from './LibraryPage'
 import { calls, loc, mockApi, renderPage } from './testing'
 import { decadesFixture, growthFixture, libraryFixture, seriesHistoryFixture } from './fixtures'
-import { formatBytes, entityPath, playMethod } from './entity'
 
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -94,11 +93,3 @@ it('shows not found for an unknown library', async () => {
   expect(await screen.findByText('app.entity.notFound')).toBeInTheDocument()
 })
 
-it('entity helpers', () => {
-  expect(formatBytes(18_200_000_000, 'fr')).toBe('18,2 Go')
-  expect(formatBytes(950, 'en')).toBe('950 B')
-  expect(entityPath('track', 't1', 'a1')).toBe('/albums/a1?track=t1')
-  expect(entityPath('episode', 'e1', 's 1')).toBe('/series/s%201/episodes/e1')
-  expect(playMethod('DirectStream')).toBe('stream')
-  expect(playMethod('Unknown')).toBeNull()
-})

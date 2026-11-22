@@ -1,30 +1,4 @@
-// Formatting and routing helpers of the analysis pages.
-
-/** Route of a title (movie / series / album) or a played item (episode / track). */
-export function entityPath(kind: string, id: string, parentId?: string | null): string | undefined {
-  const e = encodeURIComponent
-  switch (kind) {
-    case 'movie': return `/movies/${e(id)}`
-    case 'series': return `/series/${e(id)}`
-    case 'album': return `/albums/${e(id)}`
-    case 'artist': return `/artists/${e(id)}`
-    case 'episode': return parentId ? `/series/${e(parentId)}/episodes/${e(id)}` : undefined
-    case 'track': return parentId ? `/albums/${e(parentId)}?track=${e(id)}` : undefined
-  }
-  return undefined
-}
-
-/** Family of a title kind, for type colours and badges. */
-export const familyOf = (kind: string): 'movie' | 'series' | 'music' => (kind === 'movie' ? 'movie' : kind === 'series' || kind === 'episode' ? 'series' : 'music')
-
-/** Bytes → "1,2 To" / "48 Go" / "350 Mo" (decimal units, like file managers). */
-export function formatBytes(bytes: number, locale = 'fr'): string {
-  const units = locale.startsWith('fr') ? ['o', 'Ko', 'Mo', 'Go', 'To'] : ['B', 'KB', 'MB', 'GB', 'TB']
-  let v = bytes, i = 0
-  while (v >= 1000 && i < units.length - 1) { v /= 1000; i++ }
-  const digits = v < 10 && i > 0 ? 1 : 0
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(v)} ${units[i]}`
-}
+// Formatting helpers of the analysis pages.
 
 /** Bit/s → "8,5" (Mb/s, unit added by the caller's translation). */
 export function formatMbps(bps: number, locale = 'fr'): string {

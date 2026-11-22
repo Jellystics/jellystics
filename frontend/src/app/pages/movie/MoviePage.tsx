@@ -9,7 +9,7 @@ import { useMovie, type MovieDetail } from '@/api'
 import { useMovieSittings } from '@/api/entityExtras'
 import { CompletionCell, EntitySkeleton, HistoryTable, LibraryKicker, QueryView, SubQuery, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
-import { formatBytes, formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
+import { formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
 import styles from '../library/entity.module.css'
 
 type Viewer = MovieDetail['viewers'][number]
@@ -43,7 +43,7 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
     item.year ? String(item.year) : null,
     item.runtimeSeconds ? f.duration(item.runtimeSeconds) : null,
     item.genres.length ? item.genres.slice(0, 3).join(', ') : null,
-    [item.resolution, item.sizeBytes ? formatBytes(item.sizeBytes, f.locale) : null].filter(Boolean).join(' · ') || null,
+    [item.resolution, item.sizeBytes ? f.bytes(item.sizeBytes) : null].filter(Boolean).join(' · ') || null,
   ].filter((m): m is string => !!m)
   const viewerCols: ColumnDef<Viewer>[] = [
     { id: 'user', header: t('app.entity.col.user'), cell: ({ row }) => <UserCell user={row.original.user} /> },
@@ -63,7 +63,7 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
         <StatStrip columns={4}>
           <StatTile label={t('app.entity.views')} value={f.number(totals.views)} foot={t('app.entity.clicksFoot', { count: totals.clicks })} />
           <StatTile label={t('app.entity.viewers')} value={f.number(totals.viewers)} foot={f.duration(totals.watchSeconds)} />
-          <StatTile label={t('app.movie.completed')} value={totals.completedRatio == null ? '—' : f.percent(totals.completedRatio)} foot={t('app.movie.completedFoot', { done: f.number(funnel.completed), count: funnel.views })} />
+          <StatTile label={t('app.metric.finishedViews')} value={totals.completedRatio == null ? '—' : f.percent(totals.completedRatio)} foot={t('app.movie.completedFoot', { done: f.number(funnel.completed), count: funnel.views })} />
           <StatTile label={t('app.movie.transcoded')} value={totals.transcodeRatio == null ? '—' : f.percent(totals.transcodeRatio)} />
         </StatStrip>
       </Card>

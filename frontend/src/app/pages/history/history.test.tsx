@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import HistoryPage from './HistoryPage'
-import { itemHref, methodOf, shiftMonth } from './links'
+import { shiftMonth } from './links'
 import { calendarFixture, historyFixture, usersFixture } from '../overview/fixtures'
 import { renderPage, stubFetch } from '../overview/renderPage'
 
@@ -70,9 +70,6 @@ it('shows empty and error states', async () => {
   expect(await screen.findByText('app.history.error')).toBeInTheDocument()
 })
 
-it('link helpers map kinds to routes', () => {
-  expect(itemHref({ id: 't1', kind: 'track', name: 'x', parentId: 'al1' })).toBe('/albums/al1?track=t1')
-  expect(methodOf('DirectStream')).toBe('stream')
-  expect(methodOf('Unknown')).toBeNull()
+it('shifts months across years', () => {
   expect(shiftMonth('2026-01', -1)).toBe('2025-12')
 })
