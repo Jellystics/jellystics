@@ -12,16 +12,20 @@ A modern and lightweight statistics tracker for your [Jellyfin](https://jellyfin
 
 ## Features
 
-- **Playback tracking** — accurate watch time with pause exclusion and seek detection
-- **Per-user statistics** — plays, hours, genres, clients, completion rate
-- **Library statistics** — per-library plays, top items, unwatched content
+- **Accurate playback tracking** — the tracker polls Jellyfin `/Sessions` every 5 s and accumulates real watched time (pauses excluded)
+- **Clicks vs views** — every play start is a click, a view needs at least 30 s watched; replays are detected
+- **Playback quality details** — audio and subtitle language, transcode reasons, bitrate, hardware acceleration, video range, pause count
+- **Local vs remote** — playback origin with an IP geolocation cache
+- **Overview, history and calendar** — period picker with comparison, history table and calendar view
+- **Per-user statistics and recaps** — plays, hours, genres, clients, completion rate, and a recap page per user and period
+- **Library and media pages** — libraries, movies, series, episodes, artists and albums (with a track side panel)
 - **Real-time sessions** — live view of active playback sessions
-- **Time patterns** — heatmaps, plays by hour and day of week
-- **Binge detection** — sessions with 3+ episodes in a single day
+- **Insights and discovery** — time patterns, heatmaps, binge detection (3+ episodes in a day), unwatched content
 - **Webhooks** — Discord and HTTP notifications for playback events
 - **Backup & restore** — one-click database backups with restore support
 - **Prometheus metrics** — full `/metrics` endpoint for Grafana integration
 - **Import** — import history from the Jellyfin Playback Reporting plugin
+- **Jellyfin-backed login** — sessions follow the Jellyfin token lifetime, are revalidated against Jellyfin, and logout revokes them
 
 ---
 
@@ -165,5 +169,60 @@ The `Upgrade` / `Connection` headers are required for WebSocket support (live se
 ## Stack
 
 - **Backend** — Go, Gin, GORM, PostgreSQL
-- **Frontend** — React, TypeScript, Vite
+- **Frontend** — React 19, TypeScript, Vite, React Router 7, TanStack Query and Table, Radix primitives, CSS Modules with design tokens, custom SVG charts (no MUI)
 - **Metrics** — Prometheus client
+
+The visual design reference lives in [`design/jellystics-design.html`](design/jellystics-design.html) — open it directly in a browser.
+
+---
+
+## Pages
+
+| Route | Page |
+|---|---|
+| `/` | Overview |
+| `/live` | Live sessions |
+| `/history` | History (table and calendar view) |
+| `/libraries`, `/libraries/:id` | Libraries |
+| `/movies/:id`, `/series/:id`, `/series/:id/episodes/:episodeId` | Movie, series and episode details |
+| `/artists/:id`, `/albums/:id` | Artist and album details (`?track=` opens the track side panel) |
+| `/users`, `/users/:id`, `/users/:id/recap/:period` | Users and per-user recap |
+| `/insights` | Insights |
+| `/discover` | Discover |
+| `/playback` | Playback quality |
+| `/settings/:section` | Settings |
+
+---
+
+## API v2
+
+Statistics are served under `/api/v2/*`. Endpoints accept `from` / `to` (local dates, `to` exclusive), `compare`, `userId`, `libraryId` and `type`.
+
+---
+
+## Development
+
+Requirements: Go, Node with pnpm, Docker (for PostgreSQL) and [Task](https://taskfile.dev).
+
+```bash
+task setup      # create backend/.env from backend/.env.example
+task install    # install frontend dependencies
+task db         # start PostgreSQL (docker-compose maps 5432)
+task backend    # Go API on :3000
+task frontend   # Vite dev server on :3001, proxying to the backend on :3000
+```
+
+The dev database can run on any port: set `POSTGRES_PORT` in `backend/.env`.
+
+Checks:
+
+```bash
+cd frontend
+pnpm test        # unit tests (Vitest)
+pnpm test:e2e    # end-to-end tests (Playwright)
+pnpm lint
+pnpm build
+
+cd backend
+go test ./...    # needs a running PostgreSQL (see POSTGRES_PORT)
+```
