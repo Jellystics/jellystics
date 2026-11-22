@@ -515,7 +515,17 @@
       "sync": "Synchroniser",
       "syncStarted": "Synchronisation lancée",
       "syncFailed": "Échec de la synchronisation",
-      "toggleTheme": "Basculer le thème"
+      "toggleTheme": "Basculer le thème",
+      "searching": "Recherche…",
+      "kind": {
+        "movie": "Film",
+        "series": "Série",
+        "episode": "Épisode",
+        "album": "Album",
+        "artist": "Artiste",
+        "track": "Piste",
+        "user": "Utilisateur"
+      }
     },
     "user": {
       "guest": "Invité",

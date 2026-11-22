@@ -515,7 +515,17 @@
       "sync": "Sincronizar",
       "syncStarted": "Sincronización iniciada",
       "syncFailed": "Error de sincronización",
-      "toggleTheme": "Cambiar tema"
+      "toggleTheme": "Cambiar tema",
+      "searching": "Buscando…",
+      "kind": {
+        "movie": "Película",
+        "series": "Serie",
+        "episode": "Episodio",
+        "album": "Álbum",
+        "artist": "Artista",
+        "track": "Pista",
+        "user": "Usuario"
+      }
     },
     "user": {
       "guest": "Invitado",

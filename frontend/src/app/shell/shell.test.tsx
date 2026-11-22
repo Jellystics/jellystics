@@ -10,6 +10,7 @@ function renderAt(path: string) {
   const router = createMemoryRouter([{ element: <AppShell />, children: [
     { path: '/', handle: { nav: 'overview' }, element: <AppLink to="/users">Utilisateurs</AppLink> },
     { path: '/users', handle: { nav: 'users', crumb: () => ({ label: 'app.nav.users' }) }, element: <p>users</p> },
+    { path: '/movies/:id', element: <p>movie</p> },
   ] }], { initialEntries: [path] })
   render(<QueryClientProvider client={qc}><RouterProvider router={router} /></QueryClientProvider>)
   return router
@@ -56,4 +57,34 @@ it('hides the period picker on routes flagged period:false', () => {
   const r2 = createMemoryRouter([{ element: <AppShell />, children: [{ path: '/b', handle: { nav: 'users' }, element: <p>b</p> }] }], { initialEntries: ['/b'] })
   render(<QueryClientProvider client={qc}><RouterProvider router={r2} /></QueryClientProvider>)
   expect(screen.getByRole('button', { name: /app\.period\./ })).toBeInTheDocument()
+})
+
+it('palette searches the catalog (debounced) and links results with the period', async () => {
+  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input)
+    if (url.startsWith('/api/v2/search')) {
+      return new Response(JSON.stringify({
+        items: [
+          { id: 'm1', kind: 'movie', name: 'Inception', year: 2010 },
+          { id: 't1', kind: 'track', name: 'Incipit', parentId: 'al1', parentName: 'Blue Album' },
+        ],
+        users: [{ id: 'u1', name: 'Incognito' }],
+      }), { status: 200 })
+    }
+    return new Response('{}', { status: 200 })
+  })
+  const router = renderAt('/?range=7d')
+  await userEvent.keyboard('{Control>}k{/Control}')
+  await userEvent.type(screen.getByRole('searchbox'), 'inc')
+  const movie = await screen.findByRole('link', { name: /Inception/ })
+  expect(movie).toHaveAttribute('href', '/movies/m1?range=7d')
+  expect(screen.getByRole('link', { name: /Incipit/ })).toHaveAttribute('href', '/albums/al1?track=t1&range=7d')
+  expect(screen.getByRole('link', { name: /Incognito/ })).toHaveAttribute('href', '/users/u1?range=7d')
+  const searchCalls = spy.mock.calls.filter(([u]) => String(u).startsWith('/api/v2/search'))
+  expect(searchCalls).toHaveLength(1)
+  expect(String(searchCalls[0][0])).toBe('/api/v2/search?q=inc')
+  await userEvent.keyboard('{Enter}')
+  expect(router.state.location.pathname).toBe('/movies/m1')
+  expect(router.state.location.search).toBe('?range=7d')
+  spy.mockRestore()
 })

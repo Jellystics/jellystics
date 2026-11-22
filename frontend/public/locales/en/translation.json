@@ -515,7 +515,17 @@
       "sync": "Sync",
       "syncStarted": "Sync started",
       "syncFailed": "Sync failed",
-      "toggleTheme": "Toggle theme"
+      "toggleTheme": "Toggle theme",
+      "searching": "Searching…",
+      "kind": {
+        "movie": "Movie",
+        "series": "Series",
+        "episode": "Episode",
+        "album": "Album",
+        "artist": "Artist",
+        "track": "Track",
+        "user": "User"
+      }
     },
     "user": {
       "guest": "Guest",
