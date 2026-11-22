@@ -114,7 +114,7 @@ type catalogItem struct {
 // GET /api/v2/discover/unwatched → titles never viewed (all time; by the
 // user when userId is given). Oldest additions first.
 func (h *V2Handler) DiscoverUnwatched(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -182,7 +182,7 @@ type abandonedRow struct {
 // movies whose best completion is in [10 %, 80 %), series with 10–80 % of the
 // catalog episodes viewed. Most recently played first, 20 max.
 func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -253,7 +253,7 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 // GET /api/v2/discover/added → titles added to the catalog within the range,
 // and how many of them have been viewed since (all users / userId).
 func (h *V2Handler) DiscoverAdded(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -303,7 +303,7 @@ type storagePoint struct {
 // GET /api/v2/discover/storage → size on disk vs views in the range of the
 // 300 largest titles with a known size.
 func (h *V2Handler) DiscoverStorage(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

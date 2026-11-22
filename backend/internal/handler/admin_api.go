@@ -621,6 +621,7 @@ func (h *AdminApiHandler) deletePlaybackForItem(db *gorm.DB, itemId string, epis
 
 	query := `DELETE FROM jf_playback_activity WHERE ` + strings.Join(parts, " OR ")
 	db.Exec(query, args...)
+	ResetStatsCaches()
 }
 
 // ---------------------------------------------------------------------------
@@ -971,6 +972,7 @@ func (h *AdminApiHandler) DeletePlaybackActivity(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	ResetStatsCaches()
 	// Refresh materialized views.
 	h.db.Exec("CALL ju_update_library_stats_data()")
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("%d records deleted", len(body.Ids))})

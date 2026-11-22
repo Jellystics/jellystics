@@ -67,7 +67,7 @@ type completionInsight struct {
 }
 
 func (h *V2Handler) InsightsCompletion(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -111,7 +111,7 @@ type sessionsInsight struct {
 }
 
 func (h *V2Handler) InsightsSessions(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -152,7 +152,7 @@ type resumesInsight struct {
 }
 
 func (h *V2Handler) InsightsResumes(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -202,7 +202,7 @@ type RefUserJSON struct {
 // local days with a view, tracks count views. Items reaching ≥ 2 for one user
 // are listed with their best user (top 10).
 func (h *V2Handler) InsightsRewatches(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -261,7 +261,7 @@ type genresInsight struct {
 // (catalog), so the stacked series sum to the watch time of the rows with a
 // genre, without double counting.
 func (h *V2Handler) InsightsGenres(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -361,7 +361,7 @@ func monthsOf(tr TimeRange) []string {
 // ---------------------------------------------------------------------------
 
 func (h *V2Handler) InsightsMoments(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -407,7 +407,7 @@ type pauseRow struct {
 }
 
 func (h *V2Handler) InsightsPauses(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -440,7 +440,7 @@ type bingeRow struct {
 }
 
 func (h *V2Handler) InsightsBinges(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -458,7 +458,7 @@ func (h *V2Handler) InsightsBinges(c *gin.Context) {
 
 // GET /api/v2/insights/rhythm → {weekHour: views[7][24]} (Monday first).
 func (h *V2Handler) InsightsRhythm(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

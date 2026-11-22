@@ -45,7 +45,7 @@ type userListRow struct {
 // watch seconds per family, trend = watch seconds per day over the last 14
 // days of the range, lastActivity = latest playback ever.
 func (h *V2Handler) Users(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -115,7 +115,7 @@ type namedSeconds struct {
 
 // GET /api/v2/users/:id
 func (h *V2Handler) User(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

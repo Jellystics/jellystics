@@ -159,7 +159,7 @@ func (h *V2Handler) queryHistory(c *gin.Context, f *actFilter, order string, lim
 
 // GET /api/v2/history
 func (h *V2Handler) History(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -178,7 +178,7 @@ func (h *V2Handler) History(c *gin.Context) {
 
 // GET /api/v2/history.csv — same filters as /history, every row, CSV.
 func (h *V2Handler) HistoryCSV(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -243,7 +243,7 @@ type calendarDay struct {
 // Every day of the month is returned; items = up to 6 distinct titles viewed
 // that day (latest first).
 func (h *V2Handler) HistoryCalendar(c *gin.Context) {
-	p, ok := v2ParamsNoRange(c)
+	p, ok := h.paramsNoRange(c)
 	if !ok {
 		return
 	}

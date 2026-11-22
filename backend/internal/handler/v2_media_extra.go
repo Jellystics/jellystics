@@ -35,7 +35,7 @@ type sittingsBucket struct {
 // previous completion: 1 = watched in one go. Earlier sittings may fall
 // before the range; only the completing sitting must be inside it.
 func (h *V2Handler) MovieSittings(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -105,7 +105,7 @@ type libDecadeRow struct {
 // (movies, series or albums), the views in the range with the catalog size.
 // Titles without a production year are left out.
 func (h *V2Handler) LibraryDecades(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -219,7 +219,7 @@ const libraryLeavesSQL = `
 // time; by the userId user when given). `type` restricts both series to that
 // media type. Returns {bucket, points}.
 func (h *V2Handler) LibraryGrowth(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -294,7 +294,7 @@ type fullListenAlbum struct {
 // day) pairs on which every catalog track of the album was viewed. Sorted by
 // full listens, then listens, then name.
 func (h *V2Handler) AlbumFullListens(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -379,7 +379,7 @@ func (h *V2Handler) AlbumFullListens(c *gin.Context) {
 // userId apply; sort/desc like /history). Rows carry the episode name, season
 // and number. Returns {rows, total, page, pageSize}.
 func (h *V2Handler) SeriesHistory(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

@@ -64,7 +64,7 @@ func (h *V2Handler) libraryTotals(c *gin.Context, f *actFilter) (map[string]Tota
 
 // GET /api/v2/libraries
 func (h *V2Handler) Libraries(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -104,7 +104,7 @@ var librarySorts = map[string]string{
 // q filters by name, sort=name|views|viewers|watchSeconds, default views
 // desc), genres, methods, unwatched titles and time to first watch.
 func (h *V2Handler) Library(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

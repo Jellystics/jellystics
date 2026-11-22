@@ -96,8 +96,13 @@ func TestV2LocalDaysParisDST(t *testing.T) {
 		t.Errorf("calendar 27..29 = %+v", cal[26:29])
 	}
 
-	// Ranges over 400 days are bucketed by ISO week (labelled by Monday).
-	v2JSON(t, db, "/api/v2/overview?from=2024-01-01&to=2026-03-31", &got)
+	// Ranges over 400 days are bucketed by ISO week (labelled by Monday). A play
+	// on 2024-01-01 keeps the long range from being clamped to the first play.
+	old := trackedRow("p0", "u1", "m1", "Movie", mustUTC(t, "2024-01-01T12:00:00Z"), 60, 100, nil)
+	if err := db.Create(&old).Error; err != nil {
+		t.Fatal(err)
+	}
+	v2JSON(t, db,"/api/v2/overview?from=2024-01-01&to=2026-03-31", &got)
 	if got.Bucket != "week" || got.Daily[0].Date != "2024-01-01" || got.Daily[len(got.Daily)-1].Date != "2026-03-30" {
 		t.Fatalf("weekly bucket %s first %v last %v", got.Bucket, got.Daily[0], got.Daily[len(got.Daily)-1])
 	}
@@ -144,6 +149,53 @@ func TestV2OverviewPeakBackToBack(t *testing.T) {
 	v2JSON(t, db, "/api/v2/concurrency?date=2026-03-10", &live)
 	if live.Peak != 1 {
 		t.Errorf("concurrency peak = %d, want 1", live.Peak)
+	}
+}
+
+// The "all" preset (from=2000-01-01) starts at the first recorded play.
+func TestV2AllRangeClampedToFirstPlay(t *testing.T) {
+	t.Setenv("TZ", "Europe/Paris")
+	paris, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		t.Skip("no tzdata")
+	}
+	db := testutil.NewDB(t)
+	now := time.Now().In(paris)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, paris)
+	var rows []models.JFPlaybackActivity
+	for i := 0; i < 10; i++ {
+		rows = append(rows, trackedRow("d"+string(rune('a'+i)), "u1", "m1", "Movie", today.AddDate(0, 0, -i).Add(time.Minute), 60, 100, nil))
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	first := today.AddDate(0, 0, -9).Format("2006-01-02")
+	to := today.AddDate(0, 0, 1).Format("2006-01-02")
+
+	var ov struct {
+		Bucket          string
+		Daily           []struct{ Date string }
+		PreviousDaily   []struct{ Date string }
+		ConcurrencyPeak []struct{ Date string }
+	}
+	v2JSON(t, db, "/api/v2/overview?from=2000-01-01&compare=1&to="+to, &ov)
+	if ov.Bucket != "day" || len(ov.Daily) != 10 || ov.Daily[0].Date != first || len(ov.ConcurrencyPeak) != 10 {
+		t.Errorf("all-range overview: bucket %s, %d days from %v", ov.Bucket, len(ov.Daily), ov.Daily[0])
+	}
+	if len(ov.PreviousDaily) != 10 || ov.PreviousDaily[9].Date != today.AddDate(0, 0, -10).Format("2006-01-02") {
+		t.Errorf("previous period not computed from the clamped range: %v", ov.PreviousDaily)
+	}
+	var user struct {
+		Profile struct{ Regularity *float64 }
+	}
+	v2JSON(t, db, "/api/v2/users/u1?from=2000-01-01&to="+to, &user)
+	if !approx(user.Profile.Regularity, 1) {
+		t.Errorf("regularity = %v, want 1", user.Profile.Regularity)
+	}
+	// Short ranges keep their leading empty days.
+	v2JSON(t, db, "/api/v2/overview?from="+today.AddDate(0, 0, -29).Format("2006-01-02")+"&to="+to, &ov)
+	if len(ov.Daily) != 30 {
+		t.Errorf("30-day overview = %d days", len(ov.Daily))
 	}
 }
 

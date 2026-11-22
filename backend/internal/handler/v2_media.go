@@ -133,7 +133,7 @@ type movieViewer struct {
 }
 
 func (h *V2Handler) Movie(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -271,7 +271,7 @@ func fillBuckets(order []string, rows []bucketCount) []bucketCount {
 }
 
 func (h *V2Handler) Series(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -493,7 +493,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 // ---------------------------------------------------------------------------
 
 func (h *V2Handler) Episode(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

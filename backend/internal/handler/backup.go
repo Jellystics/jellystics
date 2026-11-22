@@ -399,6 +399,7 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 		total += n
 	}
 	h.emitLog(fmt.Sprintf("Successfully restored %d rows", total))
+	ResetStatsCaches()
 
 	go func() {
 		bgCtx := context.Background()
@@ -410,6 +411,7 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 			h.emitLog("Merging plugin data into playback activity...")
 			_ = h.repos.PluginData.MergeIntoPlaybackActivity(bgCtx)
 		}
+		ResetStatsCaches()
 		h.emitLog("Refreshing stats views...")
 		_ = h.repos.Stats.RefreshViews(bgCtx)
 		if isImport {

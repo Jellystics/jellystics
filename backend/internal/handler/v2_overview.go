@@ -82,7 +82,7 @@ type overviewResponse struct {
 
 // GET /api/v2/overview
 func (h *V2Handler) Overview(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

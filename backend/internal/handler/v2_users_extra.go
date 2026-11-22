@@ -65,7 +65,7 @@ type retentionResponse struct {
 // again k weeks later (retained[0] = cohort). Offsets that fall after the
 // range are null.
 func (h *V2Handler) UsersRetention(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -137,7 +137,7 @@ type shareResponse struct {
 // bucket (week up to 120 days, month beyond). Users without watch time in the
 // range are omitted; sorted by share.
 func (h *V2Handler) UsersShare(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -292,7 +292,7 @@ func concurrencySlots(sessions []concurrencySession, from, to time.Time, slot ti
 // user / type / library filters apply, the range does not), clipped to the
 // day, with the simultaneous-session count per 15-minute slot.
 func (h *V2Handler) Concurrency(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}

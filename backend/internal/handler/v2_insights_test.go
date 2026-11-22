@@ -292,7 +292,8 @@ func TestV2InsightsLocalBoundaries(t *testing.T) {
 	}
 }
 
-// Ranges over 400 days are bucketed by week, leading empty weeks trimmed.
+// The "all" range starts at the first recorded play (r9, a year ago), so it
+// is bucketed by day and starts with a non-empty point.
 func TestV2PlaybackMethodsLongRange(t *testing.T) {
 	db := v2Seeded(t)
 	var m struct {
@@ -303,7 +304,7 @@ func TestV2PlaybackMethodsLongRange(t *testing.T) {
 		}
 	}
 	v5JSON(t, db, "/api/v2/playback/methods?from=2000-01-01", &m)
-	if m.Bucket != "week" || len(m.Daily) == 0 || len(m.Daily) > 60 {
+	if m.Bucket != "day" || len(m.Daily) < 360 || len(m.Daily) > 370 {
 		t.Fatalf("long range methods: bucket %q, %d points", m.Bucket, len(m.Daily))
 	}
 	if d := m.Daily[0]; d.Direct+d.Stream+d.Transcode == 0 {

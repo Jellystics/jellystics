@@ -25,12 +25,20 @@ func capturedCond(alias string) string {
 }
 
 // collectedSinceCache keeps, per database, the first capture date once it is
-// known: it can only move if captured rows are deleted, which never happens
-// in normal operation. "Nothing captured yet" is not cached.
+// known: it only moves when playback rows are deleted or restored, and those
+// code paths call ResetStatsCaches. "Nothing captured yet" is not cached.
 var collectedSinceCache = struct {
 	sync.Mutex
 	m map[*gorm.DB]string
 }{m: map[*gorm.DB]string{}}
+
+// ResetStatsCaches drops the cached first-capture dates. Call it after
+// playback rows are deleted, restored or imported.
+func ResetStatsCaches() {
+	collectedSinceCache.Lock()
+	collectedSinceCache.m = map[*gorm.DB]string{}
+	collectedSinceCache.Unlock()
+}
 
 // collectedSince is the local date of the first captured playback row (all
 // users, all time), or nil when nothing has been captured yet.
@@ -75,7 +83,7 @@ const methodCounts = `COUNT(*) FILTER (WHERE play_method = 'DirectPlay')::int AS
 
 // PlaybackMethods → {totals, previous?, daily}: views per play method.
 func (h *V2Handler) PlaybackMethods(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -144,7 +152,7 @@ func ratioPtr(n, d int) *float64 {
 
 // PlaybackClients → the 20 clients with the most plays.
 func (h *V2Handler) PlaybackClients(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -282,7 +290,7 @@ func sortCounts(m map[string]int) []labelCount {
 // handling, transcode reasons, codec conversions, audio/video-only
 // transcodes, hardware acceleration and bitrate.
 func (h *V2Handler) PlaybackQuality(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -493,7 +501,7 @@ type placeRow struct {
 // places}: views by network origin, and remote views per geolocated place
 // (ip_geo_cache; IPs not geolocated yet are left out of places).
 func (h *V2Handler) PlaybackNetwork(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
@@ -616,7 +624,7 @@ func knownLang(e string) string {
 // when the first track or the played track has no language, and when the
 // client did not report its audio track.
 func (h *V2Handler) UserLanguages(c *gin.Context) {
-	p, ok := v2Params(c)
+	p, ok := h.params(c)
 	if !ok {
 		return
 	}
