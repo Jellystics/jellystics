@@ -121,12 +121,12 @@ Contraste AA pour le texte ; focus visible ; navigation clavier complète (menus
 
 ## 11. Découpage
 
-1. **Fondations** : retrait de MUI, tokens, `ui/`, `charts/`, `format.ts`, `useUrlState`, client API + React Query, AppShell (sidebar, barre du haut, PeriodPicker, fil d'Ariane, ⌘K squelette), routes + redirections + 404, connexion. Tests.
+1. **Fondations** : MUI isolé dans un enveloppeur « legacy » (les pages pas encore réécrites restent fonctionnelles dans le nouveau shell), tokens, `ui/`, `charts/`, `format.ts`, `useUrlState`, client API + React Query, AppShell (sidebar, barre du haut, PeriodPicker, fil d'Ariane, ⌘K squelette), routes + redirections + 404, connexion. Tests.
 2. **Backend v2 (socle)** : contrat commun, `overview`, `history`, `items/:id/route`, `search`, entités (`movies`, `series`, `episodes`, `artists`, `albums`, `tracks`, `users`). Tests Go.
 3. **Pages cœur** : Vue d'ensemble, En direct, Historique, Utilisateurs, Utilisateur.
 4. **Pages d'entité** : Bibliothèques, Bibliothèque, Film, Série, Épisode, Artiste, Album.
 5. **Analyses** : Insights, Découverte, Lecture & transcodage, Récap + endpoints `insights/discover/playback/recap/concurrency/funnel/stop-positions`.
 6. **Capture tracker** (migration 011) + vues qui en dépendent (VO/VF, raisons, débit, HDR, local/distant, pauses).
-7. **Réglages** restylés + nettoyage final (dépendances, code mort, i18n complet) + passe Playwright complète.
+7. **Réglages** restylés + retrait complet de MUI et nettoyage final (dépendances, code mort, i18n complet) + passe Playwright complète.
 
 Chaque étape laisse l'app fonctionnelle et testée ; les commits suivent les Conventional Commits sans attribution.
