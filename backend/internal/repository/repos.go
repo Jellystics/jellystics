@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"os"
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
@@ -430,31 +429,29 @@ func (r *pluginDataRepo) GetMaxRowId(ctx context.Context) (int64, error) {
 	return res.MaxRowId, err
 }
 
-// displayTZ returns the IANA zone configured via TZ (default UTC). The
-// PlaybackReporting plugin stores DateCreated as server-local time without an
-// offset, so it must be interpreted in this zone.
 func displayTZ() string {
-	if tz := os.Getenv("TZ"); tz != "" {
-		if _, err := time.LoadLocation(tz); err == nil {
-			return tz
-		}
-	}
-	return "UTC"
+	name, _ := statsql.Timezone()
+	return name
 }
 
 // MergeIntoPlaybackActivity imports staged PlaybackReporting rows as plays.
 //
 //   - Only movies, episodes and music tracks are imported.
-//   - The plugin writes its row ~20 s after playback start (DateCreated, local
-//     time), so StartedAt = DateCreated (in TZ) - 20 s.
-//   - A plugin row overlapping a play already recorded by Jellystics for the
-//     same user and item is skipped, so nothing is counted twice.
+//   - The plugin writes its row ~20 s after playback start (DateCreated, in
+//     the Jellyfin server's local time, no offset) and keeps updating its
+//     duration while the play goes on. Rows younger than a day are therefore
+//     not imported yet (their duration may still grow); they are imported by a
+//     later run once final.
+//   - A plugin row is skipped when the same play is already recorded by the
+//     Jellystics tracker (or is being tracked right now): same user and item,
+//     and either overlapping in time (TZ-interpreted), or — robust to a
+//     missing/wrong TZ setting — starting within ±14 h with a similar duration.
 func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`
 		WITH src AS (
 			SELECT
 				p.*,
-				(p."DateCreated"::timestamp AT TIME ZONE @tz) - interval '20 seconds' AS started_at,
+				(p."DateCreated"::timestamp AT TIME ZONE CAST(@tz AS text)) - interval '20 seconds' AS started_at,
 				COALESCE(p."PlayDuration", 0) AS dur,
 				e."Id"        AS ep_id,
 				e."SeriesId"  AS series_id,
@@ -465,7 +462,6 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 				mt."AlbumId"  AS album_id,
 				mt."AlbumName" AS album_name,
 				mt."RunTimeTicks" AS track_rt,
-				i."Type"      AS item_type,
 				i."RunTimeTicks" AS item_rt,
 				CASE
 					WHEN e."Id" IS NOT NULL THEN 'Episode'
@@ -479,7 +475,7 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 			LEFT JOIN jf_library_items s ON s."Id" = e."SeriesId"
 			LEFT JOIN jf_music_tracks mt ON mt."Id" = p."ItemId"
 			LEFT JOIN jf_library_items i ON i."Id" = p."ItemId"
-			WHERE p."DateCreated" IS NOT NULL
+			WHERE p."DateCreated" ~ '^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}'
 		)
 		INSERT INTO jf_playback_activity (
 			"Id", "IsPaused", "UserId", "UserName", "Client", "DeviceName",
@@ -509,28 +505,79 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 		FROM src
 		LEFT JOIN jf_users u ON u."Id" = src."UserId"
 		WHERE src.media_type IN ('Movie', 'Episode', 'Audio')
+		  AND src.started_at < now() - interval '1 day'
+		  AND NOT EXISTS (
+			SELECT 1 FROM jf_activity_watchdog w
+			WHERE w."UserId" = src."UserId" AND w."ItemId" = src."ItemId"
+		  )
 		  AND NOT EXISTS (
 			SELECT 1 FROM jf_playback_activity a
 			WHERE COALESCE(a.imported, false) = false
 			  AND a."UserId" = src."UserId"
 			  AND a."ItemId" = src."ItemId"
-			  AND a."StartedAt" <= src.started_at + make_interval(secs => src.dur) + interval '2 minutes'
-			  AND COALESCE(a."EndedAt", a."StartedAt") >= src.started_at - interval '2 minutes'
+			  AND (
+				(a."StartedAt" <= src.started_at + make_interval(secs => src.dur) + interval '2 minutes'
+				 AND COALESCE(a."EndedAt", a."StartedAt") >= src.started_at - interval '2 minutes')
+				OR
+				(a."StartedAt" BETWEEN src.started_at - interval '14 hours' AND src.started_at + interval '14 hours'
+				 AND abs(COALESCE(a."PlaybackDuration", 0) - src.dur) <= GREATEST(60, 0.15 * GREATEST(COALESCE(a."PlaybackDuration", 0), src.dur)))
+			  )
 		  )
 		ON CONFLICT ("Id") DO NOTHING
 	`, sql.Named("tz", displayTZ())).Error
 }
 
-// BackfillImportedStartedAt fills StartedAt/EndedAt for plugin rows imported
-// before migration 008 (their text date has no offset: server local time).
-func (r *pluginDataRepo) BackfillImportedStartedAt(ctx context.Context) error {
+// BackfillTracking fills the accurate-tracking columns (migration 008) of
+// rows that lack them: rows recorded before the upgrade, imported plugin
+// rows, and rows coming from a restored backup. Safe to run repeatedly; it
+// only touches rows whose ItemId or StartedAt is NULL.
+//
+// Dates with an offset are parsed as-is; dates without one are server-local
+// time in TZ (imported plugin rows are also shifted by the plugin's 20 s
+// delay). Items no longer in the catalog keep a best-effort media type from
+// the legacy columns (episode/track rows had EpisodeId set).
+func (r *playbackRepo) BackfillTracking(ctx context.Context) error {
+	err := r.db.WithContext(ctx).Exec(`
+		UPDATE jf_playback_activity a SET
+			"ItemId" = COALESCE(a."ItemId", a."EpisodeId", a."NowPlayingItemId"),
+			"MediaType" = COALESCE(a."MediaType", CASE
+				WHEN x.ep_id IS NOT NULL THEN 'Episode'
+				WHEN x.track_id IS NOT NULL THEN 'Audio'
+				WHEN x.item_type = 'Movie' THEN 'Movie'
+				WHEN x.item_type IS NOT NULL THEN 'Other'
+				WHEN a."EpisodeId" IS NOT NULL AND a."SeasonId" IS NOT NULL THEN 'Episode'
+				WHEN a."EpisodeId" IS NOT NULL THEN 'Audio'
+				ELSE 'Movie'
+			END),
+			"RunTimeTicks" = COALESCE(a."RunTimeTicks", x.rt),
+			"StartedAt" = COALESCE(a."StartedAt", CASE
+				WHEN a."ActivityDateInserted" ~ '\d{2}:\d{2}(:\d{2}(\.\d+){0,1}){0,1}\s*(Z|[+-]\d{2}(:{0,1}\d{2}){0,1})$'
+					THEN a."ActivityDateInserted"::timestamptz
+				WHEN a."ActivityDateInserted" ~ '^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}'
+					THEN (a."ActivityDateInserted"::timestamp AT TIME ZONE CAST(@tz AS text))
+					     - CASE WHEN COALESCE(a.imported, false) THEN interval '20 seconds' ELSE interval '0' END
+			END),
+			"IsView" = CASE WHEN a."ItemId" IS NULL THEN COALESCE(a."PlaybackDuration", 0) >= 30 ELSE a."IsView" END
+		FROM (
+			SELECT b."Id",
+				e."Id" AS ep_id, t."Id" AS track_id, i."Type" AS item_type,
+				COALESCE(e."RunTimeTicks", t."RunTimeTicks", i."RunTimeTicks") AS rt
+			FROM jf_playback_activity b
+			LEFT JOIN jf_library_episodes e ON e."Id" = COALESCE(b."ItemId", b."EpisodeId", b."NowPlayingItemId")
+			LEFT JOIN jf_music_tracks t ON t."Id" = COALESCE(b."ItemId", b."EpisodeId", b."NowPlayingItemId")
+			LEFT JOIN jf_library_items i ON i."Id" = COALESCE(b."ItemId", b."EpisodeId", b."NowPlayingItemId")
+			WHERE b."ItemId" IS NULL OR b."StartedAt" IS NULL
+		) x
+		WHERE x."Id" = a."Id"
+	`, sql.Named("tz", displayTZ())).Error
+	if err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).Exec(`
 		UPDATE jf_playback_activity
-		SET "StartedAt" = ("ActivityDateInserted"::timestamp AT TIME ZONE @tz) - interval '20 seconds',
-		    "EndedAt"   = ("ActivityDateInserted"::timestamp AT TIME ZONE @tz) - interval '20 seconds'
-		                  + make_interval(secs => COALESCE("PlaybackDuration", 0))
-		WHERE "StartedAt" IS NULL AND imported = true AND "ActivityDateInserted" IS NOT NULL
-	`, sql.Named("tz", displayTZ())).Error
+		SET "EndedAt" = "StartedAt" + make_interval(secs => COALESCE("PlaybackDuration", 0))
+		WHERE "EndedAt" IS NULL AND "StartedAt" IS NOT NULL
+	`).Error
 }
 
 // ---- logging ----

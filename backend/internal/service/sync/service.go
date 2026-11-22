@@ -648,7 +648,10 @@ func (s *Service) SyncPlaybackPlugin(ctx context.Context) error {
 
 	query := "SELECT rowid, * FROM PlaybackActivity"
 	if rows > 0 {
-		query += fmt.Sprintf(" WHERE rowid > %d", rows)
+		// Also re-read the last 2 days: the plugin keeps updating PlayDuration
+		// of rows while the playback goes on, so freshly staged rows may be
+		// truncated. (Rows younger than a day are not merged yet.)
+		query += fmt.Sprintf(" WHERE rowid > %d OR DateCreated >= datetime('now', 'localtime', '-2 days')", rows)
 	}
 	query += " ORDER BY rowid"
 

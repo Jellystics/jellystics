@@ -22,6 +22,7 @@ import (
 	"github.com/Jellystics/Jellystics/internal/service/scheduler"
 	statssvc "github.com/Jellystics/Jellystics/internal/service/stats"
 	syncsvc "github.com/Jellystics/Jellystics/internal/service/sync"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	tasksvc "github.com/Jellystics/Jellystics/internal/service/task"
 	webhooksvc "github.com/Jellystics/Jellystics/internal/service/webhook"
 	"github.com/Jellystics/Jellystics/internal/ws"
@@ -46,8 +47,11 @@ func main() {
 	hub := ws.NewHub()
 	jfClient := jellyfin.NewClient(cfg.JFHost, cfg.JFApiKey)
 	repos := repository.New(db)
-	if err := repos.PluginData.BackfillImportedStartedAt(context.Background()); err != nil {
-		log.Printf("backfill imported play dates: %v", err)
+	if tz, _ := statsql.Timezone(); tz == "UTC" {
+		log.Printf("TZ is not set: days, hours and plugin import dates are computed in UTC (set TZ, e.g. TZ=Europe/Paris)")
+	}
+	if err := repos.Playback.BackfillTracking(context.Background()); err != nil {
+		log.Printf("backfill tracking columns: %v", err)
 	}
 
 	// Seed METRICS_API_KEY into app_config if provided (required for headless mode).

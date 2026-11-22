@@ -77,6 +77,8 @@ type PlaybackRepository interface {
 	Upsert(ctx context.Context, activities []models.JFPlaybackActivity) error
 	List(ctx context.Context, limit int) ([]models.JFPlaybackActivity, error)
 	ListByUser(ctx context.Context, userId string) ([]models.JFPlaybackActivity, error)
+	// BackfillTracking fills accurate-tracking columns of legacy / restored rows.
+	BackfillTracking(ctx context.Context) error
 }
 
 // WatchdogRepository manages jf_activity_watchdog.
@@ -94,8 +96,6 @@ type PluginDataRepository interface {
 	GetMaxRowId(ctx context.Context) (int64, error)
 	// MergeIntoPlaybackActivity inserts unimported plugin rows into jf_playback_activity.
 	MergeIntoPlaybackActivity(ctx context.Context) error
-	// BackfillImportedStartedAt fills StartedAt for legacy imported rows.
-	BackfillImportedStartedAt(ctx context.Context) error
 }
 
 // LogRepository manages jf_logging.

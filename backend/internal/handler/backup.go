@@ -402,6 +402,10 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 
 	go func() {
 		bgCtx := context.Background()
+		// Restored rows from older versions lack the accurate-tracking columns.
+		if err := h.repos.Playback.BackfillTracking(bgCtx); err != nil {
+			h.emitLog("WARNING: backfill tracking columns: " + err.Error())
+		}
 		if pluginDataCount > 0 {
 			h.emitLog("Merging plugin data into playback activity...")
 			_ = h.repos.PluginData.MergeIntoPlaybackActivity(bgCtx)

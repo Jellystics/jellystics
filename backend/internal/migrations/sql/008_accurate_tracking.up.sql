@@ -14,44 +14,9 @@ ALTER TABLE jf_playback_activity
   ADD COLUMN IF NOT EXISTS "EndedAt"            timestamptz, -- playback end
   ADD COLUMN IF NOT EXISTS "IsView"             boolean NOT NULL DEFAULT false;
 
--- Backfill ItemId: episode/track id when present, else the movie id.
-UPDATE jf_playback_activity
-SET "ItemId" = COALESCE("EpisodeId", "NowPlayingItemId")
-WHERE "ItemId" IS NULL;
-
--- Backfill MediaType from the catalog.
-UPDATE jf_playback_activity a
-SET "MediaType" = CASE
-    WHEN EXISTS (SELECT 1 FROM jf_library_episodes e WHERE e."Id" = a."ItemId") THEN 'Episode'
-    WHEN EXISTS (SELECT 1 FROM jf_music_tracks t WHERE t."Id" = a."ItemId") THEN 'Audio'
-    WHEN EXISTS (SELECT 1 FROM jf_library_items i WHERE i."Id" = a."ItemId" AND i."Type" = 'Movie') THEN 'Movie'
-    ELSE 'Other'
-  END
-WHERE "MediaType" IS NULL;
-
--- Backfill RunTimeTicks from the catalog.
-UPDATE jf_playback_activity a
-SET "RunTimeTicks" = COALESCE(
-    (SELECT e."RunTimeTicks" FROM jf_library_episodes e WHERE e."Id" = a."ItemId"),
-    (SELECT t."RunTimeTicks" FROM jf_music_tracks t WHERE t."Id" = a."ItemId"),
-    (SELECT i."RunTimeTicks" FROM jf_library_items i WHERE i."Id" = a."ItemId"))
-WHERE "RunTimeTicks" IS NULL;
-
--- Backfill StartedAt for rows written by Jellystics (text carries an offset).
--- Plugin-imported rows have no offset (server local time); they are backfilled
--- at startup by the Go code, which knows the configured TZ.
-UPDATE jf_playback_activity
-SET "StartedAt" = "ActivityDateInserted"::timestamptz
-WHERE "StartedAt" IS NULL
-  AND COALESCE(imported, false) = false
-  AND "ActivityDateInserted" ~ '[+-][0-9]{2}(:?[0-9]{2})?$|Z$';
-
-UPDATE jf_playback_activity
-SET "EndedAt" = "StartedAt" + make_interval(secs => COALESCE("PlaybackDuration", 0))
-WHERE "EndedAt" IS NULL AND "StartedAt" IS NOT NULL;
-
-UPDATE jf_playback_activity
-SET "IsView" = COALESCE("PlaybackDuration", 0) >= 30;
+-- Existing rows are backfilled at startup by the Go code (playbackRepo.
+-- BackfillTracking): it knows the configured TZ, needed for dates stored
+-- without an offset, and it also runs after a backup restore / import.
 
 CREATE INDEX IF NOT EXISTS idx_playback_started_at ON jf_playback_activity ("StartedAt");
 CREATE INDEX IF NOT EXISTS idx_playback_item_id    ON jf_playback_activity ("ItemId");
