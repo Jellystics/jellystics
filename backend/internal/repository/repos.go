@@ -340,6 +340,8 @@ func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActiv
 				"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
 				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
 				"PausedSeconds", "StartedAt", "EndedAt", "IsView",
+				"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
+				"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
 			}),
 		}).
 		CreateInBatches(acts, 500).Error
@@ -382,6 +384,8 @@ func (r *watchdogRepo) Upsert(ctx context.Context, entries []models.JFActivityWa
 				"WatchedSeconds", "LastTickAt",
 				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "WatchedMs", "PausedMs",
 				"StartedAt", "LastCheckIn", "PeriodicReporter", "LastServerActivity",
+				"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
+				"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
 			}),
 		}).
 		CreateInBatches(entries, 500).Error
