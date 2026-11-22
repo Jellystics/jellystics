@@ -323,6 +323,20 @@ func (r *itemInfoRepo) RemoveOrphaned(ctx context.Context) error {
 
 // ---- playback ----
 
+// playbackUpsertColumns are the columns refreshed when a play is upserted.
+var playbackUpsertColumns = []string{
+	"IsPaused", "UserId", "UserName", "Client", "DeviceName", "DeviceId",
+	"ApplicationVersion", "NowPlayingItemId", "NowPlayingItemName",
+	"EpisodeId", "SeasonId", "SeriesName", "PlaybackDuration", "PlayMethod",
+	"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
+	"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
+	"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
+	"PausedSeconds", "StartedAt", "EndedAt", "IsView",
+	"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
+	"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
+	"PlaySessionId", "SeekCount", "SkippedSeconds", "PlayedToCompletion", "PluginOpen",
+}
+
 type playbackRepo struct{ db *gorm.DB }
 
 func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActivity) error {
@@ -332,18 +346,7 @@ func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActiv
 	return r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "Id"}},
-			DoUpdates: clause.AssignmentColumns([]string{
-				"IsPaused", "UserId", "UserName", "Client", "DeviceName", "DeviceId",
-				"ApplicationVersion", "NowPlayingItemId", "NowPlayingItemName",
-				"EpisodeId", "SeasonId", "SeriesName", "PlaybackDuration", "PlayMethod",
-				"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
-				"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
-				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
-				"PausedSeconds", "StartedAt", "EndedAt", "IsView",
-				"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
-				"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
-				"PlaySessionId", "SeekCount", "SkippedSeconds", "PlayedToCompletion",
-			}),
+			DoUpdates: clause.AssignmentColumns(playbackUpsertColumns),
 		}).
 		CreateInBatches(acts, 500).Error
 }
@@ -587,6 +590,9 @@ func (r *playbackRepo) BackfillTracking(ctx context.Context) error {
 	}
 	return r.sanitizeImported(ctx)
 }
+
+// SanitizeImported repairs impossible durations of imported rows (see sanitizeImported).
+func (r *playbackRepo) SanitizeImported(ctx context.Context) error { return r.sanitizeImported(ctx) }
 
 // Longest believable imported play when the item's runtime is unknown.
 const maxImportedPlaySeconds = 12 * 3600

@@ -27,6 +27,9 @@ const (
 // JellysticsMaxPush is the maximum number of plays per POST /Jellystics/Import/Plays.
 const JellysticsMaxPush = 500
 
+// JellysticsSchemaVersion is the plugin API schema version this Jellystics speaks.
+const JellysticsSchemaVersion = 1
+
 // JellysticsInfo is GET /Jellystics/Info.
 type JellysticsInfo struct {
 	PluginVersion  string    `json:"pluginVersion"`
@@ -155,10 +158,17 @@ type JellysticsPlay struct {
 	HwAccel             *string      `json:"hwAccel"`
 	TranscodeReasons    EmbeddedJSON `json:"transcodeReasons"`
 	VideoRange          *string      `json:"videoRange"`
-	State               string       `json:"state"` // open | closed
-	LastEventAt         FlexTime     `json:"lastEventAt"`
-	Source              string       `json:"source"` // plugin | import-pbr | import-jellystics
-	Version             int64        `json:"version"`
+	// Contract extension (12): Jellyfin TranscodingInfo direct flags and the
+	// source video stream. All optional (null = unknown).
+	IsVideoDirect  *bool    `json:"isVideoDirect"`
+	IsAudioDirect  *bool    `json:"isAudioDirect"`
+	SourceWidth    *int     `json:"sourceWidth"`
+	SourceHeight   *int     `json:"sourceHeight"`
+	VideoRangeType *string  `json:"videoRangeType"` // SDR, HDR10, HLG, DOVI...
+	State          string   `json:"state"`          // open | closed
+	LastEventAt    FlexTime `json:"lastEventAt"`
+	Source         string   `json:"source"` // plugin | import-pbr | import-jellystics
+	Version        int64    `json:"version"`
 }
 
 // JellysticsLibraryEvent is a library addition / removal (spec §3.2).

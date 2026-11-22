@@ -80,6 +80,8 @@ type PlaybackRepository interface {
 	ListByUser(ctx context.Context, userId string) ([]models.JFPlaybackActivity, error)
 	// BackfillTracking fills accurate-tracking columns of legacy / restored rows.
 	BackfillTracking(ctx context.Context) error
+	// SanitizeImported repairs impossible durations of imported rows.
+	SanitizeImported(ctx context.Context) error
 }
 
 // WatchdogRepository manages jf_activity_watchdog.

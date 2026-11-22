@@ -6,17 +6,22 @@
 -- without it: these tables simply stay empty.
 
 -- Extra playback fields provided by the plugin. DeviceId already exists
--- (001) but is re-declared for safety; it is now also the dedupe key between
--- tracker and plugin rows.
+-- (001) but is re-declared for safety; it is now also part of the dedupe key
+-- between tracker and plugin rows (residual filter: it is compared with
+-- IS NOT DISTINCT FROM, which an index cannot serve).
+-- PluginOpen: Jellystics-plugin play still in progress (true), closed
+-- (false), NULL for rows not coming from the plugin.
 ALTER TABLE jf_playback_activity
   ADD COLUMN IF NOT EXISTS "PlaySessionId"      text,
   ADD COLUMN IF NOT EXISTS "DeviceId"           text,
   ADD COLUMN IF NOT EXISTS "SeekCount"          int,
   ADD COLUMN IF NOT EXISTS "SkippedSeconds"     int,
-  ADD COLUMN IF NOT EXISTS "PlayedToCompletion" boolean;
+  ADD COLUMN IF NOT EXISTS "PlayedToCompletion" boolean,
+  ADD COLUMN IF NOT EXISTS "PluginOpen"         boolean;
 
-CREATE INDEX IF NOT EXISTS idx_playback_device_user_item_start
-  ON jf_playback_activity ("DeviceId", "UserId", "ItemId", "StartedAt");
+-- Tracker / plugin dedupe and import overlap checks: same user + item, time range.
+CREATE INDEX IF NOT EXISTS idx_playback_user_item_start
+  ON jf_playback_activity ("UserId", "ItemId", "StartedAt");
 
 -- Library additions / removals (plugin LibraryEvents).
 CREATE TABLE IF NOT EXISTS jf_library_events (

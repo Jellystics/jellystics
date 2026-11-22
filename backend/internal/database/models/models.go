@@ -224,6 +224,7 @@ type JFPlaybackActivity struct {
 	SeekCount          *int    `gorm:"column:SeekCount"`
 	SkippedSeconds     *int    `gorm:"column:SkippedSeconds"`
 	PlayedToCompletion *bool   `gorm:"column:PlayedToCompletion"`
+	PluginOpen         *bool   `gorm:"column:PluginOpen"` // Jellystics-plugin play in progress; nil = not a plugin row
 }
 
 func (JFPlaybackActivity) TableName() string { return "jf_playback_activity" }
