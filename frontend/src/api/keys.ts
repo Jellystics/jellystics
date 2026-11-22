@@ -67,4 +67,6 @@ export const qk = {
   playback: (name: string, p: QueryParams) => ['v2', 'playback', name, p] as const,
   recap: (userId: string, period: string) => ['v2', 'recap', userId, period] as const,
   languages: (userId: string, p: QueryParams) => ['v2', 'user', userId, 'languages', p] as const,
+  // Data quality (plugin.ts)
+  dataQuality: (p: QueryParams) => ['v2', 'data-quality', p] as const,
 }

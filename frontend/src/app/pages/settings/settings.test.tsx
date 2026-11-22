@@ -50,8 +50,16 @@ beforeEach(() => { socketHandlers = {}; routes = {}; localStorage.setItem('jelly
 const originalLocation = Object.getOwnPropertyDescriptor(window, 'location')!
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); Object.defineProperty(window, 'location', originalLocation) })
 
+// Plugin / data quality cards of the config section (covered in plugin.test.tsx).
+const pluginRoutes: Record<string, (c: Call) => unknown> = {
+  'GET /api/plugin/status': () => ({ detected: false, healthy: false, playsSynced: 0, supportedSchemaVersion: 1, lastError: null }),
+  'GET /api/plugin/push-history/status': () => ({ state: 'idle', total: 0, sent: 0, resumable: false }),
+  'GET /api/v2/data-quality': () => ({ totals: { plays: 0 }, sources: [], undated: 0 }),
+}
+
 it('config: validates the URL, tests the connection and saves', async () => {
   routes = {
+    ...pluginRoutes,
     'GET /api/getconfig': () => ({ JF_HOST: 'http://jf:8096', app_url: '' }),
     'GET /api/TrackedLibraries': () => [{ Id: 'l1', Name: 'Films', Tracked: true }],
     'GET /api/users': () => [{ Id: 'u1', Name: 'Léa' }],
@@ -195,6 +203,7 @@ it('backup: a failed download shows the dedicated error', async () => {
 
 it('config: shows the server timezone, not the browser one', async () => {
   routes = {
+    ...pluginRoutes,
     'GET /api/getconfig': () => ({}),
     'GET /api/TrackedLibraries': () => [], 'GET /api/users': () => [], 'GET /api/UntrackedUsers': () => [],
     'GET /auth/isConfigured': () => ({ state: 1, timezone: 'Pacific/Auckland' }),

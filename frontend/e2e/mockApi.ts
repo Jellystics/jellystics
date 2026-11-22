@@ -53,6 +53,26 @@ const OBJECTS: Record<string, unknown> = {
   '/api/getTaskSettings': {},
   '/api/CheckForUpdates': { current_version: '1.0.0', latest_version: 'v1.0.0', update_available: false, message: 'Up to date' },
   // --- end phase 7 settings ---
+  // --- plugin / data quality ---
+  '/api/plugin/status': {
+    detected: true, pluginVersion: '1.0.0.0', schemaVersion: 1, supportedSchemaVersion: 1, pluginDatabaseId: 'db1', cursorPlays: 1840,
+    cursorLibraryEvents: 0, cursorUserDataEvents: 0, cursorLogins: 0, lastCheckedAt: '2026-11-22T20:00:00Z', lastSuccessAt: '2026-11-22T20:00:00Z',
+    lastError: null, healthy: true, playsSynced: 1520,
+  },
+  '/api/plugin/push-history/status': { state: 'done', total: 3204, sent: 3204, imported: 3150, skipped: 54, rejected: 0, startedAt: '2026-11-21T10:00:00Z', finishedAt: '2026-11-21T10:02:00Z', error: null, resumable: false },
+  '/api/v2/data-quality': {
+    totals: { plays: 360, views: 300, watchSeconds: 1_080_000, repaired: 12, captured: 240, positions: 300, streams: 230, transcodes: 60, transcodeDetailed: 48 },
+    sources: [
+      { key: 'plugin', plays: 200, views: 170, watchSeconds: 648_000, playShare: 0.556, watchShare: 0.6, repaired: 0, captured: 200, positions: 200, streams: 200, transcodes: 30, transcodeDetailed: 30 },
+      { key: 'tracker', plays: 100, views: 85, watchSeconds: 324_000, playShare: 0.278, watchShare: 0.3, repaired: 0, captured: 40, positions: 100, streams: 30, transcodes: 20, transcodeDetailed: 18 },
+      { key: 'playbackReporting', plays: 60, views: 45, watchSeconds: 108_000, playShare: 0.167, watchShare: 0.1, repaired: 12, captured: 0, positions: 0, streams: 0, transcodes: 10, transcodeDetailed: 0 },
+      { key: 'otherImports', plays: 0, views: 0, watchSeconds: 0, playShare: 0, watchShare: 0, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0 },
+      { key: 'restore', plays: 0, views: 0, watchSeconds: 0, playShare: 0, watchShare: 0, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0 },
+      { key: 'other', plays: 0, views: 0, watchSeconds: 0, playShare: 0, watchShare: 0, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0 },
+    ],
+    pluginCollectedSince: '2026-10-01', collectedSince: '2026-06-01', undated: 3,
+  },
+  // --- end plugin / data quality ---
   // --- phase 5 ---
   ...PHASE5,
   // --- end phase 5 ---

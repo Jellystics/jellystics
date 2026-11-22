@@ -644,6 +644,102 @@
         "links": "Links",
         "github": "GitHub repository",
         "openIssue": "Open an issue"
+      },
+      "plugin": {
+        "title": "Jellystics plugin",
+        "hint": "Records every playback on the Jellyfin server itself: the most precise source of statistics.",
+        "state": {
+          "healthy": "Active",
+          "unhealthy": "Not syncing",
+          "absent": "Not detected"
+        },
+        "version": "Version",
+        "schema": "API schema",
+        "schemaValue": "{{version}} (supported: {{supported}})",
+        "lastSync": "Last sync",
+        "never": "Never",
+        "playsSynced": "Plays synced",
+        "lastError": "Last error",
+        "unhealthyHint": "The plugin has not synced for more than 2 minutes: the Jellystics tracker records plays in the meantime.",
+        "push": {
+          "title": "Save the history to the plugin",
+          "hint": "Sends the plays Jellystics recorded itself (tracker, imports) to the plugin, so its database holds your whole history. Safe to run again: plays already present are skipped.",
+          "start": "Save the history to the plugin",
+          "resume": "Resume the save",
+          "started": "History save started",
+          "running": "Saving…",
+          "progress": "{{sent}} / {{total}} plays sent",
+          "done": "Last save: {{imported}} added, {{skipped}} already present, {{rejected}} rejected.",
+          "doneToast": "History saved to the plugin",
+          "failed": "Save stopped: {{error}}. It resumes where it stopped.",
+          "interrupted": "Save interrupted by a restart of Jellystics. It resumes where it stopped.",
+          "error": "Could not start the save"
+        },
+        "resync": {
+          "title": "Resync from the plugin",
+          "hint": "Re-reads every play and event recorded by the plugin, for instance after restoring a backup.",
+          "confirmTitle": "Resync from the plugin?",
+          "confirmText": "Jellystics will re-read everything the plugin recorded. Nothing is deleted: plays already synced are updated.",
+          "confirm": "Resync",
+          "started": "Resync started"
+        },
+        "absent": {
+          "lead": "Install the Jellystics plugin on your Jellyfin server for exact statistics:",
+          "b1": "Exact watch time from Jellyfin playback events (pauses, seeks, skipped time) instead of polling every 5 seconds.",
+          "b2": "Nothing missed while Jellystics is stopped or restarting: plays are recorded on the server.",
+          "b3": "Audio and subtitle changes, transcode details, real library additions, logins and manual played marks.",
+          "steps": "In Jellyfin: Dashboard → Plugins → Repositories, add this URL, then install « Jellystics » from the catalog and restart Jellyfin.",
+          "manifest": "Plugin repository URL",
+          "copy": "Copy the URL",
+          "copied": "URL copied"
+        }
+      },
+      "quality": {
+        "title": "Data quality",
+        "hint": "Where the plays of the period come from, and how precise each source is.",
+        "empty": "No plays in this period",
+        "watchShare": "{{share}} of watch time",
+        "plays_one": "{{count}} play",
+        "plays_other": "{{count}} plays",
+        "sources": {
+          "plugin": {
+            "label": "Jellystics plugin",
+            "precision": "Exact: Jellyfin playback events (start, pauses, seeks, stop)."
+          },
+          "tracker": {
+            "label": "Jellystics tracker",
+            "precision": "Jellyfin sessions polled every 5 s: watch time accurate to a few seconds."
+          },
+          "playbackReporting": {
+            "label": "Playback Reporting imports",
+            "precision": "Estimated by the Playback Reporting plugin: approximate start time, no pauses; impossible durations are repaired."
+          },
+          "otherImports": {
+            "label": "Other imports",
+            "precision": "Imported history (e.g. Jellystics history coming back from the plugin): tracker precision at best."
+          },
+          "restore": {
+            "label": "Restored backup",
+            "precision": "Rows restored without their origin: precision unknown."
+          },
+          "other": {
+            "label": "Other",
+            "precision": "Unknown origin."
+          }
+        },
+        "details": {
+          "title": "Details captured",
+          "positions": "Stop position (exact completion)",
+          "streams": "Audio / subtitle track played",
+          "captured": "Playback details (bitrate, network, pauses)",
+          "transcode": "Transcode details (codecs, reasons)"
+        },
+        "pluginSince": "Plugin data since {{date}}",
+        "noPlugin": "No play recorded by the Jellystics plugin yet.",
+        "repaired_one": "{{count}} imported duration repaired (negative, longer than 1.5× the media or than 12 h).",
+        "repaired_other": "{{count}} imported durations repaired (negative, longer than 1.5× the media or than 12 h).",
+        "undated_one": "{{count}} play without a usable date is excluded from every statistic.",
+        "undated_other": "{{count}} plays without a usable date are excluded from every statistic."
       }
     },
     "sidePanel": {

@@ -62,6 +62,18 @@ for (const [from, to] of REDIRECTS) {
   })
 }
 
+test('settings: without the plugin, the card explains it and shows the manifest URL', async ({ page }) => {
+  await mockApi(page)
+  await page.route('**/api/plugin/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ detected: false, healthy: false, playsSynced: 0, supportedSchemaVersion: 1, lastError: null }) }))
+  const errors = watchErrors(page)
+  await login(page)
+  await page.goto('/settings/config')
+  await expect(page.getByText('https://raw.githubusercontent.com/Jellystics/jellystics-plugin-playbackreporting/master/manifest.json')).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  await expectNoOverflow(page)
+  expect(errors).toEqual([])
+})
+
 test.describe('login', () => {
   test('signs in and lands on the requested page', async ({ page }) => {
     await mockApi(page)

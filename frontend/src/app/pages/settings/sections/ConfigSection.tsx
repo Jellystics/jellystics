@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api'
 import { useServerConfig } from '@/lib/serverConfig'
 import { asArray, errorMessage } from '../net'
 import styles from '../SettingsPage.module.css'
+import { DataQualityCard, PluginCard } from './PluginCards'
 
 interface ConfigResp { JF_HOST?: string; app_url?: string; settings?: Record<string, unknown> }
 interface Validation { isValid: boolean; serverName?: string; errorMessage?: string }
@@ -142,6 +143,8 @@ export function ConfigSection() {
   return (
     <div className={styles.stack}>
       <ConnectionCard />
+      <PluginCard />
+      <DataQualityCard />
       <TrackingCard />
       <Card>
         <CardHeader title={t('app.settings.config.timezone')} subtitle={t('app.settings.config.timezoneHint')} />
