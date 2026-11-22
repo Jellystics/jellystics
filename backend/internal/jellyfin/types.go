@@ -124,6 +124,10 @@ type MediaStream struct {
 	DisplayTitle  *string `json:"DisplayTitle"`
 	Language      *string `json:"Language"`
 	IsDefault     bool    `json:"IsDefault"`
+	Index         int     `json:"Index"`
+	IsExternal    bool    `json:"IsExternal"`
+	VideoRange     FlexString `json:"VideoRange"`     // SDR | HDR
+	VideoRangeType FlexString `json:"VideoRangeType"` // SDR | HDR10 | HLG | DOVI | ...
 }
 
 // Library is the Jellyfin virtual folder / library entry.
@@ -208,6 +212,10 @@ type PlayState struct {
 	PositionTicks *int64  `json:"PositionTicks"`
 	IsPaused      bool    `json:"IsPaused"`
 	PlayMethod    *string `json:"PlayMethod"`
+	// AudioStreamIndex / SubtitleStreamIndex are MediaStream.Index values
+	// (subtitle -1 or absent: none). Verified in PlayerStateInfo.cs.
+	AudioStreamIndex    *int `json:"AudioStreamIndex"`
+	SubtitleStreamIndex *int `json:"SubtitleStreamIndex"`
 }
 
 type TranscodingInfo struct {
@@ -216,6 +224,12 @@ type TranscodingInfo struct {
 	Container     *string `json:"Container"`
 	IsVideoDirect bool    `json:"IsVideoDirect"`
 	IsAudioDirect bool    `json:"IsAudioDirect"`
+	Bitrate       *int64  `json:"Bitrate"`
+	Width         *int    `json:"Width"`
+	Height        *int    `json:"Height"`
+	// TranscodeReasons is a [Flags] enum: array of strings, or comma-separated.
+	TranscodeReasons         FlexStringList `json:"TranscodeReasons"`
+	HardwareAccelerationType FlexString     `json:"HardwareAccelerationType"`
 }
 
 // Plugin is a Jellyfin installed plugin entry.
