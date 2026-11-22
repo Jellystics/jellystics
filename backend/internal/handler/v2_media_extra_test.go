@@ -130,3 +130,29 @@ func TestV2AlbumFullListens(t *testing.T) {
 		t.Errorf("unknown album: status %d", w.Code)
 	}
 }
+
+func TestV2SeriesHistory(t *testing.T) {
+	db := v2Seeded(t)
+	var got struct {
+		Rows                  []v2HistoryRow
+		Total, Page, PageSize int
+	}
+	v2JSON(t, db, "/api/v2/series/s1/history?pageSize=2", &got)
+	if got.Total != 3 || len(got.Rows) != 2 || got.Rows[0].ID != "r6" || got.Rows[0].Item.Name != "Return" ||
+		got.Rows[0].Item.Season == nil || *got.Rows[0].Item.Season != 2 {
+		t.Fatalf("history = %+v", got)
+	}
+	v2JSON(t, db, "/api/v2/series/s1/history?page=2&pageSize=2", &got)
+	if len(got.Rows) != 1 || got.Rows[0].ID != "r4" {
+		t.Errorf("page 2 = %+v", got.Rows)
+	}
+	v2JSON(t, db, "/api/v2/series/s1/history?userId=u2", &got)
+	if got.Total != 0 || len(got.Rows) != 0 {
+		t.Errorf("user filter = %+v", got)
+	}
+	for _, id := range []string{"m1", "nope"} {
+		if w := v2Get(t, db, "/api/v2/series/"+id+"/history"); w.Code != http.StatusNotFound {
+			t.Errorf("%s: status %d", id, w.Code)
+		}
+	}
+}
