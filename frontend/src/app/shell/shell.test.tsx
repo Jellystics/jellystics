@@ -36,3 +36,11 @@ it('renders breadcrumbs from route handles', () => {
   renderAt('/users')
   expect(screen.getByText('app.nav.users', { selector: '[aria-current="page"]:not(a)' })).toBeInTheDocument()
 })
+it('resets the palette query when reopened', async () => {
+  renderAt('/')
+  await userEvent.keyboard('{Control>}k{/Control}')
+  await userEvent.type(screen.getByRole('searchbox'), 'xyz')
+  await userEvent.keyboard('{Control>}k{/Control}')
+  await userEvent.keyboard('{Control>}k{/Control}')
+  expect(screen.getByRole('searchbox')).toHaveValue('')
+})

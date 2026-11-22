@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { MoonStar, RefreshCw, type LucideIcon } from 'lucide-react'
@@ -18,6 +18,8 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const { toggle } = useThemeMode()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
+
+  useEffect(() => { if (open) { setQuery(''); setActive(0) } }, [open])
 
   const commands = useMemo<Command[]>(() => {
     const cur = new URLSearchParams(search)
@@ -47,7 +49,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { setQuery(''); setActive(0) } onOpenChange(o) }} title={t('app.command.title')}>
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('app.command.title')}>
       <div onKeyDown={onKeyDown} className={styles.wrap}>
         <SearchInput value={query} onChange={(v) => { setQuery(v); setActive(0) }} placeholder={t('app.command.placeholder')} />
         <ul className={styles.list} role="listbox" aria-label={t('app.command.title')}>

@@ -1,6 +1,7 @@
 import { Globe, LogOut, MoonStar, Settings, Sun, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { withPeriod } from '../AppLink'
 import { Avatar, Button, Menu, type MenuItem } from '@/ui'
 import { getUserId, getUsername, logout } from '@/lib/auth'
 import { useThemeMode } from '@/lib/themeMode'
@@ -12,6 +13,7 @@ export function UserMenu() {
   const { t, i18n } = useTranslation()
   const { mode, toggle } = useThemeMode()
   const navigate = useNavigate()
+  const { search } = useLocation()
   const name = getUsername() || t('app.user.guest')
   const current = i18n.resolvedLanguage || i18n.language
   const items: MenuItem[] = [
@@ -20,7 +22,7 @@ export function UserMenu() {
     { group: t('app.user.language') },
     ...LANGS.map((l): MenuItem => ({ label: t(`app.user.lang.${l}`), icon: current === l ? <Check size={16} aria-hidden /> : <Globe size={16} aria-hidden />, onSelect: () => { void i18n.changeLanguage(l) } })),
     'separator',
-    { label: t('app.user.settings'), icon: <Settings size={16} aria-hidden />, onSelect: () => navigate('/settings/config') },
+    { label: t('app.user.settings'), icon: <Settings size={16} aria-hidden />, onSelect: () => navigate(withPeriod('/settings/config', new URLSearchParams(search))) },
     { label: t('app.user.logout'), icon: <LogOut size={16} aria-hidden />, onSelect: () => { void logout() } },
   ]
   return (

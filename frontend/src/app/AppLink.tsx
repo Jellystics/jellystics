@@ -4,7 +4,7 @@ import { PERIOD_PARAMS } from '@/lib/period'
 
 export type AppLinkProps = LinkProps & { keepPeriod?: boolean }
 
-function withPeriod(to: To, current: URLSearchParams): To {
+export function withPeriod(to: To, current: URLSearchParams): To {
   const carried = PERIOD_PARAMS.filter((k) => current.has(k))
   if (carried.length === 0) return to
   const obj = typeof to === 'string' ? splitPath(to) : { ...to }
