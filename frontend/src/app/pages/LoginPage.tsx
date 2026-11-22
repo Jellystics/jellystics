@@ -92,7 +92,7 @@ export default function LoginPage() {
         <Card>
           <CardBody>
             <div className={styles.head}>
-              <img src="/logo.svg" alt="" width={32} height={32} />
+              <img src="/logo-64.png" alt="" width={32} height={32} />
               <div className={styles.lang}>
                 <Select
                   aria-label={t('app.login.language')}
