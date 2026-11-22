@@ -1326,6 +1326,254 @@
         "count": "Escuchas completas",
         "empty": "Ningún álbum"
       }
+    },
+    "analytics": {
+      "noData": "Sin datos en este periodo",
+      "noDataHint": "Amplía el periodo o espera nuevas reproducciones.",
+      "notCollected": "Aún no hay datos",
+      "collectedSince": "Datos recopilados desde el {{date}}",
+      "collectedNext": "Estos datos se recopilarán a partir de las próximas reproducciones."
+    },
+    "insights": {
+      "title": "Insights",
+      "subtitle": "Cómo se ve: finalización, maratones, ritmos, pausas",
+      "type": "Tipo",
+      "content": "Contenido",
+      "completion": {
+        "title": "Distribución de finalización",
+        "subtitle": "vistas por % alcanzado · el pico al 100 % = terminadas",
+        "bucket": "Finalización"
+      },
+      "byType": {
+        "title": "Finalización por tipo",
+        "subtitle": "parte de vistas terminadas (≥ 90 %)",
+        "value": "Terminado"
+      },
+      "binges": {
+        "title": "Maratones",
+        "subtitle": "≥ 3 episodios de una misma serie el mismo día",
+        "series": "Serie",
+        "value": "Maratones"
+      },
+      "pauses": {
+        "title": "Pausas",
+        "subtitle": "tiempo en pausa / tiempo visto",
+        "value": "Ratio",
+        "paused": "En pausa",
+        "watched": "Visto"
+      },
+      "rhythm": {
+        "title": "Ritmo semanal",
+        "subtitle": "vistas por día y hora"
+      },
+      "sessions": {
+        "title": "Duración de las sesiones",
+        "median": "mediana {{value}}",
+        "length": "Duración",
+        "value": "Sesiones"
+      },
+      "resumes": {
+        "title": "Reanudadas vs desde el inicio",
+        "subtitle": "vistas iniciadas tras 30 s del inicio",
+        "fromStart": "Desde el inicio",
+        "resumed": "Reanudada",
+        "share": "Parte reanudada"
+      },
+      "rewatches": {
+        "title": "Revisionados",
+        "subtitle": "contenidos vistos varias veces por la misma persona",
+        "user": "Por",
+        "value": "Vistas"
+      },
+      "genres": {
+        "title": "Géneros en el tiempo",
+        "subtitle": "horas por mes · top 3 + otros",
+        "other": "Otros",
+        "month": "Mes"
+      },
+      "moments": {
+        "title": "Momentos del día por tipo",
+        "subtitle": "vistas por hora local",
+        "hour": "Hora"
+      }
+    },
+    "discover": {
+      "title": "Descubrir",
+      "subtitle": "Lo que duerme en la biblioteca y lo que se abandonó",
+      "unwatched": {
+        "title": "Nunca vistos",
+        "subtitle": "del más antiguo al más reciente",
+        "foot": "{{share}} del catálogo · {{size}}",
+        "added": "añadido {{when}}",
+        "addedUnknown": "fecha de alta desconocida"
+      },
+      "abandoned": {
+        "title": "Abandonados",
+        "subtitle": "última reproducción hace más de 60 días",
+        "foot": "detenidos entre 10 y 80 %, > 60 d",
+        "episodes": "{{viewed}} de {{total}} ep.",
+        "stoppedAt": "detenido en {{position}}",
+        "progress": "Progreso {{value}}"
+      },
+      "added": {
+        "title": "Añadidos en el periodo",
+        "foot_one": "{{count}} ya visto",
+        "foot_other": "{{count}} ya vistos"
+      },
+      "storage": {
+        "title": "Almacenamiento vs visionado",
+        "subtitle": "archivos grandes nunca vistos",
+        "size": "Tamaño",
+        "sizeGb": "Tamaño",
+        "neverViewed": "Nunca visto",
+        "viewed": "Visto",
+        "quadrant": "grandes y nunca vistos ↘"
+      }
+    },
+    "playback": {
+      "title": "Reproducción y transcodificación",
+      "subtitle": "Salud de la reproducción: direct play, transcodificaciones, clientes",
+      "client": "Cliente",
+      "date": "Fecha",
+      "copy": "copia",
+      "points": "{{value}} pts",
+      "tiles": {
+        "direct": "Direct play",
+        "transcode": "Transcodificaciones",
+        "reason": "Causa n.º 1",
+        "reasonFoot": "{{value}} de las transcodificaciones",
+        "client": "Cliente más transcodificado",
+        "clientFoot": "{{value}} de sus reproducciones"
+      },
+      "methods": {
+        "title": "Método de reproducción por día"
+      },
+      "clients": {
+        "title": "Clientes",
+        "subtitle": "% transcodificado",
+        "value": "Transcodificado"
+      },
+      "falseStarts": {
+        "title": "Falsos inicios por cliente",
+        "subtitle": "reproducciones cortadas antes de 30 s",
+        "value": "Clics sin vista",
+        "transcoded": "{{value}} transcodificado"
+      },
+      "resolution": {
+        "title": "Resolución realmente servida",
+        "subtitle": "vistas de vídeo",
+        "downscaled": "{{value}} de las reproducciones de archivos 4K se sirvieron por debajo de 4K (cliente o ancho de banda)."
+      },
+      "hdr": {
+        "title": "HDR",
+        "subtitle": "parte de reproducciones HDR y conversiones a SDR",
+        "native": "HDR nativo",
+        "toneMapped": "HDR → SDR (tone mapping)",
+        "sdr": "SDR"
+      },
+      "reasons": {
+        "title": "Por qué se transcodifica",
+        "subtitle": "motivos indicados por Jellyfin",
+        "reason": "Motivo",
+        "value": "Parte",
+        "ContainerNotSupported": "Contenedor no compatible",
+        "VideoCodecNotSupported": "Códec de vídeo no compatible",
+        "AudioCodecNotSupported": "Códec de audio no compatible",
+        "SubtitleCodecNotSupported": "Subtítulos no compatibles (incrustados)",
+        "AudioIsExternal": "Pista de audio externa",
+        "SecondaryAudioNotSupported": "Audio secundario no compatible",
+        "VideoProfileNotSupported": "Perfil de vídeo no compatible",
+        "VideoLevelNotSupported": "Nivel de vídeo no compatible",
+        "VideoResolutionNotSupported": "Resolución no compatible",
+        "VideoBitDepthNotSupported": "Profundidad de color no compatible",
+        "AudioChannelsNotSupported": "Canales de audio no compatibles",
+        "ContainerBitrateExceedsLimit": "Tasa de bits demasiado alta",
+        "VideoBitrateNotSupported": "Tasa de vídeo demasiado alta",
+        "AudioBitrateNotSupported": "Tasa de audio demasiado alta",
+        "VideoRangeTypeNotSupported": "Rango de vídeo no compatible (HDR)",
+        "DirectPlayError": "Fallo de la reproducción directa"
+      },
+      "streams": {
+        "title": "Vídeo o solo audio",
+        "subtitle": "transcodificar solo el audio es ligero; el vídeo, no",
+        "audioOnly": "Solo audio",
+        "videoOnly": "Solo vídeo",
+        "both": "Vídeo + audio",
+        "hwAccel": "Aceleración por hardware: {{value}}"
+      },
+      "conversions": {
+        "title": "Conversiones",
+        "subtitle": "origen → salida",
+        "video": "Vídeo",
+        "audio": "Audio"
+      },
+      "matrix": {
+        "title": "Conversiones origen → salida",
+        "subtitle": "códecs de vídeo",
+        "source": "Origen"
+      },
+      "network": {
+        "title": "Local o remoto",
+        "subtitle": "parte de reproducciones por Internet",
+        "local": "Red local",
+        "remote": "Remoto",
+        "place": "Lugar (geolocalización IP)"
+      },
+      "bitrate": {
+        "title": "Tasa de bits",
+        "subtitle": "media {{avg}} · percentil 95 {{p95}}",
+        "bucket": "Tasa de bits"
+      }
+    },
+    "recap": {
+      "crumb": "Resumen {{period}}",
+      "periods": "Periodo del resumen",
+      "heroSub": "de reproducción, es decir {{days}} días completos · {{views}} vistas · {{active}} días activos",
+      "topSeries": "Top series",
+      "topMovies": "Top películas",
+      "topArtists": "Top artistas",
+      "none": "Nada en este periodo",
+      "views_one": "{{count}} vista",
+      "views_other": "{{count}} vistas",
+      "byMonth": "Por mes",
+      "byDay": "Por día",
+      "hours": "horas de reproducción",
+      "bucket": "Periodo",
+      "bestMonth": "Mes récord",
+      "bestDay": "Día récord",
+      "binge": "Maratón récord",
+      "episodes_one": "{{count}} episodio",
+      "episodes_other": "{{count}} episodios",
+      "streak": "Racha más larga",
+      "days_one": "{{count}} día",
+      "days_other": "{{count}} días",
+      "artistDiscovery": {
+        "title": "Descubrimiento de artistas",
+        "subtitle": "artistas escuchados por primera vez",
+        "value": "Nuevos artistas"
+      },
+      "ranking": {
+        "title": "Clasificación con evolución",
+        "subtitle": "vistas · puesto vs periodo anterior",
+        "new": "nuevo",
+        "up": "sube",
+        "down": "baja",
+        "same": "igual"
+      },
+      "notFound": "Usuario no encontrado",
+      "badPeriod": "Periodo no válido",
+      "badPeriodHint": "Usa un año (2026) o un mes (2026-11)."
+    },
+    "languages": {
+      "title": "VO o doblaje",
+      "subtitle": "versión original, con o sin subtítulos",
+      "original": "{{value}} en VO",
+      "originalSubtitled": "VO subtitulada",
+      "originalOnly": "VO",
+      "dubbed": "Doblada",
+      "audio": "Idioma de audio",
+      "subtitles": "Subtítulos activados: {{value}}",
+      "unknown": "Desconocido"
     }
   }
 }

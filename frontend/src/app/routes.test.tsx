@@ -114,10 +114,6 @@ it('settings section renders the new page', async () => {
 it('settings about renders the new page', async () => {
   renderApp('/settings/about'); expect(await screen.findByText('settings:about')).toBeInTheDocument()
 })
-it('coming soon pages render', async () => {
-  renderApp('/discover'); expect(await screen.findByText('app.comingSoon.title')).toBeInTheDocument()
-})
-
 function crumbTrail() {
   const nav = screen.getByRole('navigation', { name: 'app.nav.breadcrumbs' })
   return Array.from(nav.querySelectorAll('a, [aria-current]')).map((e) => [e.textContent, e.getAttribute('href')])
@@ -145,13 +141,14 @@ it('track redirect keeps the period params', async () => {
   await waitFor(() => expect(router.state.location.pathname).toBe('/albums/a1'))
   expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({ track: 'x1', range: '7d' })
 })
-it.each(['/insights'])('legacy page %s hides the global period picker', async (p) => {
-  renderApp(p)
-  await screen.findByText(/legacy-/)
-  expect(screen.queryByRole('button', { name: /app\.period\./ })).toBeNull()
-})
 it.each([['/', 'page-overview'], ['/history', 'page-history:table'], ['/users/lea', 'page-user']])('page %s shows the global period picker', async (p, text) => {
   renderApp(p)
   await screen.findByText(text)
+  expect(screen.getAllByRole('button', { name: /app\.period\./ }).length).toBeGreaterThan(0)
+})
+// --- phase 5 ---
+it('/insights mounts the insights page with the global period picker', async () => {
+  renderApp('/insights')
+  expect(await screen.findByRole('heading', { name: 'app.insights.title' })).toBeInTheDocument()
   expect(screen.getAllByRole('button', { name: /app\.period\./ }).length).toBeGreaterThan(0)
 })

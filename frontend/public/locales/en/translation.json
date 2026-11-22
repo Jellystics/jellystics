@@ -1326,6 +1326,254 @@
         "count": "Full listens",
         "empty": "No albums"
       }
+    },
+    "analytics": {
+      "noData": "No data for this period",
+      "noDataHint": "Widen the period or wait for new plays.",
+      "notCollected": "No data yet",
+      "collectedSince": "Data collected since {{date}}",
+      "collectedNext": "This data will be collected from the next plays on."
+    },
+    "insights": {
+      "title": "Insights",
+      "subtitle": "How people watch: completion, binges, rhythms, pauses",
+      "type": "Type",
+      "content": "Title",
+      "completion": {
+        "title": "Completion distribution",
+        "subtitle": "views by % reached · the 100 % peak = finished",
+        "bucket": "Completion"
+      },
+      "byType": {
+        "title": "Completion by type",
+        "subtitle": "share of finished views (≥ 90 %)",
+        "value": "Finished"
+      },
+      "binges": {
+        "title": "Binges",
+        "subtitle": "≥ 3 episodes of one series on the same day",
+        "series": "Series",
+        "value": "Binges"
+      },
+      "pauses": {
+        "title": "Pauses",
+        "subtitle": "paused time / watched time",
+        "value": "Ratio",
+        "paused": "Paused",
+        "watched": "Watched"
+      },
+      "rhythm": {
+        "title": "Weekly rhythm",
+        "subtitle": "views by day and hour"
+      },
+      "sessions": {
+        "title": "Session length",
+        "median": "median {{value}}",
+        "length": "Length",
+        "value": "Sessions"
+      },
+      "resumes": {
+        "title": "Resumed vs from the start",
+        "subtitle": "views started 30 s or more into the title",
+        "fromStart": "From the start",
+        "resumed": "Resumed",
+        "share": "Resumed share"
+      },
+      "rewatches": {
+        "title": "Rewatches",
+        "subtitle": "titles watched several times by the same person",
+        "user": "By",
+        "value": "Views"
+      },
+      "genres": {
+        "title": "Genres over time",
+        "subtitle": "hours played per month · top 3 + others",
+        "other": "Others",
+        "month": "Month"
+      },
+      "moments": {
+        "title": "Time of day by type",
+        "subtitle": "views per local hour",
+        "hour": "Hour"
+      }
+    },
+    "discover": {
+      "title": "Discover",
+      "subtitle": "What sleeps in the library, and what was abandoned",
+      "unwatched": {
+        "title": "Never watched",
+        "subtitle": "oldest additions first",
+        "foot": "{{share}} of the catalog · {{size}}",
+        "added": "added {{when}}",
+        "addedUnknown": "unknown add date"
+      },
+      "abandoned": {
+        "title": "Abandoned",
+        "subtitle": "last played more than 60 days ago",
+        "foot": "stopped between 10 and 80 %, > 60 d",
+        "episodes": "{{viewed}} of {{total}} ep.",
+        "stoppedAt": "stopped at {{position}}",
+        "progress": "Progress {{value}}"
+      },
+      "added": {
+        "title": "Added in the period",
+        "foot_one": "{{count}} already watched",
+        "foot_other": "{{count}} already watched"
+      },
+      "storage": {
+        "title": "Storage vs viewing",
+        "subtitle": "large files never watched",
+        "size": "Size",
+        "sizeGb": "Size",
+        "neverViewed": "Never watched",
+        "viewed": "Watched",
+        "quadrant": "large and never watched ↘"
+      }
+    },
+    "playback": {
+      "title": "Playback & transcoding",
+      "subtitle": "Playback health: direct play, transcodes, clients",
+      "client": "Client",
+      "date": "Date",
+      "copy": "copy",
+      "points": "{{value}} pts",
+      "tiles": {
+        "direct": "Direct play",
+        "transcode": "Transcodes",
+        "reason": "Top cause",
+        "reasonFoot": "{{value}} of transcodes",
+        "client": "Most transcoded client",
+        "clientFoot": "{{value}} of its plays"
+      },
+      "methods": {
+        "title": "Play method per day"
+      },
+      "clients": {
+        "title": "Clients",
+        "subtitle": "% transcoded",
+        "value": "Transcoded"
+      },
+      "falseStarts": {
+        "title": "False starts by client",
+        "subtitle": "plays stopped before 30 s",
+        "value": "Clicks without view",
+        "transcoded": "{{value}} transcoded"
+      },
+      "resolution": {
+        "title": "Resolution actually served",
+        "subtitle": "video views",
+        "downscaled": "{{value}} of 4K file plays were served below 4K (client or bandwidth)."
+      },
+      "hdr": {
+        "title": "HDR",
+        "subtitle": "share of HDR plays and SDR conversions",
+        "native": "Native HDR",
+        "toneMapped": "HDR → SDR (tone mapping)",
+        "sdr": "SDR"
+      },
+      "reasons": {
+        "title": "Why it transcodes",
+        "subtitle": "reasons reported by Jellyfin",
+        "reason": "Reason",
+        "value": "Share",
+        "ContainerNotSupported": "Container not supported",
+        "VideoCodecNotSupported": "Video codec not supported",
+        "AudioCodecNotSupported": "Audio codec not supported",
+        "SubtitleCodecNotSupported": "Subtitles not supported (burn-in)",
+        "AudioIsExternal": "External audio track",
+        "SecondaryAudioNotSupported": "Secondary audio not supported",
+        "VideoProfileNotSupported": "Video profile not supported",
+        "VideoLevelNotSupported": "Video level not supported",
+        "VideoResolutionNotSupported": "Resolution not supported",
+        "VideoBitDepthNotSupported": "Bit depth not supported",
+        "AudioChannelsNotSupported": "Audio channels not supported",
+        "ContainerBitrateExceedsLimit": "Bitrate too high",
+        "VideoBitrateNotSupported": "Video bitrate too high",
+        "AudioBitrateNotSupported": "Audio bitrate too high",
+        "VideoRangeTypeNotSupported": "Video range not supported (HDR)",
+        "DirectPlayError": "Direct play failed"
+      },
+      "streams": {
+        "title": "Video or audio only",
+        "subtitle": "an audio-only transcode is light; a video transcode is not",
+        "audioOnly": "Audio only",
+        "videoOnly": "Video only",
+        "both": "Video + audio",
+        "hwAccel": "Hardware acceleration: {{value}}"
+      },
+      "conversions": {
+        "title": "Conversions",
+        "subtitle": "source → output",
+        "video": "Video",
+        "audio": "Audio"
+      },
+      "matrix": {
+        "title": "Source → output conversions",
+        "subtitle": "video codecs",
+        "source": "Source"
+      },
+      "network": {
+        "title": "Local or remote",
+        "subtitle": "share of plays over the Internet",
+        "local": "Local network",
+        "remote": "Remote",
+        "place": "Place (IP geolocation)"
+      },
+      "bitrate": {
+        "title": "Bitrate",
+        "subtitle": "average {{avg}} · 95th percentile {{p95}}",
+        "bucket": "Bitrate"
+      }
+    },
+    "recap": {
+      "crumb": "Recap {{period}}",
+      "periods": "Recap period",
+      "heroSub": "played, i.e. {{days}} full days · {{views}} views · {{active}} active days",
+      "topSeries": "Top series",
+      "topMovies": "Top movies",
+      "topArtists": "Top artists",
+      "none": "Nothing in this period",
+      "views_one": "{{count}} view",
+      "views_other": "{{count}} views",
+      "byMonth": "By month",
+      "byDay": "By day",
+      "hours": "hours played",
+      "bucket": "Period",
+      "bestMonth": "Best month",
+      "bestDay": "Best day",
+      "binge": "Biggest binge",
+      "episodes_one": "{{count}} episode",
+      "episodes_other": "{{count}} episodes",
+      "streak": "Longest streak",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "artistDiscovery": {
+        "title": "Artist discovery",
+        "subtitle": "artists listened to for the first time",
+        "value": "New artists"
+      },
+      "ranking": {
+        "title": "Ranking with change",
+        "subtitle": "views · rank vs previous period",
+        "new": "new",
+        "up": "up",
+        "down": "down",
+        "same": "same"
+      },
+      "notFound": "User not found",
+      "badPeriod": "Invalid period",
+      "badPeriodHint": "Use a year (2026) or a month (2026-11)."
+    },
+    "languages": {
+      "title": "Original or dubbed",
+      "subtitle": "original version, with or without subtitles",
+      "original": "{{value}} original",
+      "originalSubtitled": "Original + subtitles",
+      "originalOnly": "Original",
+      "dubbed": "Dubbed",
+      "audio": "Audio language",
+      "subtitles": "Subtitles on: {{value}}",
+      "unknown": "Unknown"
     }
   }
 }

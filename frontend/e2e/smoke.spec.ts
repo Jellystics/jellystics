@@ -14,6 +14,10 @@ ROUTES.push(
 )
 // --- end phase 4 ---
 
+// --- phase 5 ---
+ROUTES.push('/users/u1/recap/2026')
+// --- end phase 5 ---
+
 test.beforeEach(async ({ page }) => { await mockApi(page) })
 
 test('login page renders without errors', async ({ page }) => {

@@ -2,11 +2,9 @@ import { Navigate, useLocation, useParams, useSearchParams, type RouteObject } f
 import { AppShell } from './shell/AppShell'
 import type { Crumb, RouteHandle } from './shell/crumbs'
 import { RequireAuth } from './RequireAuth'
-import { LegacyPage } from './legacy/LegacyPage'
 import LoginPage from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ItemRedirect } from './pages/ItemRedirect'
-import { ComingSoon } from './pages/ComingSoon'
 import OverviewPage from './pages/overview/OverviewPage'
 import LivePage from './pages/live/LivePage'
 import HistoryPage from './pages/history/HistoryPage'
@@ -19,7 +17,10 @@ import ArtistPage from './pages/artist/ArtistPage'
 import AlbumPage from './pages/album/AlbumPage'
 import UsersPage from './pages/users/UsersPage'
 import UserPage from './pages/user/UserPage'
-import StatisticsPage from '@/features/statistics/StatisticsPage'
+import InsightsPage from './pages/insights/InsightsPage'
+import DiscoverPage from './pages/discover/DiscoverPage'
+import PlaybackPage from './pages/playback/PlaybackPage'
+import RecapPage from './pages/recap/RecapPage'
 import { SettingsPage } from './pages/settings/SettingsPage'
 import { SETTINGS_SECTIONS as SECTIONS, type SettingsSection } from './pages/settings/sections'
 
@@ -57,14 +58,11 @@ function SettingsSection({ fixed }: { fixed?: SettingsSection }) {
 
 type Match = Parameters<NonNullable<RouteHandle['crumb']>>[0]
 const nav = (n: NonNullable<RouteHandle['nav']>, crumb?: RouteHandle['crumb']): { handle: RouteHandle } => ({ handle: { nav: n, crumb } })
-/** Legacy pages that ship their own date controls: hide the global period picker. */
-const ownPeriod = (n: NonNullable<RouteHandle['nav']>): { handle: RouteHandle } => ({ handle: { nav: n, period: false } })
 const LIBS = { label: 'app.nav.libraries', to: '/libraries' }
 const USERS = { label: 'app.nav.users', to: '/users' }
 const trail = (...items: Crumb[]) => () => items
 const SETTINGS_SECTIONS = ['config', 'tasks', 'backup', 'logs', 'webhooks', 'apikeys', 'about']
 const settingsTrail = (m: Match): Crumb[] => [{ label: 'app.nav.settings', to: '/settings' }, ...(SETTINGS_SECTIONS.includes(m.params.section ?? 'config') ? [{ label: `app.crumb.settings.${m.params.section ?? 'config'}` }] : [])]
-const legacy = (el: React.ReactElement) => <LegacyPage>{el}</LegacyPage>
 
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
@@ -84,10 +82,10 @@ export const routes: RouteObject[] = [
       { path: '/albums/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.album' })), element: <AlbumPage /> },
       { path: '/users', ...nav('users'), element: <UsersPage /> },
       { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: <UserPage /> },
-      { path: '/users/:id/recap/:period', ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]), element: <ComingSoon nav="users" /> },
-      { path: '/insights', ...ownPeriod('insights'), element: legacy(<StatisticsPage />) },
-      { path: '/discover', ...nav('discover'), element: <ComingSoon nav="discover" /> },
-      { path: '/playback', ...nav('playback'), element: <ComingSoon nav="playback" /> },
+      { path: '/users/:id/recap/:period', handle: { ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]).handle, period: false }, element: <RecapPage /> },
+      { path: '/insights', ...nav('insights'), element: <InsightsPage /> },
+      { path: '/discover', ...nav('discover'), element: <DiscoverPage /> },
+      { path: '/playback', ...nav('playback'), element: <PlaybackPage /> },
       { path: '/settings', ...nav('settings'), element: <SettingsIndex /> },
       { path: '/settings/about', ...nav('settings', settingsTrail), element: <SettingsSection fixed="about" /> },
       { path: '/settings/:section', ...nav('settings', settingsTrail), element: <SettingsSection /> },

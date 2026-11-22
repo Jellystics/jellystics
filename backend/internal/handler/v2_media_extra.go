@@ -95,7 +95,7 @@ func (h *V2Handler) libraryOf(c *gin.Context, id string) (itemType string, ok bo
 // GET /api/v2/libraries/:id/decades
 // ---------------------------------------------------------------------------
 
-type decadeRow struct {
+type libDecadeRow struct {
 	Decade  int `json:"decade"`
 	Views   int `json:"views"`
 	Catalog int `json:"catalog"`
@@ -130,10 +130,10 @@ func (h *V2Handler) LibraryDecades(c *gin.Context) {
 	if v2Fail(c, h.raw(c, &views, q, args...)) {
 		return
 	}
-	byDecade := map[int]*decadeRow{}
-	get := func(d int) *decadeRow {
+	byDecade := map[int]*libDecadeRow{}
+	get := func(d int) *libDecadeRow {
 		if byDecade[d] == nil {
-			byDecade[d] = &decadeRow{Decade: d}
+			byDecade[d] = &libDecadeRow{Decade: d}
 		}
 		return byDecade[d]
 	}
@@ -143,7 +143,7 @@ func (h *V2Handler) LibraryDecades(c *gin.Context) {
 	for _, r := range views {
 		get(r.Decade).Views = r.N
 	}
-	out := make([]decadeRow, 0, len(byDecade))
+	out := make([]libDecadeRow, 0, len(byDecade))
 	for _, r := range byDecade {
 		out = append(out, *r)
 	}
@@ -155,7 +155,7 @@ func (h *V2Handler) LibraryDecades(c *gin.Context) {
 // GET /api/v2/libraries/:id/growth
 // ---------------------------------------------------------------------------
 
-type growthPoint struct {
+type libGrowthPoint struct {
 	Date       string `json:"date"`
 	Added      int    `json:"added"`
 	FirstViews int    `json:"firstViews"`
@@ -250,12 +250,12 @@ func (h *V2Handler) LibraryGrowth(c *gin.Context) {
 		return
 	}
 	idx := map[string]int{}
-	points := []growthPoint{}
+	points := []libGrowthPoint{}
 	loc := statsql.Location()
 	for d := bucketStart(p.Range.From.In(loc), unit); d.Before(p.Range.To); d = bucketNext(d, unit) {
 		key := d.Format(v2DateLayout)
 		idx[key] = len(points)
-		points = append(points, growthPoint{Date: key})
+		points = append(points, libGrowthPoint{Date: key})
 	}
 	for _, r := range added {
 		if i, ok := idx[r.Date]; ok {
