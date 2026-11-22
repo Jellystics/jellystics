@@ -465,7 +465,26 @@
       "chart": "Graphique",
       "table": "Tableau",
       "csv": "CSV",
-      "total": "Total"
+      "total": "Total",
+      "weekHeatmap": "Activité par jour et heure",
+      "less": "Moins",
+      "more": "Plus",
+      "calendar": "Calendrier d'activité",
+      "playTime": "Temps de lecture",
+      "funnel": "Entonnoir de complétion",
+      "plays": "Lectures",
+      "vsFirst": "vs étape 1",
+      "retention": "Rétention par épisode",
+      "retentionLabel": "de rétention",
+      "viewers": "Spectateurs",
+      "vsFirstEpisode": "vs S1É1",
+      "season": "Saison",
+      "stops": "Arrêts",
+      "matrix": "Matrice",
+      "stackedArea": "Aires empilées",
+      "timeline": "Frise des lectures",
+      "peak": "pic",
+      "views": "Vues"
     }
   }
 }

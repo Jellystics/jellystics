@@ -465,7 +465,26 @@
       "chart": "Chart",
       "table": "Table",
       "csv": "CSV",
-      "total": "Total"
+      "total": "Total",
+      "weekHeatmap": "Activity by weekday and hour",
+      "less": "Less",
+      "more": "More",
+      "calendar": "Activity calendar",
+      "playTime": "Play time",
+      "funnel": "Completion funnel",
+      "plays": "Plays",
+      "vsFirst": "vs stage 1",
+      "retention": "Retention by episode",
+      "retentionLabel": "retention",
+      "viewers": "Viewers",
+      "vsFirstEpisode": "vs S1E1",
+      "season": "Season",
+      "stops": "Stops",
+      "matrix": "Matrix",
+      "stackedArea": "Stacked areas",
+      "timeline": "Playback timeline",
+      "peak": "peak",
+      "views": "Views"
     }
   }
 }

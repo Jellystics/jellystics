@@ -18,3 +18,21 @@
 .tipR span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
 .tipR b { font-weight: 600; color: var(--ink); }
 .tipR i { width: 8px; height: 8px; border-radius: var(--r-sm); display: inline-block; }
+.chart circle[data-hit]:focus-visible, .chart path[data-hit]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hz .xhair, .hz .pt { opacity: 0; pointer-events: none; }
+.hz:hover .xhair, .hz:hover .pt, .hz:focus-within .xhair, .hz:focus-within .pt { opacity: 1; }
+.scale { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 6px; font-size: var(--fs-xs); color: var(--ink-3); }
+.scale span { width: 12px; height: 12px; border-radius: var(--r-sm); display: inline-block; }
+.multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--s-4); }
+.multiplesH { display: flex; justify-content: space-between; font-size: var(--fs-sm); margin-bottom: 4px; color: var(--ink-2); }
+.multiplesH span { display: inline-flex; align-items: center; gap: 6px; }
+.multiplesH i { width: 10px; height: 10px; border-radius: var(--r-sm); display: inline-block; }
+/* Matrix cell text: contrast follows the theme (from design .mx-t rules) */
+.chart text:global(.mx-t):global(.lo) { fill: var(--ink-2); }
+.chart text:global(.mx-t):global(.hi) { fill: #fff; }
+:global(:root[data-theme="dark"]) .chart text:global(.mx-t):global(.lo) { fill: #fff; }
+:global(:root[data-theme="dark"]) .chart text:global(.mx-t):global(.hi) { fill: #0b0b0b; }
+@media (prefers-color-scheme: dark) {
+  :global(:root:where(:not([data-theme="light"]))) .chart text:global(.mx-t):global(.lo) { fill: #fff; }
+  :global(:root:where(:not([data-theme="light"]))) .chart text:global(.mx-t):global(.hi) { fill: #0b0b0b; }
+}
