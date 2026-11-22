@@ -117,17 +117,19 @@ export interface UserDetail {
 
 // ── Entities ─────────────────────────────────────────────────────────────────
 /**
- * "Played to the end" over the closed views of the period: measured by the
- * Jellystics plugin (PlayedToCompletion) or, for older / tracker rows,
- * estimated from the completion ratio (>= 90 %). measured = 0: no plugin data.
+ * Finished views of the period: closed (user, item, local day) view units,
+ * finished per Jellyfin's end-of-playback report (PlayedToCompletion, movies /
+ * episodes of 5 min or more) when the plugin measured it, else per the stop
+ * position (>= 90 %). measured = 0: no plugin data. Same count as funnel.completed.
  */
 export interface PlayedToEnd { plays: number; finished: number; measured: number; measuredFinished: number; ratio: number | null }
 /**
  * Forward skips of the closed Jellystics-plugin views (the only plays whose
- * skips are measured). intro = short skip (<= 15 % of the runtime) in a play
- * started from the beginning: an estimate, the skip position is not recorded.
+ * skips are measured); skipRate = skipped / plays. introPlays = those started
+ * at the beginning; intro = a short skip among them (10 s to min(15 % of the
+ * runtime, 3 min)): an estimate, the skip position is not recorded.
  */
-export interface SkipStats { plays: number; skipped: number; intro: number; skipRate: number | null; introRate: number | null; avgSkippedSeconds: number | null }
+export interface SkipStats { plays: number; skipped: number; introPlays: number; intro: number; skipRate: number | null; introRate: number | null; avgSkippedSeconds: number | null }
 export interface Funnel { clicks: number; views: number; half: number; completed: number }
 /** Library an entity belongs to (null when unknown). */
 export interface LibraryRef { id: string; name: string }

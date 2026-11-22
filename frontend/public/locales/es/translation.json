@@ -1183,38 +1183,39 @@
     },
     "plugin": {
       "playedToEnd": {
-        "label": "Visto hasta el final",
         "footMeasured_one": "medido por el plugin · {{count}} vista",
         "footMeasured_other": "medido por el plugin · {{count}} vistas",
         "footMixed": "{{measured}} medidas · {{estimated}} estimadas",
-        "tip": "Fin de reproducción indicado por Jellyfin (plugin Jellystics). Las vistas sin esta información (historial, seguimiento de sesiones) se estiman: detenidas al 90 % de la duración o más. Las reproducciones en curso no cuentan."
+        "tip": "Fin de reproducción según Jellyfin (≥ 90 % por defecto), medido por el plugin Jellystics en películas y episodios de 5 min o más. Las demás vistas se estiman: detenidas al 90 % de la duración o más. Las reproducciones en curso no cuentan."
       },
       "skips": {
         "title": "Saltos hacia delante",
         "plays_one": "{{count}} reproducción medida por el plugin Jellystics",
         "plays_other": "{{count}} reproducciones medidas por el plugin Jellystics",
-        "intro": "Intro saltada",
-        "introFoot_one": "{{count}} reproducción",
-        "introFoot_other": "{{count}} reproducciones",
+        "intro": "Salto corto al inicio (probablemente la intro)",
         "skipRate": "Reproducciones con un salto",
         "skipFoot_one": "{{count}} reproducción",
         "skipFoot_other": "{{count}} reproducciones",
         "avgSkipped": "Tiempo saltado medio",
         "avgSkippedFoot": "por reproducción con salto",
-        "estimate": "«Intro saltada»: saltos que suman como máximo el 15 % de la duración, en una reproducción empezada desde el principio. El plugin mide cuánto se saltó, no dónde: es una estimación. Las reproducciones en curso no cuentan.",
+        "estimate": "Salto corto: de 10 s al 15 % de la duración (3 min como máximo) en una reproducción empezada desde el principio; la tasa se calcula sobre esas reproducciones. El plugin mide cuánto se saltó, no dónde: es una estimación. Las reproducciones en curso no cuentan.",
         "cellTip_one": "{{count}} reproducción medida · tiempo saltado medio {{avg}}",
-        "cellTip_other": "{{count}} reproducciones medidas · tiempo saltado medio {{avg}}"
+        "cellTip_other": "{{count}} reproducciones medidas · tiempo saltado medio {{avg}}",
+        "introFoot_one": "{{intro}} / {{count}} desde el inicio",
+        "introFoot_other": "{{intro}} / {{count}} desde el inicio"
       },
       "insights": {
         "title": "Intros más saltadas",
         "subtitle_one": "series · {{count}} reproducción de episodio medida por el plugin",
         "subtitle_other": "series · {{count}} reproducciones de episodios medidas por el plugin",
         "series": "Serie",
-        "plays": "Reproducciones medidas"
+        "plays": "Reproducciones medidas",
+        "playsCount_one": "{{count}} reproducción",
+        "playsCount_other": "{{count}} reproducciones"
       },
       "marks": {
         "title": "Marcado como visto",
-        "subtitle": "estado actual por usuario, según el plugin Jellystics",
+        "subtitle": "último marcado registrado por usuario desde el {{date}}",
         "manualLabel": "A mano",
         "automaticLabel": "Fin de reproducción",
         "otherLabel": "Otro",
@@ -1229,8 +1230,7 @@
         "unplayed_one": "Vuelto a «no visto» por {{count}} usuario",
         "unplayed_other": "Vuelto a «no visto» por {{count}} usuarios",
         "watched_one": "{{count}} usuario tiene una vista registrada",
-        "watched_other": "{{count}} usuarios tienen una vista registrada",
-        "since": "Marcados recopilados desde el {{date}}"
+        "watched_other": "{{count}} usuarios tienen una vista registrada"
       },
       "logins": {
         "title": "Inicios de sesión",
@@ -1250,7 +1250,8 @@
         "sourceCatalog": "catálogo (aproximación)",
         "precise": "Incorporaciones y retiradas reales registradas por el plugin Jellystics.",
         "partial": "Incorporaciones reales (plugin Jellystics) desde el {{date}}; antes: fechas de alta en el catálogo de los elementos aún presentes (aproximación).",
-        "catalog": "Fechas de alta en el catálogo de los elementos aún presentes (aproximación). El plugin Jellystics registra las incorporaciones reales."
+        "catalog": "Fechas de alta en el catálogo de los elementos aún presentes (aproximación). El plugin Jellystics registra las incorporaciones reales.",
+        "marker": "incorporaciones reales"
       },
       "firstView": {
         "title": "Plazo incorporación → primera vista",
@@ -1269,6 +1270,9 @@
           "1-4w": "1–4 sem.",
           ">4w": "> 4 sem."
         }
+      },
+      "funnel": {
+        "ofViews": "{{pct}} de las vistas · {{done}}/{{views}}"
       }
     }
   }

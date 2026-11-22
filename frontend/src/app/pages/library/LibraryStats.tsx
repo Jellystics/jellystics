@@ -63,6 +63,8 @@ function Growth({ id }: { id: string }) {
   const series = showRemoved ? [added, removed, first] : [added, first]
   const empty = points.every((p) => p.added === 0 && p.firstViews === 0 && !(p.removed > 0))
   const since = q.data?.preciseFrom ?? null
+  // Estimated buckets (catalog dates) are dashed; precise ones solid.
+  const firstPrecise = events && points.some((p) => p.precise) ? points.findIndex((p) => p.precise) : points.length
   const note = !events
     ? t('app.plugin.growth.catalog')
     : since && since > period.from
@@ -78,7 +80,7 @@ function Growth({ id }: { id: string }) {
       }}
     >
       <SubQuery query={q} height={200} empty={empty ? <EmptyState title={t('app.library.growth.empty')} /> : null}>
-        <LineChart labels={labels} series={series} area={false} height={200} xEvery={Math.max(1, Math.ceil(points.length / 8))} />
+        <LineChart labels={labels} series={series} area={false} height={200} preciseFrom={{ index: firstPrecise, label: t('app.plugin.growth.marker') }} xEvery={Math.max(1, Math.ceil(points.length / 8))} />
         <p className={local.note}>{note}</p>
       </SubQuery>
     </ChartFrame>

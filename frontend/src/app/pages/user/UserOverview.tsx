@@ -9,7 +9,7 @@ import { usePeriod } from '@/lib/useUrlState'
 import { AppLink, Art, Badge, Card, CardBody, CardHeader, DataTable, EmptyState, Meter, StatStrip, StatTile } from '@/ui'
 import { ratioDelta, pointsDelta } from '../overview/delta'
 import { LanguagesCard } from '@/app/widgets/LanguagesCard'
-import { LoginsCard, PlayedToEndTile } from '@/app/widgets/PluginWidgets'
+import { FinishedFoot, LoginsCard } from '@/app/widgets/PluginWidgets'
 import { hasPlayedToEnd } from '@/app/widgets/plugin'
 import { ComparePanel } from './ComparePanel'
 import { StreakCard } from './StreakCard'
@@ -55,7 +55,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
   return (
     <div className={s.tabBody}>
       <Card>
-        <StatStrip columns={showPte ? 6 : 5}>
+        <StatStrip columns={5}>
           <StatTile label={t('app.userPage.tiles.time')} value={f.number(totals.watchSeconds / 3600)} unit={t('app.userPage.tiles.hoursUnit')} delta={previous ? ratioDelta(totals.watchSeconds, previous.watchSeconds, f) : undefined} />
           <StatTile label={t('app.userPage.tiles.views')} value={f.number(totals.views)} delta={previous ? ratioDelta(totals.views, previous.views, f) : undefined} />
           <StatTile label={t('app.userPage.tiles.activeDays')} value={f.number(active)} unit={`/ ${f.number(days)}`} />
@@ -66,7 +66,6 @@ export function UserOverview({ user }: { user: UserDetail }) {
             unit={totals.completion === null ? undefined : '%'}
             delta={previous ? pointsDelta(totals.completion, previous.completion, t) : undefined}
           />
-          {showPte && <PlayedToEndTile data={user.playedToEnd} />}
         </StatStrip>
       </Card>
 
@@ -121,7 +120,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
                 <div key={k} className={s.score}>
                   <div className={s.scoreHead}><span>{scoreLabel(k)}</span><b className="num">{v === null ? '—' : f.percent(v)}</b></div>
                   <Meter value={v ?? 0} label={scoreLabel(k)} />
-                  <div className={s.scoreSub}>{t(`app.userPage.profile.${k}Hint`)}</div>
+                  <div className={s.scoreSub}>{k === 'completion' && showPte ? <FinishedFoot data={user.playedToEnd} /> : t(`app.userPage.profile.${k}Hint`)}</div>
                 </div>
               ))}
             </div>

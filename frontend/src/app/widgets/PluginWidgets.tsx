@@ -1,6 +1,7 @@
 // Widgets fed by the precise data of the Jellystics plugin. Each one hides
 // itself when the plugin has no data for the period (never a row of zeros)
 // and says "data collected from …" when the plugin started inside it.
+import type { ReactNode } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { Info } from 'lucide-react'
@@ -20,12 +21,8 @@ export function PluginSinceNote({ since }: { since: string | null | undefined })
   return <p className={s.note}>{t('app.analytics.collectedSince', { date: f.day(new Date(`${since}T12:00:00`)) })}</p>
 }
 
-/**
- * "Played to the end" tile: share of closed views Jellyfin reported as played
- * to completion; views without that report (history, session tracking) are
- * estimated from the stop position, and the foot says how many.
- */
-export function PlayedToEndTile({ data }: { data: PlayedToEnd }) {
+/** Foot of a finished-views figure: how many units the plugin measured (Jellyfin end-of-playback report) vs estimated from the stop position. */
+export function FinishedFoot({ data }: { data: PlayedToEnd }) {
   const { t } = useTranslation()
   const f = useFormat()
   const estimated = data.plays - data.measured
@@ -33,14 +30,25 @@ export function PlayedToEndTile({ data }: { data: PlayedToEnd }) {
     ? t('app.plugin.playedToEnd.footMixed', { measured: f.number(data.measured), estimated: f.number(estimated) })
     : t('app.plugin.playedToEnd.footMeasured', { count: data.measured })
   return (
+    <Tooltip content={t('app.plugin.playedToEnd.tip')}>
+      <span tabIndex={0} className={s.tipFoot}>{foot}<Info size={12} aria-hidden="true" /></span>
+    </Tooltip>
+  )
+}
+
+/**
+ * The "finished views" tile of an entity page: (user, item, day) units
+ * finished per Jellyfin's report when the plugin measured it, else per the
+ * stop position (>= 90 %). Same count as the funnel's last step.
+ */
+export function FinishedTile({ data, foot }: { data: PlayedToEnd; foot?: ReactNode }) {
+  const { t } = useTranslation()
+  const f = useFormat()
+  return (
     <StatTile
-      label={t('app.plugin.playedToEnd.label')}
+      label={t('app.metric.finishedViews')}
       value={data.ratio == null ? '—' : f.percent(data.ratio)}
-      foot={
-        <Tooltip content={t('app.plugin.playedToEnd.tip')}>
-          <span tabIndex={0} className={s.tipFoot}>{foot}<Info size={12} aria-hidden="true" /></span>
-        </Tooltip>
-      }
+      foot={data.measured > 0 ? <FinishedFoot data={data} /> : foot}
     />
   )
 }
@@ -60,7 +68,7 @@ export function SkipsCard({ skips, since }: { skips: SkipStats | undefined; sinc
     <Card>
       <CardHeader title={t('app.plugin.skips.title')} subtitle={t('app.plugin.skips.plays', { count: skips.plays })} />
       <StatStrip columns={3}>
-        <StatTile label={t('app.plugin.skips.intro')} value={skips.introRate == null ? '—' : f.percent(skips.introRate)} foot={t('app.plugin.skips.introFoot', { count: skips.intro })} />
+        <StatTile label={t('app.plugin.skips.intro')} value={skips.introRate == null ? '—' : f.percent(skips.introRate)} foot={t('app.plugin.skips.introFoot', { intro: f.number(skips.intro), count: skips.introPlays })} />
         <StatTile label={t('app.plugin.skips.skipRate')} value={skips.skipRate == null ? '—' : f.percent(skips.skipRate)} foot={t('app.plugin.skips.skipFoot', { count: skips.skipped })} />
         <StatTile label={t('app.plugin.skips.avgSkipped')} value={skips.avgSkippedSeconds == null ? '—' : skipped(skips.avgSkippedSeconds)} foot={t('app.plugin.skips.avgSkippedFoot')} />
       </StatStrip>
@@ -72,14 +80,14 @@ export function SkipsCard({ skips, since }: { skips: SkipStats | undefined; sinc
   )
 }
 
-/** Manual vs automatic "played" marks of a movie / episode (current state, useItemMarks). Render only when hasMarks. */
+/** Manual vs automatic "played" marks of a movie / episode (latest recorded mark per user, useItemMarks). Render only when hasMarks. */
 export function MarksCard({ data: d }: { data: ItemMarks }) {
   const { t } = useTranslation()
   const f = useFormat()
   const marked = d.manual + d.automatic + d.other
   return (
     <Card>
-      <CardHeader title={t('app.plugin.marks.title')} subtitle={t('app.plugin.marks.subtitle')} />
+      <CardHeader title={t('app.plugin.marks.title')} subtitle={t('app.plugin.marks.subtitle', { date: f.day(new Date(`${d.collectedSince}T12:00:00`)) })} />
       <CardBody>
         {marked > 0 && (
           <SegBar parts={[
@@ -98,7 +106,6 @@ export function MarksCard({ data: d }: { data: ItemMarks }) {
           {d.unplayed > 0 && <li>{t('app.plugin.marks.unplayed', { count: d.unplayed })}</li>}
           <li>{t('app.plugin.marks.watched', { count: d.watched })}</li>
         </ul>
-        <p className={s.note}>{t('app.plugin.marks.since', { date: f.day(new Date(`${d.collectedSince}T12:00:00`)) })}</p>
       </CardBody>
     </Card>
   )

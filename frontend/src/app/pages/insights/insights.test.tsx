@@ -80,6 +80,7 @@ it('ranks the most skipped intros from plugin data, hidden without the plugin', 
   renderPage(<InsightsPage />, { path: '/insights', url: '/insights?from=2026-11-01&to=2026-11-23' })
   expect(await screen.findByRole('heading', { name: 'app.plugin.insights.title' })).toBeInTheDocument()
   expect(await screen.findByRole('link', { name: /Brigade 9/ })).toHaveAttribute('href', '/series/s9?from=2026-11-01&to=2026-11-23')
+  expect(screen.getByText(/app\.plugin\.insights\.playsCount:9/)).toBeInTheDocument()
   expect(screen.getByText(/^72\s%$/)).toBeInTheDocument()
   // The plugin started inside the period: "collected from" note.
   expect(screen.getByText('app.analytics.collectedSince')).toBeInTheDocument()
@@ -90,6 +91,14 @@ it('hides the skips card when the plugin has no data', async () => {
   renderPage(<InsightsPage />, { path: '/insights', url: '/insights' })
   await screen.findByRole('link', { name: /Station Nord/ })
   expect(screen.queryByText('app.plugin.insights.title')).toBeNull()
+})
+
+it('never shows the skips card while it is loading or failing', async () => {
+  mockApi({ ...FULL, '/api/v2/insights/skips': Error })
+  renderPage(<InsightsPage />, { path: '/insights', url: '/insights' })
+  await screen.findByRole('link', { name: /Station Nord/ })
+  expect(screen.queryByText('app.plugin.insights.title')).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
 })
 
 it('formats helpers', () => {

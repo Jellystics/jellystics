@@ -6,8 +6,8 @@ import { AppLink, Art, ButtonLink, Card, CardHeader, DataTable, EmptyState, Enti
 import { useFormat } from '@/lib/format'
 import { useEpisode, type EpisodeDetail, type EpisodeRef } from '@/api'
 import { useItemMarks } from '@/api/plugin'
-import { MarksCard, PlayedToEndTile, SkipsCard } from '@/app/widgets/PluginWidgets'
-import { hasMarks, hasPlayedToEnd } from '@/app/widgets/plugin'
+import { FinishedTile, MarksCard, SkipsCard } from '@/app/widgets/PluginWidgets'
+import { hasMarks } from '@/app/widgets/plugin'
 import { CompletionCell, EntitySkeleton, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
 import { entityPath } from '@/lib/routes'
@@ -21,7 +21,6 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
   const f = useFormat()
   const { item, totals } = data
   const marks = useItemMarks(item.id).data
-  const showPte = hasPlayedToEnd(data.playedToEnd)
   const showSkips = (data.skips?.plays ?? 0) > 0
   const showMarks = hasMarks(marks)
   const sid = item.seriesId || seriesId
@@ -58,11 +57,11 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
         }
       />
       <Card>
-        <StatStrip columns={showPte ? 5 : 4}>
+        <StatStrip columns={5}>
           <StatTile label={t('app.entity.views')} value={f.number(totals.views)} />
           <StatTile label={t('app.entity.viewers')} value={f.number(totals.viewers)} />
           <StatTile label={t('app.metric.completionAvg')} value={totals.avgCompletion == null ? '—' : f.percent(totals.avgCompletion)} />
-          {showPte && <PlayedToEndTile data={data.playedToEnd} />}
+          <FinishedTile data={data.playedToEnd} />
           <StatTile label={t('app.episode.pauses')} value={totals.pausedSecondsAvg == null ? '—' : f.duration(totals.pausedSecondsAvg)} foot={t('app.episode.pausesFoot')} />
         </StatStrip>
       </Card>

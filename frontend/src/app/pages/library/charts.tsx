@@ -6,11 +6,16 @@ import type { Funnel as FunnelData } from '@/api'
 /** Clicks → views → half → completed funnel in a ChartFrame. */
 export function FunnelCard({ funnel, title, subtitle, csvName }: { funnel: FunnelData; title: string; subtitle?: string; csvName: string }) {
   const { t } = useTranslation()
+  const f = useFormat()
   const stages = [
     { label: t('app.entity.funnel.clicks'), value: funnel.clicks },
     { label: t('app.entity.funnel.views'), value: funnel.views },
     { label: t('app.entity.funnel.half'), value: funnel.half },
-    { label: t('app.entity.funnel.completed'), value: funnel.completed },
+    // Finished views: the same metric as the "finished views" tile, read against views.
+    {
+      label: t('app.entity.funnel.completed'), value: funnel.completed,
+      note: funnel.views > 0 ? t('app.plugin.funnel.ofViews', { pct: f.percent(funnel.completed / funnel.views), done: f.number(funnel.completed), views: f.number(funnel.views) }) : undefined,
+    },
   ]
   return (
     <ChartFrame title={title} subtitle={subtitle} csvName={csvName} table={{ columns: [t('app.entity.funnel.stage'), t('app.entity.col.views')], rows: stages.map((s) => [s.label, s.value]) }}>

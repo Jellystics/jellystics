@@ -57,7 +57,7 @@ const stops = (n: number, end: number) => Array.from({ length: n }, (_, i) => (i
 
 export const movieFixture = {
   item: { id: 'm1', name: 'Les Rivages', year: 2024, runtimeSeconds: 7680, genres: ['Drame'], sizeBytes: 18_200_000_000, resolution: '4K', library: { id: 'lib-m', name: 'Films' } },
-  totals: { views: 48, clicks: 61, viewers: 5, completedRatio: 0.6, transcodeRatio: 0.21, watchSeconds: 302_400 },
+  totals: { views: 48, clicks: 61, viewers: 5, completedRatio: 0.63, transcodeRatio: 0.21, watchSeconds: 302_400 },
   funnel: { clicks: 61, views: 48, half: 37, completed: 29 },
   stopPositions: stops(24, 92),
   viewers: USERS.slice(0, 3).map((user, i) => ({ user, views: [14, 9, 6][i], lastWatched: `2026-11-${20 - i}T21:00:00+01:00`, bestCompletion: [0.99, 0.95, 0.52][i] })),
@@ -65,7 +65,7 @@ export const movieFixture = {
     row('h1', USERS[0], { id: 'm1', kind: 'movie', name: 'Les Rivages' }, 'Movie', '2026-11-20T21:00:00+01:00', 7600, 0.99),
     row('h2', USERS[1], { id: 'm1', kind: 'movie', name: 'Les Rivages' }, 'Movie', '2026-11-19T20:30:00+01:00', 1200, 0.16, 'Transcode'),
   ],
-  playedToEnd: { plays: 48, finished: 30, measured: 12, measuredFinished: 8, ratio: 0.625 },
+  playedToEnd: { plays: 46, finished: 29, measured: 12, measuredFinished: 8, ratio: 0.63 },
   pluginSince: '2026-11-10',
 }
 
@@ -86,7 +86,7 @@ export const seriesFixture = {
   viewers: USERS.map((user, i) => ({ user, episodesWatched: 5 - i, lastWatched: `2026-11-${20 - i}T21:00:00+01:00` })),
   cadence: [{ bucket: '<1min', count: 420 }, { bucket: '1-15min', count: 130 }, { bucket: 'nextDay', count: 190 }, { bucket: '>7d', count: 70 }],
   releaseLag: [{ bucket: '<24h', count: 18 }, { bucket: '1-7d', count: 34 }, { bucket: '>1y', count: 65 }],
-  skips: { plays: 7, skipped: 4, intro: 4, skipRate: 0.571, introRate: 0.571, avgSkippedSeconds: 72 },
+  skips: { plays: 7, skipped: 4, introPlays: 6, intro: 4, skipRate: 0.571, introRate: 0.667, avgSkippedSeconds: 72 },
   pluginSince: '2026-11-10',
 }
 
@@ -105,14 +105,14 @@ export const episodeFixture = {
   stopPositions: stops(20, 6),
   viewers: USERS.map((user, i) => ({ user, startedAt: `2026-11-${20 - i}T21:${10 + i * 7}:00+01:00`, watchSeconds: [2810, 2790, 2400, 1500, 2850][i], completion: [0.98, 0.97, 0.83, 0.52, 0.99][i], device: 'Chrome' })),
   playedToEnd: { plays: 5, finished: 4, measured: 3, measuredFinished: 3, ratio: 0.8 },
-  skips: { plays: 3, skipped: 2, intro: 2, skipRate: 0.667, introRate: 0.667, avgSkippedSeconds: 74 },
+  skips: { plays: 3, skipped: 2, introPlays: 3, intro: 2, skipRate: 0.667, introRate: 0.667, avgSkippedSeconds: 74 },
   pluginSince: '2026-11-10',
 }
 
 export const episodeMarksFixture = { collectedSince: '2026-11-10', manual: 2, automatic: 3, other: 0, unplayed: 0, watched: 5, manualWithoutView: 1 }
 export const skipsInsightFixture = {
   collectedSince: '2026-11-10',
-  totals: { plays: 41, skipped: 22, intro: 19, skipRate: 0.537, introRate: 0.463, avgSkippedSeconds: 68 },
+  totals: { plays: 41, skipped: 22, introPlays: 38, intro: 19, skipRate: 0.537, introRate: 0.463, avgSkippedSeconds: 68 },
   series: [
     { id: 's1', name: 'Station Nord', plays: 18, introRate: 0.72, skipRate: 0.78, avgSkippedSeconds: 74 },
     { id: 's2', name: 'Brigade 9', plays: 9, introRate: 0.44, skipRate: 0.56, avgSkippedSeconds: 61 },

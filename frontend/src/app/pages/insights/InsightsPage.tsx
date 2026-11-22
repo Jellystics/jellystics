@@ -191,7 +191,7 @@ export default function InsightsPage() {
         </QueryCard>
 
         {/* Plugin-only: hidden while the Jellystics plugin has sent no play. */}
-        {skips.data?.collectedSince !== null && (
+        {skips.data?.collectedSince && (
           <QueryCard
             title={t('app.plugin.insights.title')} query={skips} isEmpty={(d) => d.series.length === 0}
             empty={skips.data ? <CaptureEmpty since={skips.data.collectedSince} from={period.from} /> : undefined}
@@ -204,6 +204,7 @@ export default function InsightsPage() {
                     labelHeader={t('app.plugin.insights.series')} valueLabel={t('app.plugin.skips.intro')} format={f.percent}
                     rows={d.series.map((s) => ({
                       key: s.id, label: s.name, value: s.introRate ?? 0, to: entityPath('series', s.id),
+                      badge: <span className={styles.muted}> · {t('app.plugin.insights.playsCount', { count: s.plays })}</span>,
                       tooltip: [
                         [t('app.plugin.insights.plays'), f.number(s.plays)],
                         [t('app.plugin.skips.skipRate'), s.skipRate == null ? '—' : f.percent(s.skipRate)],

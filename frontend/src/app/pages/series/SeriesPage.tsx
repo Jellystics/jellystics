@@ -2,7 +2,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, AvatarStack, Badge, Card, DataTable, EmptyState, EntityHeader, ErrorState, SegmentedControl, StatStrip, StatTile, Tabs, withPeriod } from '@/ui'
+import { AppLink, Art, AvatarStack, Badge, Card, DataTable, EmptyState, EntityHeader, ErrorState, SegmentedControl, StatStrip, StatTile, Tabs, Tooltip, withPeriod } from '@/ui'
 import { ChartFrame, Columns, RetentionChart } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
@@ -70,9 +70,13 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
     ...((data.skips?.plays ?? 0) > 0 ? [{
       id: 'intro', header: t('app.plugin.skips.intro'),
       cell: ({ row }) => row.original.skipPlays > 0
-        ? <span title={t('app.plugin.skips.cellTip', { count: row.original.skipPlays, avg: row.original.avgSkippedSeconds == null ? '—' : f.duration(row.original.avgSkippedSeconds) })}>
-            <RatioCell value={row.original.introRate} width={64} tone="muted" label={t('app.plugin.skips.intro')} />
-          </span>
+        ? (
+          <Tooltip content={t('app.plugin.skips.cellTip', { count: row.original.skipPlays, avg: row.original.avgSkippedSeconds == null ? '—' : f.duration(row.original.avgSkippedSeconds) })}>
+            <span tabIndex={0} className={styles.tipTrigger}>
+              <RatioCell value={row.original.introRate} width={64} tone="muted" label={t('app.plugin.skips.intro')} />
+            </span>
+          </Tooltip>
+        )
         : <span className="muted">—</span>,
     } satisfies ColumnDef<SeriesEpisode>] : []),
   ]
