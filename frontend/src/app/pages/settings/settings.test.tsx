@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -104,7 +104,6 @@ it('tasks: runs a task, saves a cron and streams logs', async () => {
   await userEvent.click(row.getByRole('button', { name: 'app.settings.action.save' }))
   await waitFor(() => expect(hit('POST', '/api/setTaskSettings')[0]?.body).toEqual({ taskname: 'Backup', cronExpression: '5 4 * * *' }))
 
-  const { act } = await import('@testing-library/react')
   act(() => socketHandlers.TaskLog('hello from sync'))
   expect(within(screen.getByRole('log')).getByText('hello from sync')).toBeInTheDocument()
 })
@@ -154,6 +153,85 @@ it('backup: uploads a JSON file', async () => {
   await userEvent.upload(screen.getByTestId('backup-file'), file)
   await waitFor(() => expect(hit('POST', '/backup/upload')).toHaveLength(1))
   expect(hit('POST', '/backup/upload')[0].auth).toBe('Bearer TOK')
+})
+
+it('backup: keeping logs preserves the current app_url', async () => {
+  routes = {
+    'GET /backup/files': () => [],
+    'GET /api/getconfig': () => ({ app_url: 'https://js.example.com', settings: { KeepLogsForDays: 14 } }),
+    'POST /api/setconfig': () => ({}),
+  }
+  renderSection('backup')
+  const days = await screen.findByLabelText('app.settings.backup.keepDays')
+  await waitFor(() => expect(days).toHaveValue(14))
+  await userEvent.clear(days); await userEvent.type(days, '20')
+  await userEvent.click(screen.getByRole('button', { name: 'app.settings.action.save' }))
+  await waitFor(() => expect(hit('POST', '/api/setconfig')).toHaveLength(1))
+  expect(hit('POST', '/api/setconfig')[0].body).toEqual({ KeepLogsForDays: 20, app_url: 'https://js.example.com' })
+})
+
+it('backup: a failed download shows the dedicated error', async () => {
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  routes = {
+    'GET /backup/files': () => [{ name: 'b1.json', size: 2048, datecreated: '2026-01-02T03:04:05Z' }],
+    'GET /api/getconfig': () => ({}),
+    'GET /backup/files/b1.json': () => new Response('', { status: 500 }),
+  }
+  renderSection('backup')
+  await screen.findByText('b1.json')
+  await userEvent.click(screen.getByRole('button', { name: 'app.settings.backup.actionsFor' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'app.settings.action.download' }))
+  expect(await screen.findByText('app.settings.backup.downloadError')).toBeInTheDocument()
+})
+
+it('config: shows the server timezone, not the browser one', async () => {
+  routes = {
+    'GET /api/getconfig': () => ({}),
+    'GET /api/TrackedLibraries': () => [], 'GET /api/users': () => [], 'GET /api/UntrackedUsers': () => [],
+    'GET /auth/isConfigured': () => ({ state: 1, timezone: 'Pacific/Auckland' }),
+  }
+  renderSection('config')
+  expect(await screen.findByText('Pacific/Auckland')).toBeInTheDocument()
+})
+
+it('tasks: imports a Playback Reporting file', async () => {
+  routes = {
+    'GET /api/getTasks': () => [], 'GET /api/getTaskSettings': () => ({}),
+    'POST /sync/importPlaybackBackup': () => ({ imported: 3 }),
+  }
+  renderSection('tasks')
+  await screen.findByText('app.settings.tasks.empty')
+  const file = new File(['a\tb'], 'pb.tsv', { type: 'text/tab-separated-values' })
+  await userEvent.upload(screen.getByTestId('import-file'), file)
+  await userEvent.click(await screen.findByRole('button', { name: 'app.settings.tasks.import' }))
+  await waitFor(() => expect(hit('POST', '/sync/importPlaybackBackup')).toHaveLength(1))
+  expect(hit('POST', '/sync/importPlaybackBackup')[0].auth).toBe('Bearer TOK')
+  expect(hit('POST', '/sync/importPlaybackBackup')[0].body).toBeInstanceOf(FormData)
+})
+
+it('settings: 401 on upload/download clears the session', async () => {
+  const assign = vi.fn()
+  const orig = Object.getOwnPropertyDescriptor(window, 'location')!
+  Object.defineProperty(window, 'location', { value: { ...window.location, pathname: '/settings/backup', search: '', assign }, writable: true, configurable: true })
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })))
+  const { uploadFile, downloadAuthed } = await import('./net')
+  await expect(uploadFile('/backup/upload', new File(['{}'], 'x.json'))).rejects.toMatchObject({ status: 401 })
+  expect(localStorage.getItem('jellystics-token')).toBeNull()
+  expect(assign).toHaveBeenCalledWith('/login?next=%2Fsettings%2Fbackup')
+  localStorage.setItem('jellystics-token', 'TOK'); assign.mockClear()
+  await expect(downloadAuthed('/backup/files/x', 'x')).rejects.toMatchObject({ status: 401 })
+  expect(localStorage.getItem('jellystics-token')).toBeNull()
+  expect(assign).toHaveBeenCalledTimes(1)
+  Object.defineProperty(window, 'location', orig)
+})
+
+it('webhooks: hides the token and tolerates invalid dates', async () => {
+  routes = { 'GET /webhooks/': () => [{ id: 1, name: 'Ops', url: 'https://discord.com/api/webhooks/123/SECRETTOKEN', discord_events: [], enabled: true, last_triggered: 'garbage' }] }
+  renderSection('webhooks')
+  await screen.findByText('Ops')
+  expect(screen.getByText('discord.com/api/webhooks/…')).toBeInTheDocument()
+  expect(document.body.textContent).not.toContain('SECRETTOKEN')
+  expect(screen.getByText('app.settings.webhooks.lastTriggered')).toBeInTheDocument()
 })
 
 it('logs: maps results to levels and filters by search', async () => {
@@ -252,6 +330,7 @@ it('tabs navigate between sections', async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   )
+  expect(screen.getByRole('tabpanel')).toHaveAccessibleName('app.settings.sections.about')
   await userEvent.click(await screen.findByRole('tab', { name: 'app.settings.sections.logs' }))
   expect(await screen.findByText('app.settings.logs.empty')).toBeInTheDocument()
 })

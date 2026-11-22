@@ -3,6 +3,11 @@ import { clearSession, getToken } from './auth'
 export class ApiError extends Error {
   constructor(public status: number, public body: unknown) { super(`HTTP ${status}`) }
 }
+/** Drop the session and bounce to the login page (once). */
+export function handleUnauthorized() {
+  clearSession()
+  if (window.location.pathname !== '/login') window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+}
 type Params = Record<string, string | number | boolean | undefined | null>
 
 export async function apiFetch<T>(path: string, opts: { method?: string; params?: Params; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
@@ -17,10 +22,7 @@ export async function apiFetch<T>(path: string, opts: { method?: string; params?
   const text = await res.text()
   let data: unknown = undefined
   try { data = text ? JSON.parse(text) : undefined } catch { data = text }
-  if (res.status === 401) {
-    clearSession()
-    if (window.location.pathname !== '/login') window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
-  }
+  if (res.status === 401) handleUnauthorized()
   if (!res.ok) throw new ApiError(res.status, data)
   return data as T
 }

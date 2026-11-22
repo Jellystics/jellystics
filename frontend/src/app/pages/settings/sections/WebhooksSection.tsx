@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Plus, Send, Trash2, Webhook as WebhookIcon } from 'lucide-react'
 import { Badge, Button, Card, CardBody, CardHeader, Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, Field, Input, Skeleton, Switch, toast } from '@/ui'
 import { apiFetch } from '@/lib/api'
-import { asArray, errorMessage } from '../net'
+import { asArray, errorMessage, formatDateTime } from '../net'
 import styles from '../SettingsPage.module.css'
 
 interface Hook {
@@ -76,8 +76,7 @@ export function WebhooksSection() {
   }
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
   const tglEvent = (ev: string, on: boolean) => set('discord_events', on ? [...form.discord_events, ev] : form.discord_events.filter((x) => x !== ev))
-  const host = (u: string) => { try { const x = new URL(u); return `${x.hostname}${x.pathname.slice(0, 32)}…` } catch { return u.slice(0, 40) } }
-  const fmt = new Intl.DateTimeFormat(i18n.resolvedLanguage || 'fr', { dateStyle: 'medium', timeStyle: 'short' })
+  const host = (u: string) => { try { return `${new URL(u).hostname}/api/webhooks/…` } catch { return '…' } }
 
   return (
     <>
@@ -104,7 +103,7 @@ export function WebhooksSection() {
                     <Button size="sm" variant="ghost" iconOnly aria-label={t('app.settings.webhooks.delete', { name: h.name })} icon={<Trash2 size={16} strokeWidth={1.6} />} onClick={() => setDelTarget(h.id)} />
                   </div>
                   <div className={styles.chips}>{(h.discord_events ?? []).map((ev) => <Badge key={ev}>{t(`app.settings.webhooks.events.${ev}`)}</Badge>)}</div>
-                  {h.last_triggered && <div className={styles.meta}>{t('app.settings.webhooks.lastTriggered', { date: fmt.format(new Date(h.last_triggered)) })}</div>}
+                  {h.last_triggered && <div className={styles.meta}>{t('app.settings.webhooks.lastTriggered', { date: formatDateTime(h.last_triggered, i18n.resolvedLanguage || 'fr') })}</div>}
                 </li>
               ))}
             </ul>}

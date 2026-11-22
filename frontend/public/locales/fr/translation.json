@@ -632,7 +632,7 @@
         "noLibraries": "Aucune bibliothèque synchronisée.",
         "noUsers": "Aucun utilisateur synchronisé.",
         "timezone": "Fuseau horaire",
-        "timezoneHint": "Fuseau horaire de ce navigateur, utilisé pour afficher les dates."
+        "timezoneHint": "Fuseau horaire du serveur, utilisé pour les statistiques et les tâches planifiées."
       },
       "tasks": {
         "title": "Tâches planifiées",
@@ -665,6 +665,7 @@
         "upload": "Téléverser une sauvegarde",
         "uploaded": "Sauvegarde téléversée",
         "uploadError": "Échec du téléversement (fichiers JSON uniquement)",
+        "downloadError": "Échec du téléchargement de la sauvegarde",
         "name": "Nom",
         "date": "Date",
         "size": "Taille",

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardBody, CardFooter, CardHeader, Button, ErrorState, Field, Input, Skeleton, Switch, toast } from '@/ui'
 import { apiFetch } from '@/lib/api'
+import { useServerConfig } from '@/lib/serverConfig'
 import { asArray, errorMessage } from '../net'
 import styles from '../SettingsPage.module.css'
 
@@ -137,15 +138,14 @@ function TrackingCard() {
 
 export function ConfigSection() {
   const { t } = useTranslation()
-  let tz = ''
-  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone } catch { /* ignore */ }
+  const cfg = useServerConfig()
   return (
     <div className={styles.stack}>
       <ConnectionCard />
       <TrackingCard />
       <Card>
         <CardHeader title={t('app.settings.config.timezone')} subtitle={t('app.settings.config.timezoneHint')} />
-        <CardBody><span className={styles.mono}>{tz || '—'}</span></CardBody>
+        <CardBody>{cfg.isPending ? <Skeleton height={20} width={160} radius="md" /> : <span className={styles.mono}>{cfg.data?.timezone || '—'}</span>}</CardBody>
       </Card>
     </div>
   )

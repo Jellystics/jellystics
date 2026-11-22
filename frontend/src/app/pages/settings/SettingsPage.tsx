@@ -32,12 +32,13 @@ export function SettingsPage({ section }: { section: SettingsSection }) {
       <PageHeader title={t('app.nav.settings')} />
       <div className={styles.nav}>
         <Tabs
+          idPrefix="settings-tab"
           value={section}
           onValueChange={(v) => navigate({ pathname: `/settings/${v}`, search }, { replace: true })}
           items={SETTINGS_SECTIONS.map((s) => ({ value: s, label: t(`app.settings.sections.${s}`) }))}
         />
       </div>
-      <div role="tabpanel" aria-label={t(`app.settings.sections.${section}`)}>{VIEWS[section]()}</div>
+      <div role="tabpanel" id={`settings-panel-${section}`} aria-labelledby={`settings-tab-${section}`} tabIndex={0}>{VIEWS[section]()}</div>
     </>
   )
 }

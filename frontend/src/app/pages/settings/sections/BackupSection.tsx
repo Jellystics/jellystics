@@ -12,13 +12,13 @@ interface BackupRaw { name: string; size: number; datecreated: string }
 
 function KeepLogsCard() {
   const { t } = useTranslation()
-  const cfg = useQuery({ queryKey: ['settings', 'config'], queryFn: () => apiFetch<{ settings?: { KeepLogsForDays?: number } }>('/api/getconfig') })
+  const cfg = useQuery({ queryKey: ['settings', 'config'], queryFn: () => apiFetch<{ app_url?: string; settings?: { KeepLogsForDays?: number } }>('/api/getconfig') })
   const [days, setDays] = useState('30')
   useEffect(() => { const d = cfg.data?.settings?.KeepLogsForDays; if (d) setDays(String(d)) }, [cfg.data])
   const n = Number(days)
   const valid = Number.isInteger(n) && n >= 1
   const save = useMutation({
-    mutationFn: () => apiFetch('/api/setconfig', { method: 'POST', body: { KeepLogsForDays: n } }),
+    mutationFn: () => apiFetch('/api/setconfig', { method: 'POST', body: { KeepLogsForDays: n, app_url: cfg.data?.app_url ?? '' } }),
     onSuccess: () => toast.success(t('app.settings.saved')),
     onError: (e) => toast.error(errorMessage(e, t('app.settings.saveError'))),
   })
@@ -71,7 +71,7 @@ export function BackupSection() {
     onError: (e) => toast.error(errorMessage(e, t('app.settings.backup.restoreError'))),
   })
   const download = async (name: string) => {
-    try { await downloadAuthed(`/backup/files/${enc(name)}`, name) } catch { toast.error(t('app.settings.saveError')) }
+    try { await downloadAuthed(`/backup/files/${enc(name)}`, name) } catch { toast.error(t('app.settings.backup.downloadError')) }
   }
 
   const rows = asArray<BackupRaw>(files.data)

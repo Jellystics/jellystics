@@ -1,4 +1,4 @@
-import { ApiError } from '@/lib/api'
+import { ApiError, handleUnauthorized } from '@/lib/api'
 import { getToken } from '@/lib/auth'
 
 /** Authenticated multipart upload (apiFetch only speaks JSON). */
@@ -11,6 +11,7 @@ export async function uploadFile<T>(path: string, file: File): Promise<T> {
   const text = await res.text()
   let data: unknown
   try { data = text ? JSON.parse(text) : undefined } catch { data = text }
+  if (res.status === 401) handleUnauthorized()
   if (!res.ok) throw new ApiError(res.status, data)
   return data as T
 }
@@ -20,6 +21,7 @@ export async function downloadAuthed(path: string, filename: string): Promise<vo
   const headers: Record<string, string> = {}
   const token = getToken(); if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(path, { headers })
+  if (res.status === 401) handleUnauthorized()
   if (!res.ok) throw new ApiError(res.status, undefined)
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')
@@ -38,3 +40,9 @@ export const enc = encodeURIComponent
 
 /** Array-or-empty guard: the backend (and mocks) sometimes answer null or an object. */
 export function asArray<T>(v: unknown): T[] { return Array.isArray(v) ? (v as T[]) : [] }
+
+/** Locale date-time, or the raw string when it does not parse. */
+export function formatDateTime(s: string, locale: string): string {
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? s : new Intl.DateTimeFormat(locale || 'fr', { dateStyle: 'medium', timeStyle: 'short' }).format(d)
+}

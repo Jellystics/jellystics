@@ -632,7 +632,7 @@
         "noLibraries": "No library synced yet.",
         "noUsers": "No user synced yet.",
         "timezone": "Timezone",
-        "timezoneHint": "Timezone of this browser, used to display dates."
+        "timezoneHint": "Timezone of the server, used for statistics and scheduled tasks."
       },
       "tasks": {
         "title": "Scheduled tasks",
@@ -665,6 +665,7 @@
         "upload": "Upload a backup",
         "uploaded": "Backup uploaded",
         "uploadError": "Upload failed (JSON files only)",
+        "downloadError": "Backup download failed",
         "name": "Name",
         "date": "Date",
         "size": "Size",

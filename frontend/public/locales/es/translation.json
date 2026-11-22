@@ -632,7 +632,7 @@
         "noLibraries": "Aún no hay bibliotecas sincronizadas.",
         "noUsers": "Aún no hay usuarios sincronizados.",
         "timezone": "Zona horaria",
-        "timezoneHint": "Zona horaria de este navegador, usada para mostrar las fechas."
+        "timezoneHint": "Zona horaria del servidor, usada para las estadísticas y las tareas programadas."
       },
       "tasks": {
         "title": "Tareas programadas",
@@ -665,6 +665,7 @@
         "upload": "Subir una copia",
         "uploaded": "Copia subida",
         "uploadError": "Error al subir (solo archivos JSON)",
+        "downloadError": "Error al descargar la copia de seguridad",
         "name": "Nombre",
         "date": "Fecha",
         "size": "Tamaño",

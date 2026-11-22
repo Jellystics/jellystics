@@ -5,7 +5,7 @@ import { Upload } from 'lucide-react'
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, ErrorState, Field, Input, Skeleton, Switch, toast } from '@/ui'
 import { apiFetch } from '@/lib/api'
 import { useSocketEvent } from '@/lib/socket'
-import { asArray, enc, errorMessage, uploadFile } from '../net'
+import { asArray, enc, errorMessage, formatDateTime, uploadFile } from '../net'
 import styles from '../SettingsPage.module.css'
 
 interface Task { name: string; displayName: string; running: boolean; lastRun?: string | null }
@@ -22,7 +22,7 @@ const DEFAULT_CRON: Record<string, string> = {
 const CRON_RE = /^\s*\S+(\s+\S+){4}\s*$/
 
 function TaskRow({ task, cfg, onRun }: { task: Task; cfg?: TaskCfg; onRun: () => void }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const always = task.name === ALWAYS_ENABLED
   const [enabled, setEnabled] = useState(always || !!cfg?.enabled)
@@ -46,7 +46,7 @@ function TaskRow({ task, cfg, onRun }: { task: Task; cfg?: TaskCfg; onRun: () =>
       <div className={styles.itemHead}>
         <div className={styles.grow}>
           <div className={styles.name}>{task.displayName}</div>
-          <div className={styles.meta}>{task.lastRun ? t('app.settings.tasks.lastRun', { date: task.lastRun }) : t('app.settings.tasks.neverRun')}</div>
+          <div className={styles.meta}>{task.lastRun ? t('app.settings.tasks.lastRun', { date: formatDateTime(task.lastRun, i18n.resolvedLanguage || 'fr') }) : t('app.settings.tasks.neverRun')}</div>
         </div>
         {!always && <Switch label={t('app.settings.tasks.schedule')} checked={enabled} onCheckedChange={(v) => toggle.mutate(v)} />}
         {task.running
