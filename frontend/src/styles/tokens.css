@@ -21,7 +21,8 @@
   --border-strong: rgba(11,11,11,.18);
   --grid:          var(--n-200);
   --axis:          var(--n-300);
-  --ink:           var(--n-900);
+  --scrim:         rgba(0,0,0,.36);  /* modal / side panel backdrop */
+  --ink:          var(--n-900);
   --ink-2:         var(--n-700);
   --ink-3:         var(--n-500);
   --ink-on-accent: #ffffff;
@@ -79,7 +80,7 @@
     color-scheme: dark;
     --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
     --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.18);
-    --grid: #2c2c2a; --axis: #383835;
+    --grid: #2c2c2a; --axis: #383835; --scrim: rgba(0,0,0,.6);
     --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #898781;
     --accent: #3987e5; --accent-hover: #5598e7; --accent-wash: rgba(57,135,229,.16); --accent-ring: rgba(57,135,229,.45);
     --t-movie: #3987e5; --t-series: #d95926; --t-music: #199e70;
@@ -94,7 +95,7 @@
   color-scheme: dark;
   --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
   --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.18);
-  --grid: #2c2c2a; --axis: #383835;
+  --grid: #2c2c2a; --axis: #383835; --scrim: rgba(0,0,0,.6);
   --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #898781;
   --accent: #3987e5; --accent-hover: #5598e7; --accent-wash: rgba(57,135,229,.16); --accent-ring: rgba(57,135,229,.45);
   --t-movie: #3987e5; --t-series: #d95926; --t-music: #199e70;
