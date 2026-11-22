@@ -12,7 +12,8 @@ export function SessionTimeline({ fromHour, toHour, rows }: { fromHour: number; 
   const f = useFormat()
   const [ref, width] = useChartWidth()
   const tip = useChartTooltip()
-  const lw = 90, rh = 26, top = 18, height = top + rows.length * rh + 6
+  const longest = Math.max(0, ...rows.map((r) => r.user.length))
+  const lw = Math.min(Math.round(width * 0.35), Math.max(60, longest * 7 + 16)), rh = 26, top = 18, height = top + rows.length * rh + 6
   const range = Math.max(1, toHour - fromHour)
   const x = (h: number) => lw + ((Math.min(toHour, Math.max(fromHour, h)) - fromHour) / range) * (width - lw - 8)
   const hm = (h: number) => `${f.hour(Math.floor(h) % 24)}${String(Math.round((h % 1) * 60)).padStart(2, '0')}`
@@ -34,7 +35,6 @@ export function SessionTimeline({ fromHour, toHour, rows }: { fromHour: number; 
               return (
                 <rect
                   key={k} x={x(s.start)} y={top + i * rh + 5} width={Math.max(3, x(s.end) - x(s.start) - 2)} height={14} rx={4} fill={color}
-                  aria-label={s.label}
                   {...tip.hit(s.label, [{ color, label: t(`app.type.${s.type}`), value: `${hm(s.start)} → ${hm(s.end)}` }])}
                 />
               )

@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { LineChart, Columns, ChartFrame } from '@/charts'
+import { toCsv } from './ChartFrame'
 
 it('LineChart is an accessible image with one hit zone per label', () => {
   const { container } = render(<div style={{ width: 600 }}><LineChart labels={['a', 'b', 'c']} series={[{ name: 'Temps', color: 'var(--accent)', values: [1, 3, 2] }]} /></div>)
@@ -28,7 +29,18 @@ it('ChartFrame toggles to a table view', () => {
   fireEvent.click(screen.getByRole('radio', { name: 'app.chart.table' }))
   expect(screen.getByRole('table')).toHaveTextContent('lun.')
 })
-import { toCsv } from './ChartFrame'
 it('toCsv escapes quotes, commas and newlines', () => {
   expect(toCsv({ columns: ['a', 'b'], rows: [['x"y', 'p,q'], ['l1\nl2', 3]] })).toBe('a,b\n"x""y","p,q"\n"l1\nl2",3')
+})
+it('toCsv quotes carriage returns', () => {
+  expect(toCsv({ columns: ['a'], rows: [['x\ry']] })).toBe('a\n"x\ry"')
+})
+it('Columns bars activate from the keyboard and showXLabel picks the x labels', () => {
+  const onBarClick = vi.fn()
+  const { container } = render(<Columns labels={['A', 'B', 'C']} values={[1, 2, 3]} name="Vues" onBarClick={onBarClick} showXLabel={(i) => i === 2} />)
+  const hits = container.querySelectorAll('[data-hit]')
+  fireEvent.keyDown(hits[1], { key: 'Enter' })
+  expect(onBarClick).toHaveBeenCalledWith(1)
+  expect(container.querySelector('svg')).not.toHaveTextContent('A')
+  expect(container.querySelector('svg')).toHaveTextContent('C')
 })

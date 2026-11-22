@@ -36,3 +36,4 @@
   :global(:root:where(:not([data-theme="light"]))) .chart text:global(.mx-t):global(.lo) { fill: #fff; }
   :global(:root:where(:not([data-theme="light"]))) .chart text:global(.mx-t):global(.hi) { fill: #0b0b0b; }
 }
+.chart tspan.light { fill: var(--ink-3); font-weight: 400; }

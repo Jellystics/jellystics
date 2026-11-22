@@ -51,7 +51,7 @@ export function StackedColumns({ labels, series, height = 220, yFormat: yFormatP
                   : <rect key={s.name} x={x0} y={y1} width={bw} height={Math.max(0, h)} fill={s.color} />
               })}
               <rect
-                x={m.l + band * i} y={m.t} width={band} height={ih} fill="transparent" aria-label={l}
+                x={m.l + band * i} y={m.t} width={band} height={ih} fill="transparent"
                 {...tip.hit(l, [
                   ...series.map((s) => ({ color: s.color, label: s.name, value: yFormat(s.values[i] ?? 0) })),
                   { color: null, label: t('app.chart.total'), value: yFormat(totals[i]) },

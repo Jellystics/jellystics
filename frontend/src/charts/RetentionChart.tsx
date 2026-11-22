@@ -63,13 +63,10 @@ export function RetentionChart({ seasons, seasonNumbers, onEpisodeClick, height 
             <circle className={styles.pt} cx={x(i)} cy={y(p.v)} r={4} fill={color} stroke="var(--surface)" strokeWidth={2} />
             <rect
               x={x(i) - step / 2} y={m.t} width={step} height={ih} fill="transparent"
-              aria-label={t('app.chart.episodeShort', { season: sn(p.si), episode: p.ei + 1 })}
-              style={onEpisodeClick ? { cursor: 'pointer' } : undefined}
-              onClick={onEpisodeClick ? () => onEpisodeClick(p.si + 1, p.ei + 1) : undefined}
               {...tip.hit(t('app.chart.episodeShort', { season: sn(p.si), episode: p.ei + 1 }), [
                 { color, label: t('app.chart.viewers'), value: f.number(p.v) },
                 { label: t('app.chart.vsFirstEpisode'), value: f.percent(p.v / base) },
-              ])}
+              ], undefined, onEpisodeClick ? () => onEpisodeClick(p.si + 1, p.ei + 1) : undefined)}
             />
           </g>
         ))}

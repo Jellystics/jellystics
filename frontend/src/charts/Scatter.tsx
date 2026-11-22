@@ -38,7 +38,6 @@ export function Scatter({ points, xLabel, yLabel, xFormat, yFormat, note, height
         {points.map((p, i) => (
           <circle
             key={i} cx={x(p.x)} cy={y(p.y)} r={5} fill={p.color ?? 'var(--accent)'} stroke="var(--surface)" strokeWidth={2}
-            aria-label={p.label}
             {...tip.hit(p.label, [{ label: xLabel, value: xf(p.x) }, { label: yLabel, value: yf(p.y) }])}
           />
         ))}

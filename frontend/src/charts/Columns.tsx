@@ -4,7 +4,7 @@ import { useChartWidth } from './useChartWidth'
 import { barPath, niceMax, ticks as makeTicks } from './scale'
 import styles from './charts.module.css'
 
-export function Columns({ labels, values, name, color = 'var(--accent)', emphasis = -1, height = 180, yFormat: yFormatProp, xEvery = 1, ticks = true, onBarClick }: {
+export function Columns({ labels, values, name, color = 'var(--accent)', emphasis = -1, height = 180, yFormat: yFormatProp, xEvery = 1, showXLabel, ticks = true, onBarClick }: {
   labels: string[]
   values: number[]
   name: string
@@ -13,6 +13,8 @@ export function Columns({ labels, values, name, color = 'var(--accent)', emphasi
   height?: number
   yFormat?: (v: number) => string
   xEvery?: number
+  /** Decides per index whether its x label is drawn; takes precedence over xEvery. */
+  showXLabel?: (i: number) => boolean
   ticks?: boolean
   onBarClick?: (i: number) => void
 }) {
@@ -43,12 +45,10 @@ export function Columns({ labels, values, name, color = 'var(--accent)', emphasi
             <g key={i}>
               <path d={barPath(cx - bw / 2, y(v), bw, y(0) - y(v))} fill={c} />
               {i === emphasis && <text className={styles.strong} x={cx} y={y(v) - 6} textAnchor="middle">{yFormat(v)}</text>}
-              {i % xEvery === 0 && <text x={cx} y={height - 6} textAnchor="middle">{labels[i]}</text>}
+              {(showXLabel ? showXLabel(i) : i % xEvery === 0) && <text x={cx} y={height - 6} textAnchor="middle">{labels[i]}</text>}
               <rect
-                x={m.l + band * i} y={m.t} width={band} height={ih} fill="transparent" aria-label={labels[i]}
-                style={onBarClick ? { cursor: 'pointer' } : undefined}
-                onClick={onBarClick ? () => onBarClick(i) : undefined}
-                {...tip.hit(labels[i], [{ color: c, label: name, value: yFormat(v) }])}
+                x={m.l + band * i} y={m.t} width={band} height={ih} fill="transparent"
+                {...tip.hit(labels[i], [{ color: c, label: name, value: yFormat(v) }], undefined, onBarClick ? () => onBarClick(i) : undefined)}
               />
             </g>
           )

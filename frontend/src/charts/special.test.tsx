@@ -45,6 +45,19 @@ it('RetentionChart: one hit zone per episode, retention label, click', () => {
   expect(hits[3]).toHaveAttribute('aria-label', 'app.chart.episodeShort')
 })
 
+it('RetentionChart hit zones are keyboard operable (Enter and Space)', () => {
+  const onClick = vi.fn()
+  const { container } = render(<RetentionChart seasons={[[100, 80], [50]]} onEpisodeClick={onClick} />)
+  const hits = container.querySelectorAll('[data-hit]')
+  expect(hits[2]).toHaveAttribute('role', 'button')
+  fireEvent.keyDown(hits[2], { key: 'Enter' })
+  expect(onClick).toHaveBeenLastCalledWith(2, 1)
+  fireEvent.keyDown(hits[1], { key: ' ' })
+  expect(onClick).toHaveBeenLastCalledWith(1, 2)
+  fireEvent.keyDown(hits[0], { key: 'a' })
+  expect(onClick).toHaveBeenCalledTimes(2)
+})
+
 it('StopHistogram renders one bar zone per bin', () => {
   const { container } = render(<StopHistogram bins={[1, 2, 3, 9]} runtimeMinutes={100} />)
   expect(screen.getByRole('img', { name: 'app.chart.stops' })).toBeInTheDocument()
@@ -57,7 +70,9 @@ it('Matrix leaves null cells empty', () => {
   expect(screen.getByRole('img', { name: 'app.chart.matrix' })).toBeInTheDocument()
   expect(container.querySelectorAll('text.mx-t')).toHaveLength(1)
   expect(container.querySelectorAll('[data-hit]')).toHaveLength(1)
-  expect(container.querySelector('svg')!.style.maxWidth).not.toBe('')
+  // drawn at natural size (no shrinking text) inside a horizontal scroller
+  expect(container.querySelector('svg')!.getAttribute('width')).not.toBe('100%')
+  expect((container.firstElementChild as HTMLElement).style.overflowX).toBe('auto')
 })
 
 it('Scatter: one point per entry with tooltip', () => {

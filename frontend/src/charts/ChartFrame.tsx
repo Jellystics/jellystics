@@ -6,7 +6,7 @@ import styles from './charts.module.css'
 type Legend = { label: string; color: string; line?: boolean }[]
 type TableData = { columns: string[]; rows: (string | number)[][] }
 
-const csvCell = (v: string | number) => { const s = String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+const csvCell = (v: string | number) => { const s = String(v); return /[",\r\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
 export const toCsv = (t: TableData) => [t.columns, ...t.rows].map((r) => r.map(csvCell).join(',')).join('\n')
 
 function download(name: string, table: TableData) {

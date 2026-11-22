@@ -47,7 +47,7 @@ export function StackedArea({ labels, series, yFormat, height = 220 }: {
           <g key={i} className={styles.hz}>
             <line className={styles.xhair} x1={x(i)} x2={x(i)} y1={m.t} y2={y(0)} stroke="var(--ink-3)" />
             <rect
-              x={x(i) - step / 2} y={m.t} width={step} height={ih} fill="transparent" aria-label={l}
+              x={x(i) - step / 2} y={m.t} width={step} height={ih} fill="transparent"
               {...tip.hit(l, series.map((s) => ({ color: s.color, label: s.name, value: yf(s.values[i] ?? 0) })).reverse())}
             />
           </g>

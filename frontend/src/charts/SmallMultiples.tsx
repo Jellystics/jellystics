@@ -45,7 +45,7 @@ function Mini({ item, max, height = 110 }: { item: Item; max: number; height?: n
             <g key={i}>
               <path d={barPath(m.l + band * i + (band - bw) / 2, m.t + ih - h, bw, h, 2)} fill={item.color} />
               <rect
-                x={m.l + band * i} y={m.t} width={band} height={ih} fill="transparent" aria-label={f.hour(i)}
+                x={m.l + band * i} y={m.t} width={band} height={ih} fill="transparent"
                 {...tip.hit(`${item.name} · ${f.hour(i)}`, [{ color: item.color, label: t('app.chart.views'), value: f.number(v) }])}
               />
             </g>

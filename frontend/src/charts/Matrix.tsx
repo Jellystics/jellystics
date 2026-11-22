@@ -24,8 +24,9 @@ export function Matrix({ rows, cols, values, unit, labelWidth = 120, width = 440
   const height = top + rows.length * ch + 4
 
   return (
-    <div className={styles.chart}>
-      <svg viewBox={`0 0 ${natural} ${height}`} width="100%" style={{ maxWidth: natural }} role="img" aria-label={t('app.chart.matrix')}>
+    // Drawn at natural size and scrolled when the container is narrower, so text never shrinks below its 11px design size.
+    <div className={styles.chart} style={{ overflowX: 'auto' }}>
+      <svg viewBox={`0 0 ${natural} ${height}`} width={natural} height={height} style={{ display: 'block' }} role="img" aria-label={t('app.chart.matrix')}>
         {cols.map((c, j) => <text key={j} x={labelWidth + j * cw + cw / 2} y={14} textAnchor="middle">{c}</text>)}
         {rows.map((r, i) => (
           <g key={i}>

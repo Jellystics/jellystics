@@ -59,10 +59,8 @@ export function LineChart({ labels, series, compare, area = true, height = 220, 
           if (compare) rows.push({ color: 'var(--axis)', label: compare.name, value: yFormat(compare.values[i]) })
           return (
             <rect
-              key={i} x={x(i) - step / 2} y={m.t} width={step} height={ih} fill="transparent" aria-label={l}
-              style={onPointClick ? { cursor: 'pointer' } : undefined}
-              onClick={onPointClick ? () => onPointClick(i) : undefined}
-              {...tip.hit(l, rows, () => setHover(i))}
+              key={i} x={x(i) - step / 2} y={m.t} width={step} height={ih} fill="transparent"
+              {...tip.hit(l, rows, () => setHover(i), onPointClick ? () => onPointClick(i) : undefined)}
               onMouseLeave={() => { tip.hide(); setHover(null) }}
               onBlur={() => { tip.hide(); setHover(null) }}
             />

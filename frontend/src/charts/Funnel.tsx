@@ -13,7 +13,9 @@ export function Funnel({ stages }: { stages: { label: string; value: number }[] 
   const [ref, width] = useChartWidth()
   const tip = useChartTooltip()
   const max = stages[0]?.value || 1
-  const rowH = 34, lw = 150, height = stages.length * rowH
+  const longest = Math.max(0, ...stages.map((s) => s.label.length))
+  // Label column sized to the longest label (≈7px/char), capped so bars keep room on narrow containers.
+  const rowH = 34, lw = Math.min(Math.round(width * 0.4), Math.max(90, longest * 7 + 8)), height = stages.length * rowH
 
   return (
     <div className={styles.chart} ref={ref}>
@@ -29,8 +31,10 @@ export function Funnel({ stages }: { stages: { label: string; value: number }[] 
                 d={barPathH(lw, yy, Math.max(2, w), 22)} fill={color}
                 {...tip.hit(s.label, [{ color, label: t('app.chart.plays'), value: f.number(s.value) }, { label: t('app.chart.vsFirst'), value: share }])}
               />
-              <text className={styles.strong} x={lw + Math.max(2, w) + 8} y={yy + 15}>{f.number(s.value)}</text>
-              {i > 0 && <text x={lw + Math.max(2, w) + 8 + f.number(s.value).length * 7 + 8} y={yy + 15}>{share}</text>}
+              <text className={styles.strong} x={lw + Math.max(2, w) + 8} y={yy + 15}>
+                {f.number(s.value)}
+                {i > 0 && <tspan className={styles.light} dx={8}>{share}</tspan>}
+              </text>
             </g>
           )
         })}
