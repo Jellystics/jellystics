@@ -20,13 +20,6 @@ const (
 	shareWeekMaxDays  = 120 // up to this many days the share is bucketed by week, else by month
 )
 
-// registerUsersExtra mounts the phase 3 routes on the /api/v2 group.
-func (h *V2Handler) registerUsersExtra(v2 *gin.RouterGroup) {
-	v2.GET("/users/retention", h.UsersRetention)
-	v2.GET("/users/share", h.UsersShare)
-	v2.GET("/concurrency", h.Concurrency)
-}
-
 // mondayOf returns the local midnight of the Monday of t's local week.
 func mondayOf(t time.Time) time.Time {
 	loc := statsql.Location()

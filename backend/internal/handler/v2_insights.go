@@ -10,34 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterAnalytics mounts the phase-5 analysis routes (insights, discover,
-// playback, recap, user languages) on g (the authed group).
-func (h *V2Handler) RegisterAnalytics(g *gin.RouterGroup) {
-	v2 := g.Group("/api/v2")
-	v2.GET("/insights/completion", h.InsightsCompletion)
-	v2.GET("/insights/sessions", h.InsightsSessions)
-	v2.GET("/insights/resumes", h.InsightsResumes)
-	v2.GET("/insights/rewatches", h.InsightsRewatches)
-	v2.GET("/insights/genres", h.InsightsGenres)
-	v2.GET("/insights/moments", h.InsightsMoments)
-	v2.GET("/insights/pauses", h.InsightsPauses)
-	v2.GET("/insights/binges", h.InsightsBinges)
-	v2.GET("/insights/rhythm", h.InsightsRhythm)
-
-	v2.GET("/discover/unwatched", h.DiscoverUnwatched)
-	v2.GET("/discover/abandoned", h.DiscoverAbandoned)
-	v2.GET("/discover/added", h.DiscoverAdded)
-	v2.GET("/discover/storage", h.DiscoverStorage)
-
-	v2.GET("/playback/methods", h.PlaybackMethods)
-	v2.GET("/playback/clients", h.PlaybackClients)
-	v2.GET("/playback/quality", h.PlaybackQuality)
-	v2.GET("/playback/network", h.PlaybackNetwork)
-
-	v2.GET("/recap/:userId/:period", h.Recap)
-	v2.GET("/users/:id/languages", h.UserLanguages)
-}
-
 // resumeTicks: a view starting at or after 30 s into the item is a resume.
 const resumeTicks = 30 * 10_000_000
 

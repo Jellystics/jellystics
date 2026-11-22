@@ -259,10 +259,7 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 		libs.GET("/:id/albums/:albumId/tracks", libH.AlbumTracks)
 	}
 	authed.GET("/api/items/:id", libH.GetItem)
-	authed.GET("/api/v2/items/:id/route", handler.NewItemRouteHandler(db).Route)
 	handler.NewV2Handler(db).Register(authed)
-	// --- phase 5: analyses (insights, discover, playback, recap, languages) ---
-	handler.NewV2Handler(db).RegisterAnalytics(authed)
 
 	// Users
 	users := authed.Group("/api/users")

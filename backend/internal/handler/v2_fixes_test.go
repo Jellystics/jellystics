@@ -238,7 +238,7 @@ func TestV2SpecialsInProgressAndAbandoned(t *testing.T) {
 			EpisodesViewed, EpisodesTotal *int
 		}
 	}
-	v5JSON(t, db, "/api/v2/discover/abandoned?type=series&userId=u2", &ab)
+	v2JSON(t, db, "/api/v2/discover/abandoned?type=series&userId=u2", &ab)
 	if len(ab.Items) != 1 || ab.Items[0].ID != "s1" || ab.Items[0].EpisodesViewed == nil || *ab.Items[0].EpisodesViewed != 1 ||
 		ab.Items[0].EpisodesTotal == nil || *ab.Items[0].EpisodesTotal != 4 {
 		t.Errorf("abandoned = %+v", ab.Items)

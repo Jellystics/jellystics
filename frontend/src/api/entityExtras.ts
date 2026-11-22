@@ -1,4 +1,5 @@
-// Entity-page widgets added in phase 4 (backend/internal/handler/v2_media_extra.go).
+// Entity-page widgets added in phase 4 (backend/internal/handler/v2_media_extra.go)
+// and a series' history (/api/v2/history?seriesId=).
 // Kept in their own file so the phase 2 client stays untouched.
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
@@ -41,4 +42,13 @@ export const useMovieSittings = (id: string | undefined, filters?: Filters) => u
 export const useLibraryDecades = (id: string | undefined, filters?: Filters) => useSub<DecadeRow[]>(qkx.libraryDecades, 'libraries', 'decades', id, filters)
 export const useLibraryGrowth = (id: string | undefined, filters?: Filters) => useSub<LibraryGrowth>(qkx.libraryGrowth, 'libraries', 'growth', id, filters)
 export const useAlbumFullListens = (id: string | undefined, filters?: Filters) => useSub<FullListenAlbum[]>(qkx.albumFullListens, 'albums', 'full-listens', id, filters)
-export const useSeriesHistory = (id: string | undefined, filters?: Filters) => useSub<HistoryPage>(qkx.seriesHistory, 'series', 'history', id, filters)
+/** Paged history of a series' episodes: /history filtered by seriesId. */
+export function useSeriesHistory(id: string | undefined, filters?: Filters) {
+  const p: QueryParams = { ...usePeriodParams(filters), seriesId: id ?? '' }
+  return useQuery({
+    queryKey: qkx.seriesHistory(id ?? '', p),
+    queryFn: ({ signal }) => apiFetch<HistoryPage>(`${V2}/history`, { params: p, signal }),
+    enabled: !!id,
+    placeholderData: keepPreviousData,
+  })
+}

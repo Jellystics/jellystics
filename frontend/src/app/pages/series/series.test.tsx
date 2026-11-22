@@ -6,7 +6,7 @@ import { calls, loc, mockApi, renderPage } from '../library/testing'
 import { seriesFixture, seriesHistoryFixture } from '../library/fixtures'
 
 afterEach(() => { vi.unstubAllGlobals() })
-const api = () => mockApi({ '/api/v2/series/s1': seriesFixture, '/api/v2/series/s1/history': seriesHistoryFixture })
+const api = () => mockApi({ '/api/v2/series/s1': seriesFixture, '/api/v2/history': seriesHistoryFixture })
 const open = (path: string) => renderPage('/series/:id', path, <SeriesPage />)
 
 it('renders header, tiles, retention and the episodes of the first season', async () => {
@@ -51,7 +51,9 @@ it('viewers and history tabs', async () => {
   await userEvent.click(screen.getByRole('tab', { name: /app.entity.tab.history/ }))
   expect(await screen.findByRole('link', { name: 'La Fracture' })).toHaveAttribute('href', '/series/s1/episodes/e5')
   expect(screen.getAllByText(/app.entity.episodeCode/).length).toBeGreaterThan(0)
-  expect(calls(spy, '/api/v2/series/s1/history')[0].searchParams.get('page')).toBe('1')
+  const req = calls(spy, '/api/v2/history')[0].searchParams
+  expect(req.get('seriesId')).toBe('s1')
+  expect(req.get('page')).toBe('1')
 })
 
 it('helpers fill fixed buckets and flag specials', () => {

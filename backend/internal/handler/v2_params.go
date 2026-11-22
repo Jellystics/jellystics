@@ -317,6 +317,40 @@ func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2.GET("/users/:id", h.User)
 	v2.GET("/libraries", h.Libraries)
 	v2.GET("/libraries/:id", h.Library)
-	h.registerMediaExtra(v2)
-	h.registerUsersExtra(v2)
+	v2.GET("/items/:id/route", h.ItemRoute)
+
+	// Entity-page widgets.
+	v2.GET("/movies/:id/sittings", h.MovieSittings)
+	v2.GET("/libraries/:id/decades", h.LibraryDecades)
+	v2.GET("/libraries/:id/growth", h.LibraryGrowth)
+	v2.GET("/albums/:id/full-listens", h.AlbumFullListens)
+
+	// Users.
+	v2.GET("/users/retention", h.UsersRetention)
+	v2.GET("/users/share", h.UsersShare)
+	v2.GET("/users/:id/languages", h.UserLanguages)
+	v2.GET("/concurrency", h.Concurrency)
+
+	// Analyses.
+	v2.GET("/insights/completion", h.InsightsCompletion)
+	v2.GET("/insights/sessions", h.InsightsSessions)
+	v2.GET("/insights/resumes", h.InsightsResumes)
+	v2.GET("/insights/rewatches", h.InsightsRewatches)
+	v2.GET("/insights/genres", h.InsightsGenres)
+	v2.GET("/insights/moments", h.InsightsMoments)
+	v2.GET("/insights/pauses", h.InsightsPauses)
+	v2.GET("/insights/binges", h.InsightsBinges)
+	v2.GET("/insights/rhythm", h.InsightsRhythm)
+
+	v2.GET("/discover/unwatched", h.DiscoverUnwatched)
+	v2.GET("/discover/abandoned", h.DiscoverAbandoned)
+	v2.GET("/discover/added", h.DiscoverAdded)
+	v2.GET("/discover/storage", h.DiscoverStorage)
+
+	v2.GET("/playback/methods", h.PlaybackMethods)
+	v2.GET("/playback/clients", h.PlaybackClients)
+	v2.GET("/playback/quality", h.PlaybackQuality)
+	v2.GET("/playback/network", h.PlaybackNetwork)
+
+	v2.GET("/recap/:userId/:period", h.Recap)
 }

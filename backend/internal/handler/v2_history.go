@@ -92,10 +92,13 @@ var historySelect = `
 	FROM acts
 	LEFT JOIN jf_library_episodes he ON acts.media_type = 'Episode' AND he."Id" = acts.item_id`
 
-// v2HistoryFilter applies the history filters (client, device, method, views, q)
-// on top of the common contract.
+// v2HistoryFilter applies the history filters (seriesId, client, device,
+// method, views, q) on top of the common contract.
 func v2HistoryFilter(c *gin.Context, p V2Params, tr TimeRange) *actFilter {
 	f := p.filter(tr)
+	if v := strings.TrimSpace(c.Query("seriesId")); v != "" {
+		f.where(`a."MediaType" = 'Episode' AND COALESCE(ce."SeriesId", a."NowPlayingItemId") = ?`, v)
+	}
 	if v := strings.TrimSpace(c.Query("client")); v != "" {
 		f.where(`a."Client" = ?`, v)
 	}

@@ -134,7 +134,6 @@ export const entityApi: Record<string, unknown> = {
   '/api/v2/movies/m1': movieFixture,
   '/api/v2/movies/m1/sittings': sittingsFixture,
   '/api/v2/series/s1': seriesFixture,
-  '/api/v2/series/s1/history': seriesHistoryFixture,
   '/api/v2/episodes/e5': episodeFixture,
   '/api/v2/artists/ar1': artistFixture,
   '/api/v2/albums/al1': albumFixture,
