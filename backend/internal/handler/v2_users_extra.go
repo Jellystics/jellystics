@@ -73,7 +73,10 @@ func (h *V2Handler) UsersRetention(c *gin.Context) {
 		Week string
 		K, N int
 	}
-	q, args := p.filter(p.Range).sql(`,
+	// Whole weeks: a partial first or last week would undercount its cohort and returns.
+	lastWeek := mondayOf(lastDay(p.Range))
+	whole := TimeRange{From: mondayOf(p.Range.From), To: lastWeek.AddDate(0, 0, 7)}
+	q, args := p.filter(whole).sql(`,
 		uw AS (SELECT DISTINCT user_id, date_trunc('week', local_ts)::date AS wk FROM acts WHERE user_id IS NOT NULL)
 		SELECT to_char(c.wk, 'YYYY-MM-DD') AS week, ((o.wk - c.wk) / 7)::int AS k, COUNT(*)::int AS n
 		FROM uw c JOIN uw o ON o.user_id = c.user_id AND o.wk >= c.wk AND o.wk <= c.wk + ?::int
@@ -88,7 +91,7 @@ func (h *V2Handler) UsersRetention(c *gin.Context) {
 		}
 		counts[r.Week][r.K] = r.N
 	}
-	last := mondayOf(lastDay(p.Range))
+	last := lastWeek
 	weeks := []time.Time{}
 	for w := mondayOf(p.Range.From); !w.After(last); w = w.AddDate(0, 0, 7) {
 		weeks = append(weeks, w)
@@ -186,15 +189,23 @@ func (h *V2Handler) UsersShare(c *gin.Context) {
 		totals[i] += r.Seconds
 		grand += r.Seconds
 	}
-	out := shareResponse{Bucket: bucket, Periods: periods, Users: []shareUser{}}
+	// Drop the leading periods without any watch time (an "all" range starts years back).
+	first := 0
+	for first < len(totals) && totals[first] == 0 {
+		first++
+	}
+	if first == len(totals) {
+		first = 0
+	}
+	out := shareResponse{Bucket: bucket, Periods: periods[first:], Users: []shareUser{}}
 	for id, u := range users {
 		if u.WatchSeconds == 0 {
 			continue
 		}
-		u.Values = make([]float64, len(periods))
-		for i, s := range seconds[id] {
+		u.Values = make([]float64, len(periods)-first)
+		for i := first; i < len(periods); i++ {
 			if totals[i] > 0 {
-				u.Values[i] = float64(s) / float64(totals[i])
+				u.Values[i-first] = float64(seconds[id][i]) / float64(totals[i])
 			}
 		}
 		if grand > 0 {

@@ -108,7 +108,7 @@ func TestV2UsersShare(t *testing.T) {
 		t.Errorf("values a=%v b=%v c=%v", a.Values, b.Values, c.Values)
 	}
 	v2JSON(t, db, "/api/v2/users/share?from=2025-10-01&to=2026-03-01", &got)
-	if got.Bucket != "month" || len(got.Periods) != 5 || got.Periods[3] != "2026-01-01" || len(got.Users[0].Values) != 5 {
+	if got.Bucket != "month" || len(got.Periods) != 2 || got.Periods[0] != "2026-01-01" || len(got.Users[0].Values) != 2 {
 		t.Errorf("monthly = %+v", got)
 	}
 }
@@ -150,5 +150,66 @@ func TestV2Concurrency(t *testing.T) {
 	}
 	if w := v2Get(t, db, "/api/v2/concurrency?date=2026-02-30"); w.Code != http.StatusBadRequest {
 		t.Errorf("bad date: %d", w.Code)
+	}
+}
+
+func TestV2UsersRetentionPartialWeeks(t *testing.T) {
+	db := seedUsersExtra(t)
+	var got struct {
+		Rows []struct {
+			Week     string
+			Cohort   int
+			Retained []*int
+		}
+	}
+	// Range starts on a Wednesday and ends on a Tuesday: the first and last weeks are partial.
+	v2JSON(t, db, "/api/v2/users/retention?from=2026-01-07&to=2026-01-21", &got)
+	if len(got.Rows) != 3 {
+		t.Fatalf("rows = %+v", got.Rows)
+	}
+	for i, r := range got.Rows {
+		if r.Cohort != 2 {
+			t.Errorf("row %d (%s) cohort = %d, want 2", i, r.Week, r.Cohort)
+		}
+	}
+	if r := got.Rows[0].Retained; r[1] == nil || *r[1] != 1 || r[2] == nil || *r[2] != 2 {
+		t.Errorf("row 0 retained = %v", r)
+	}
+}
+
+func TestV2ConcurrencyParisTimezone(t *testing.T) {
+	t.Setenv("TZ", "Europe/Paris")
+	db := testutil.NewDB(t)
+	d := func(s string) time.Time {
+		v, err := time.Parse("2006-01-02 15:04", s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	pos := int64(1200)
+	rows := []models.JFPlaybackActivity{
+		// 23:50 Paris on 2026-03-09 (22:50Z), 20 min: crosses local midnight.
+		trackedRow("p1", "a", "m1", "Movie", d("2026-03-09 22:50"), 1200, 1200, &pos),
+		// 2026-03-29 spring-forward: 01:30Z is 03:30 CEST, 150 minutes into the 23-hour day.
+		trackedRow("p2", "b", "m1", "Movie", d("2026-03-29 01:30"), 600, 600, func() *int64 { v := int64(600); return &v }()),
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Slots    []int
+		Sessions []struct{ Start, End string }
+	}
+	v2JSON(t, db, "/api/v2/concurrency?date=2026-03-10", &got)
+	if len(got.Slots) != 96 || len(got.Sessions) != 1 || got.Slots[0] != 1 || got.Slots[1] != 0 {
+		t.Fatalf("normal day = %+v", got)
+	}
+	if s := got.Sessions[0]; !strings.Contains(s.Start, "T00:00:00+01:00") || !strings.Contains(s.End, "T00:10:00+01:00") {
+		t.Errorf("clipped at local midnight = %+v", s)
+	}
+	v2JSON(t, db, "/api/v2/concurrency?date=2026-03-29", &got)
+	if len(got.Slots) != 92 || got.Slots[10] != 1 || got.Slots[9] != 0 || got.Slots[11] != 0 {
+		t.Errorf("DST day slots = %v", got.Slots)
 	}
 }
