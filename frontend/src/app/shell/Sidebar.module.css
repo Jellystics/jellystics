@@ -14,6 +14,4 @@
 .liveDot { margin-left: auto; width: 8px; height: 8px; border-radius: var(--r-full); background: var(--critical); animation: livePulse 1.6s infinite; }
 @keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .liveDot { animation: none; } }
-.foot { margin-top: auto; border-top: 1px solid var(--border); padding-top: var(--s-3); display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-md); }
-.user { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 900px) { .side { display: none; } }

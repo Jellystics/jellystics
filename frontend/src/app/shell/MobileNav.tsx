@@ -4,7 +4,6 @@ import { Menu as MenuIcon, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/ui'
 import { NavList } from './NavList'
-import { UserMenu } from './UserMenu'
 import { Brand } from './Brand'
 import styles from './MobileNav.module.css'
 
@@ -31,7 +30,6 @@ export function MobileNav({ liveCount }: { liveCount: number }) {
             <RDialog.Close asChild><Button variant="ghost" size="sm" iconOnly aria-label={t('app.nav.closeMenu')} icon={<X size={16} strokeWidth={1.6} aria-hidden />} /></RDialog.Close>
           </div>
           <NavList liveCount={liveCount} onNavigate={() => setOpen(false)} />
-          <UserMenu />
         </RDialog.Content>
       </RDialog.Portal>
     </RDialog.Root>

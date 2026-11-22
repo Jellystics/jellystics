@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Breadcrumbs, Button, PeriodPicker } from '@/ui'
 import { useCrumbs, useShowPeriod } from './crumbs'
 import { MobileNav } from './MobileNav'
+import { UserMenu } from './UserMenu'
 import styles from './TopBar.module.css'
 
 export function TopBar({ liveCount, onOpenCommand }: { liveCount: number; onOpenCommand: () => void }) {
@@ -15,6 +16,7 @@ export function TopBar({ liveCount, onOpenCommand }: { liveCount: number; onOpen
       <div className={styles.crumbs}>{crumbs.length > 0 && <Breadcrumbs items={crumbs} />}</div>
       <Button variant="ghost" size="sm" iconOnly className={styles.searchBtn} aria-label={t('app.command.open')} onClick={onOpenCommand} icon={<Search size={16} strokeWidth={1.6} aria-hidden />} />
       {showPeriod && <PeriodPicker />}
+      <UserMenu />
     </header>
   )
 }

@@ -1,13 +1,14 @@
-import { Globe, LogOut, MoonStar, Settings, Sun, Check } from 'lucide-react'
+import { ChevronDown, Globe, LogOut, MoonStar, Settings, Sun, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Avatar, Button, Menu, withPeriod, type MenuItem } from '@/ui'
+import { Avatar, Menu, withPeriod, type MenuItem } from '@/ui'
 import { getUserId, getUsername, logout } from '@/lib/auth'
 import { useThemeMode } from '@/lib/themeMode'
-import styles from './Sidebar.module.css'
+import styles from './UserMenu.module.css'
 
 const LANGS = ['fr', 'en', 'es'] as const
 
+/** Signed-in user (Jellyfin avatar + name) and their menu, top right of the top bar. */
 export function UserMenu() {
   const { t, i18n } = useTranslation()
   const { mode, toggle } = useThemeMode()
@@ -25,10 +26,15 @@ export function UserMenu() {
     { label: t('app.user.logout'), icon: <LogOut size={16} aria-hidden />, onSelect: () => { void logout() } },
   ]
   return (
-    <div className={styles.foot}>
-      <Avatar id={getUserId() || name} name={name} size="sm" />
-      <span className={styles.user}>{name}</span>
-      <Menu trigger={<Button variant="ghost" size="sm" iconOnly aria-label={t('app.user.menu')} icon={<Settings size={16} strokeWidth={1.6} aria-hidden />} />} items={items} />
-    </div>
+    <Menu
+      trigger={
+        <button type="button" className={styles.trigger} aria-label={t('app.user.menu')}>
+          <Avatar id={getUserId() || name} name={name} />
+          <span className={styles.name}>{name}</span>
+          <ChevronDown size={14} strokeWidth={1.6} aria-hidden className={styles.chev} />
+        </button>
+      }
+      items={items}
+    />
   )
 }

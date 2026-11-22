@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import { useSocketEvent } from '@/lib/socket'
+import { itemImage } from '@/lib/images'
 
 export interface JellyfinSession {
   Id: string
@@ -56,5 +57,5 @@ export function sessionBitrate(s: JellyfinSession): number | null {
 
 /** Primary image of a Jellyfin item through the backend proxy. */
 export function itemImageUrl(id: string, width = 240): string {
-  return `/proxy/Items/Images/Primary/?id=${encodeURIComponent(id)}&fillWidth=${width}&quality=90`
+  return itemImage(id, width)
 }

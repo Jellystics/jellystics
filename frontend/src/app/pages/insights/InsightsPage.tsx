@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { itemImage } from '@/lib/images'
 import {
   useInsightsBinges, useInsightsCompletion, useInsightsGenres, useInsightsMoments, useInsightsPauses,
   useInsightsResumes, useInsightsRewatches, useInsightsRhythm, useInsightsSessions,
@@ -74,7 +75,7 @@ export default function InsightsPage() {
               <CardBody>
                 <BarList
                   labelHeader={t('app.insights.binges.series')} valueLabel={t('app.insights.binges.value')}
-                  rows={d.map((b) => ({ key: b.id, label: b.name, value: b.binges, to: entityPath('series', b.id), lead: <Art title={b.name} seed={b.id} /> }))}
+                  rows={d.map((b) => ({ key: b.id, label: b.name, value: b.binges, to: entityPath('series', b.id), lead: <Art title={b.name} seed={b.id} src={itemImage(b.id)} /> }))}
                 />
               </CardBody>
             </Card>
@@ -164,7 +165,7 @@ export default function InsightsPage() {
                         <tr key={`${r.id}/${r.user.id}`}>
                           <td>
                             <div className={styles.media}>
-                              <Art title={r.parentName ?? r.name} seed={r.parentId ?? r.id} kind={r.kind === 'track' ? 'square' : 'poster'} />
+                              <Art title={r.parentName ?? r.name} seed={r.parentId ?? r.id} src={itemImage(r.parentId ?? r.id)} kind={r.kind === 'track' ? 'square' : 'poster'} />
                               <div>
                                 {to ? <AppLink className={styles.title} to={to}>{r.name}</AppLink> : <span className={styles.title}>{r.name}</span>}
                                 {r.parentName && <div className={styles.sub}>{r.parentName}</div>}

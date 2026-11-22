@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { itemImage } from '@/lib/images'
 import { useDiscoverAbandoned, useDiscoverAdded, useDiscoverStorage, useDiscoverUnwatched } from '@/api/analytics'
 import { ChartFrame, Scatter } from '@/charts'
 import { AppLink, Art, Card, CardBody, CardHeader, ErrorState, MediaTypeBadge, Meter, PageHeader, Skeleton, StatStrip, StatTile } from '@/ui'
@@ -67,7 +68,7 @@ export default function DiscoverPage() {
                         <tr key={it.id}>
                           <td>
                             <div className={styles.media}>
-                              <Art title={it.name} seed={it.id} kind={it.kind === 'album' ? 'square' : 'poster'} />
+                              <Art title={it.name} seed={it.id} src={itemImage(it.id)} kind={it.kind === 'album' ? 'square' : 'poster'} />
                               <div>
                                 {to ? <AppLink className={styles.title} to={to}>{it.name}</AppLink> : <span className={styles.title}>{it.name}</span>}
                                 <div className={styles.sub}>
@@ -105,7 +106,7 @@ export default function DiscoverPage() {
                       <tr key={`${it.kind}/${it.id}/${it.user.id}`}>
                         <td>
                           <div className={styles.media}>
-                            <Art title={it.name} seed={it.id} />
+                            <Art title={it.name} seed={it.id} src={itemImage(it.id)} />
                             <div>
                               <AppLink className={styles.title} to={entityPath(it.kind, it.id) ?? '/'}>{it.name}</AppLink>
                               <div className={styles.sub}>

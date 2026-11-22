@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { itemImage } from '@/lib/images'
 import { useParams } from 'react-router-dom'
 import { ArrowDown, ArrowUp, ChevronRight, UserX } from 'lucide-react'
 import { useRecap, type Recap } from '@/api/analytics'
@@ -88,7 +89,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
               <CardHeader title={t('app.recap.topSeries')} />
               <CardBody>
                 {d.topSeries.length ? (
-                  <BarList valueLabel="" format={hours} rows={d.topSeries.map((s) => ({ key: s.id, label: s.name, value: s.watchSeconds, to: entityPath('series', s.id), lead: <Art title={s.name} seed={s.id} />, fill: typeFill('series') }))} />
+                  <BarList valueLabel="" format={hours} rows={d.topSeries.map((s) => ({ key: s.id, label: s.name, value: s.watchSeconds, to: entityPath('series', s.id), lead: <Art title={s.name} seed={s.id} src={itemImage(s.id)} />, fill: typeFill('series') }))} />
                 ) : <p className={shared.muted}>{t('app.recap.none')}</p>}
               </CardBody>
             </Card>
@@ -96,7 +97,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
               <CardHeader title={t('app.recap.topMovies')} />
               <CardBody>
                 {d.topMovies.length ? (
-                  <BarList valueLabel="" format={(v) => t('app.recap.views', { count: v })} rows={d.topMovies.map((m) => ({ key: m.id, label: m.name, value: m.views, to: entityPath('movie', m.id), lead: <Art title={m.name} seed={m.id} />, fill: typeFill('movie') }))} />
+                  <BarList valueLabel="" format={(v) => t('app.recap.views', { count: v })} rows={d.topMovies.map((m) => ({ key: m.id, label: m.name, value: m.views, to: entityPath('movie', m.id), lead: <Art title={m.name} seed={m.id} src={itemImage(m.id)} />, fill: typeFill('movie') }))} />
                 ) : <p className={shared.muted}>{t('app.recap.none')}</p>}
               </CardBody>
             </Card>
@@ -104,7 +105,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
               <CardHeader title={t('app.recap.topArtists')} />
               <CardBody>
                 {d.topArtists.length ? (
-                  <BarList valueLabel="" format={hours} rows={d.topArtists.map((a) => ({ key: a.id, label: a.name, value: a.watchSeconds, to: entityPath('artist', a.id), lead: <Art title={a.name} seed={a.id} kind="square" />, fill: typeFill('music') }))} />
+                  <BarList valueLabel="" format={hours} rows={d.topArtists.map((a) => ({ key: a.id, label: a.name, value: a.watchSeconds, to: entityPath('artist', a.id), lead: <Art title={a.name} seed={a.id} src={itemImage(a.id)} kind="square" />, fill: typeFill('music') }))} />
                 ) : <p className={shared.muted}>{t('app.recap.none')}</p>}
               </CardBody>
             </Card>
@@ -162,7 +163,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
                           <td className={`${shared.num} ${shared.muted}`}>{r.rank}</td>
                           <td>
                             <div className={shared.media}>
-                              <Art title={r.name} seed={r.id} kind={r.kind === 'album' ? 'square' : 'poster'} />
+                              <Art title={r.name} seed={r.id} src={itemImage(r.id)} kind={r.kind === 'album' ? 'square' : 'poster'} />
                               <div>
                                 <AppLink className={shared.title} to={entityPath(r.kind, r.id) ?? '/'}>{r.name}</AppLink>
                                 {r.parentName && <div className={shared.sub}>{r.parentName}</div>}

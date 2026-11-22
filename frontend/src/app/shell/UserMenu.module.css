@@ -1,0 +1,6 @@
+.trigger { display: inline-flex; align-items: center; gap: var(--s-2); height: 36px; padding: 0 var(--s-2) 0 4px; border: 1px solid transparent; border-radius: var(--r-full); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md); cursor: pointer; max-width: 220px; }
+.trigger:hover, .trigger[data-state='open'] { background: var(--surface-2); border-color: var(--border); }
+.trigger:focus-visible { outline: none; box-shadow: var(--focus); }
+.name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; }
+.chev { color: var(--ink-3); flex: none; }
+@media (max-width: 900px) { .name, .chev { display: none; } .trigger { padding: 0 4px; } }

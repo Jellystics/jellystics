@@ -1,6 +1,7 @@
 // Helpers shared by the phase 4 entity pages (libraries, library, movie,
 // series, episode, artist, album).
 import { ApiError } from '@/lib/api'
+import { itemImage } from '@/lib/images'
 import type { HistoryItem, LibraryRef, LibraryType } from '@/api'
 import { useSetCrumbLabel, useSetCrumbLabels, type CrumbLabels } from '@/app/shell/crumbs'
 
@@ -17,7 +18,7 @@ export function useEntityCrumbs(name: string | undefined, library: LibraryRef | 
 export const PANEL_STATE = { panel: true }
 
 /** Jellyfin primary image through the backend proxy. */
-export const itemArt = (id: string, width = 320) => `/proxy/Items/Images/Primary/?id=${encodeURIComponent(id)}&fillWidth=${width}&quality=90`
+export const itemArt = (id: string, width = 320) => itemImage(id, width)
 
 export const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404
 
