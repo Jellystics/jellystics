@@ -63,6 +63,23 @@ type Service struct {
 	lastRefresh    time.Time
 	lastStaleCheck time.Time
 	lastLoggedErr  string
+
+	// History push (push.go).
+	pushMu  gosync.Mutex
+	pushing bool
+	pushWG  gosync.WaitGroup
+	// resyncWG tracks the background run started by Resync (tests wait on it).
+	resyncWG     gosync.WaitGroup
+	resetMu      gosync.Mutex
+	resetPending bool // Resync requested: the next run starts from cursor 0
+}
+
+func (s *Service) takeResetPending() bool {
+	s.resetMu.Lock()
+	defer s.resetMu.Unlock()
+	p := s.resetPending
+	s.resetPending = false
+	return p
 }
 
 func New(repos *repository.Container) *Service {
@@ -73,6 +90,9 @@ func New(repos *repository.Container) *Service {
 type Status struct {
 	models.PluginSyncState
 	Healthy bool `json:"healthy"`
+	// PlaysSynced counts the plays recorded by the plugin stored in Jellystics.
+	PlaysSynced            int64 `json:"playsSynced"`
+	SupportedSchemaVersion int   `json:"supportedSchemaVersion"`
 }
 
 // Status returns the persisted sync state and whether the plugin is
@@ -82,8 +102,33 @@ func (s *Service) Status(ctx context.Context) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Status{PluginSyncState: *st, Healthy: st.Healthy(s.now())}, nil
+	n, err := s.repos.PluginSync.CountPluginPlays(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Status{PluginSyncState: *st, Healthy: st.Healthy(s.now()), PlaysSynced: n,
+		SupportedSchemaVersion: SupportedSchemaVersion}, nil
 }
+
+// Resync resets every cursor (the plugin data is re-read from the start;
+// upserts are idempotent) and starts a sync run in the background.
+// The reset is applied by the next run (runs are serialised, so a run in
+// progress cannot save its old cursors over it).
+func (s *Service) Resync(ctx context.Context) error {
+	s.resetMu.Lock()
+	s.resetPending = true
+	s.resetMu.Unlock()
+	log.Printf("[plugin-sync] resync requested: everything is re-read from the plugin")
+	s.resyncWG.Add(1)
+	go func() {
+		defer s.resyncWG.Done()
+		_, _ = s.Run(context.Background())
+	}()
+	return nil
+}
+
+// WaitResync blocks until the run started by Resync has finished.
+func (s *Service) WaitResync() { s.resyncWG.Wait() }
 
 // Result summarises one run.
 type Result struct {
@@ -135,6 +180,10 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 	now := s.now()
 	st.LastCheckedAt = &now
+	if s.takeResetPending() {
+		st.CursorPlays, st.CursorLibraryEvents, st.CursorUserDataEvents, st.CursorLogins = 0, 0, 0, 0
+		res.CursorReset = true
+	}
 
 	info, err := jf.GetJellysticsInfo(ctx)
 	if err != nil {

@@ -57,6 +57,16 @@ type PluginSyncRepository interface {
 	// restore or a plugin reinstall). Upserts are idempotent.
 	ResetCursors(ctx context.Context) error
 
+	// SavePushState writes only the history push columns of the state
+	// (SaveState never writes them).
+	SavePushState(ctx context.Context, st *models.PluginSyncState) error
+	// CountPushable / ListPushable select the plays the history push sends
+	// to the plugin (everything not coming from the plugin), by ascending Id.
+	CountPushable(ctx context.Context) (int64, error)
+	ListPushable(ctx context.Context, afterId string, limit int) ([]models.JFPlaybackActivity, error)
+	// CountPluginPlays counts the plays recorded by the Jellystics plugin.
+	CountPluginPlays(ctx context.Context) (int64, error)
+
 	// UpsertPlays writes mapped plugin plays, following their source:
 	// Jellystics-plugin plays are upserted first (authoritative); then
 	// Playback Reporting imports replace the legacy import of the same plays
@@ -95,9 +105,45 @@ func (r *pluginSyncRepo) GetState(ctx context.Context) (*models.PluginSyncState,
 	return &st, err
 }
 
+// pushColumns are owned by the history push (SavePushState): the sync never
+// writes them, so a concurrent sync run and push cannot overwrite each other.
+var pushColumns = []string{"push_state", "push_cursor", "push_total", "push_sent", "push_imported",
+	"push_skipped", "push_rejected", "push_started_at", "push_finished_at", "push_error"}
+
 func (r *pluginSyncRepo) SaveState(ctx context.Context, st *models.PluginSyncState) error {
 	st.ID = 1
-	return r.db.WithContext(ctx).Save(st).Error
+	return r.db.WithContext(ctx).Model(&models.PluginSyncState{ID: 1}).Select("*").Omit(append([]string{"id"}, pushColumns...)...).Updates(st).Error
+}
+
+func (r *pluginSyncRepo) SavePushState(ctx context.Context, st *models.PluginSyncState) error {
+	cols := make([]string, len(pushColumns))
+	copy(cols, pushColumns)
+	return r.db.WithContext(ctx).Model(&models.PluginSyncState{ID: 1}).Select(cols).Updates(st).Error
+}
+
+// pushableCond selects the plays the history push sends to the plugin: every
+// play not coming from the plugin itself (tracker, legacy / TSV imports,
+// restores...), of a type the plugin stores, with the identity it requires.
+const pushableCond = `source NOT IN ('` + SourceJellysticsPlugin + `', '` + SourceImportPBR + `', '` + SourceImportJellystics + `')
+	AND "MediaType" IN ('Movie', 'Episode', 'Audio') AND "ItemId" IS NOT NULL AND "UserId" IS NOT NULL AND "StartedAt" IS NOT NULL`
+
+func (r *pluginSyncRepo) CountPushable(ctx context.Context) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Model(&models.JFPlaybackActivity{}).Where(pushableCond).Count(&n).Error
+	return n, err
+}
+
+func (r *pluginSyncRepo) ListPushable(ctx context.Context, afterId string, limit int) ([]models.JFPlaybackActivity, error) {
+	var out []models.JFPlaybackActivity
+	err := r.db.WithContext(ctx).Where(pushableCond).Where(`"Id" > ?`, afterId).
+		Order(`"Id"`).Limit(limit).Find(&out).Error
+	return out, err
+}
+
+func (r *pluginSyncRepo) CountPluginPlays(ctx context.Context) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).Model(&models.JFPlaybackActivity{}).Where("source = ?", SourceJellysticsPlugin).Count(&n).Error
+	return n, err
 }
 
 func (r *pluginSyncRepo) ResetCursors(ctx context.Context) error {

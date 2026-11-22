@@ -200,8 +200,9 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 		// Negative values (an int32 overflow in the plugin) become 0; overlong
 		// ones are capped against the runtime by BackfillTracking below.
 		playDurationSecs, _ := strconv.ParseInt(playDurationStr, 10, 64)
+		repaired := false
 		if playDurationSecs < 0 {
-			playDurationSecs = 0
+			playDurationSecs, repaired = 0, true
 		}
 
 		// Generate an ID based on content
@@ -219,6 +220,7 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 			ActivityDateInserted: &dateCreated,
 			Imported:             true,
 			Source:               "import",
+			DurationRepaired:     repaired,
 		}
 		activities = append(activities, activity)
 		imported++

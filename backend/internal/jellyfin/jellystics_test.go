@@ -120,6 +120,17 @@ func TestGetJellysticsPage_OtherTables(t *testing.T) {
 	}
 }
 
+func TestPostJellysticsPlays_Result(t *testing.T) {
+	c, _ := newTestClient(t, "k", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"received":3,"imported":1,"skipped":1,"rejected":1}`))
+	})
+	res, err := c.PostJellysticsPlays(context.Background(), make([]JellysticsPlay, 3))
+	if err != nil || res != (JellysticsImportResult{Received: 3, Imported: 1, Skipped: 1, Rejected: 1}) {
+		t.Fatalf("res = %+v, err = %v", res, err)
+	}
+}
+
 func TestPostJellysticsPlays(t *testing.T) {
 	var body struct {
 		Items []map[string]any `json:"items"`
@@ -133,14 +144,14 @@ func TestPostJellysticsPlays(t *testing.T) {
 	})
 	play := JellysticsPlay{Id: "x", UserId: "u", ItemId: "i", StartedAt: FlexTime{time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
 		TranscodeReasons: EmbeddedJSON(`["A"]`), Source: "import-jellystics"}
-	if err := c.PostJellysticsPlays(context.Background(), []JellysticsPlay{play}); err != nil {
-		t.Fatal(err)
+	if res, err := c.PostJellysticsPlays(context.Background(), []JellysticsPlay{play}); err != nil || res != (JellysticsImportResult{}) {
+		t.Fatalf("empty 204 body: res = %+v, err = %v", res, err)
 	}
 	if len(body.Items) != 1 || body.Items[0]["id"] != "x" || body.Items[0]["transcodeReasons"] != `["A"]` ||
 		body.Items[0]["startedAt"] != "2026-01-01T00:00:00Z" {
 		t.Fatalf("body = %+v", body.Items)
 	}
-	if err := c.PostJellysticsPlays(context.Background(), make([]JellysticsPlay, 501)); err == nil {
+	if _, err := c.PostJellysticsPlays(context.Background(), make([]JellysticsPlay, 501)); err == nil {
 		t.Fatal("more than 500 plays must be refused")
 	}
 }

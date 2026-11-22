@@ -47,6 +47,9 @@ func TestBackfillTracking_SanitizesImportedDurations(t *testing.T) {
 		if id != "tracked" && (a.EndedAt == nil || !a.EndedAt.Equal(start.Add(time.Duration(w)*time.Second))) {
 			t.Errorf("%s: EndedAt = %v, want start+%ds", id, a.EndedAt, w)
 		}
+		if wantRepaired := id == "neg" || id == "open" || id == "long-no-rt"; a.DurationRepaired != wantRepaired {
+			t.Errorf("%s: DurationRepaired = %v, want %v", id, a.DurationRepaired, wantRepaired)
+		}
 	}
 	var neg models.JFPlaybackActivity
 	db.First(&neg, "\"Id\" = ?", "neg")

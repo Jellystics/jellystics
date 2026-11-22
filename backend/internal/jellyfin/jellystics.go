@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -295,14 +296,30 @@ func (c *Client) GetJellysticsPage(ctx context.Context, table JellysticsTable, s
 	return &page, nil
 }
 
+// JellysticsImportResult is the response of POST /Jellystics/Import/Plays:
+// plays received, imported (inserted or updated), skipped (already known /
+// covered by a plugin play) and rejected (invalid).
+type JellysticsImportResult struct {
+	Received int `json:"received"`
+	Imported int `json:"imported"`
+	Skipped  int `json:"skipped"`
+	Rejected int `json:"rejected"`
+}
+
 // PostJellysticsPlays pushes Jellystics history to the plugin
 // (POST /Jellystics/Import/Plays, idempotent upsert on Id, ≤ 500 plays).
-func (c *Client) PostJellysticsPlays(ctx context.Context, items []JellysticsPlay) error {
+// An empty 2xx body yields a zero result.
+func (c *Client) PostJellysticsPlays(ctx context.Context, items []JellysticsPlay) (JellysticsImportResult, error) {
+	var res JellysticsImportResult
 	if len(items) > JellysticsMaxPush {
-		return fmt.Errorf("too many plays in one push: %d (max %d)", len(items), JellysticsMaxPush)
+		return res, fmt.Errorf("too many plays in one push: %d (max %d)", len(items), JellysticsMaxPush)
 	}
 	if items == nil {
 		items = []JellysticsPlay{}
 	}
-	return c.do(ctx, http.MethodPost, "/Jellystics/Import/Plays", nil, map[string]any{"items": items}, nil)
+	err := c.do(ctx, http.MethodPost, "/Jellystics/Import/Plays", nil, map[string]any{"items": items}, &res)
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return res, err
 }

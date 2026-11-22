@@ -225,6 +225,10 @@ type JFPlaybackActivity struct {
 	SkippedSeconds     *int    `gorm:"column:SkippedSeconds"`
 	PlayedToCompletion *bool   `gorm:"column:PlayedToCompletion"`
 	PluginOpen         *bool   `gorm:"column:PluginOpen"` // Jellystics-plugin play in progress; nil = not a plugin row
+
+	// DurationRepaired (migration 015): Jellystics replaced an impossible
+	// imported duration (see playbackRepo.sanitizeImported).
+	DurationRepaired bool `gorm:"column:DurationRepaired;not null;default:false"`
 }
 
 func (JFPlaybackActivity) TableName() string { return "jf_playback_activity" }
@@ -293,6 +297,18 @@ type PluginSyncState struct {
 	LastCheckedAt        *time.Time `gorm:"column:last_checked_at"         json:"lastCheckedAt"`
 	LastSuccessAt        *time.Time `gorm:"column:last_success_at"         json:"lastSuccessAt"`
 	LastError            *string    `gorm:"column:last_error"              json:"lastError"`
+
+	// History push to the plugin (migration 015), served by the push status.
+	PushState      string     `gorm:"column:push_state;not null;default:idle" json:"-"` // idle | running | done | error
+	PushCursor     string     `gorm:"column:push_cursor;not null;default:''"  json:"-"` // last pushed play Id
+	PushTotal      int64      `gorm:"column:push_total"                       json:"-"`
+	PushSent       int64      `gorm:"column:push_sent"                        json:"-"`
+	PushImported   int64      `gorm:"column:push_imported"                    json:"-"`
+	PushSkipped    int64      `gorm:"column:push_skipped"                     json:"-"`
+	PushRejected   int64      `gorm:"column:push_rejected"                    json:"-"`
+	PushStartedAt  *time.Time `gorm:"column:push_started_at"                  json:"-"`
+	PushFinishedAt *time.Time `gorm:"column:push_finished_at"                 json:"-"`
+	PushError      *string    `gorm:"column:push_error"                       json:"-"`
 }
 
 func (PluginSyncState) TableName() string { return "plugin_sync_state" }

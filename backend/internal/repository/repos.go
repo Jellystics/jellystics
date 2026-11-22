@@ -335,6 +335,7 @@ var playbackUpsertColumns = []string{
 	"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
 	"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
 	"PlaySessionId", "SeekCount", "SkippedSeconds", "PlayedToCompletion", "PluginOpen",
+	"DurationRepaired",
 }
 
 type playbackRepo struct{ db *gorm.DB }
@@ -601,8 +602,9 @@ const maxImportedPlaySeconds = 12 * 3600
 // Playback Reporting data (the plugin can store a negative / int32-overflowed
 // PlayDuration, or keep a session open for days): negative → 0, more than
 // 1.5× the item's runtime → the runtime, more than 12 h with no known runtime
-// → 12 h. EndedAt and IsView follow the repaired duration. Tracked rows are
-// never touched (the tracker already clamps to wall time).
+// → 12 h. EndedAt and IsView follow the repaired duration and the row is
+// flagged DurationRepaired (data quality). Tracked rows are never touched
+// (the tracker already clamps to wall time).
 func (r *playbackRepo) sanitizeImported(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`
 		WITH fixed AS (
@@ -619,7 +621,8 @@ func (r *playbackRepo) sanitizeImported(ctx context.Context) error {
 		UPDATE jf_playback_activity a SET
 			"PlaybackDuration" = f.dur,
 			"EndedAt" = CASE WHEN a."StartedAt" IS NULL THEN a."EndedAt" ELSE a."StartedAt" + make_interval(secs => f.dur) END,
-			"IsView" = f.dur >= 30
+			"IsView" = f.dur >= 30,
+			"DurationRepaired" = true
 		FROM fixed f
 		WHERE f."Id" = a."Id" AND f.dur IS NOT NULL
 	`, sql.Named("max", maxImportedPlaySeconds)).Error

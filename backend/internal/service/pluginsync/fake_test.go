@@ -38,11 +38,13 @@ type fakePlugin struct {
 	library       []jellyfin.JellysticsLibraryEvent
 	userData      []jellyfin.JellysticsUserDataEvent
 	logins        []jellyfin.JellysticsLogin
+	pushBatches   [][]jellyfin.JellysticsPlay // POST /Jellystics/Import/Plays bodies
+	imported      map[string]bool             // ids received by Import/Plays
 }
 
 func newFakePlugin(t *testing.T) *fakePlugin {
 	f := &fakePlugin{t: t, schemaVersion: 1, pageSize: 500, failOn: map[string]int{}, calls: map[string]int{},
-		sinces: map[string][]int64{}, plays: map[string]jellyfin.JellysticsPlay{}}
+		sinces: map[string][]int64{}, plays: map[string]jellyfin.JellysticsPlay{}, imported: map[string]bool{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/Jellystics/Info", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -156,6 +158,36 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 			}
 		}
 		return nil
+	})
+	// Import/Plays: idempotent on Id (known ids are skipped), rows without
+	// user / item rejected. Received batches are recorded.
+	mux.HandleFunc("/Jellystics/Import/Plays", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.fail(w, r.URL.Path) {
+			return
+		}
+		var body struct {
+			Items []jellyfin.JellysticsPlay `json:"items"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.Items) > 500 {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		f.pushBatches = append(f.pushBatches, body.Items)
+		res := map[string]int{"received": len(body.Items)}
+		for _, p := range body.Items {
+			switch {
+			case p.UserId == "" || p.ItemId == "":
+				res["rejected"]++
+			case f.imported[p.Id]:
+				res["skipped"]++
+			default:
+				f.imported[p.Id] = true
+				res["imported"]++
+			}
+		}
+		writeJSON(w, res)
 	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
