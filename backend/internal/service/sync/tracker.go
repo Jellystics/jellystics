@@ -8,6 +8,7 @@ import (
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
 	"github.com/Jellystics/Jellystics/internal/jellyfin"
+	"github.com/Jellystics/Jellystics/internal/netutil"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 )
@@ -86,6 +87,7 @@ type observation struct {
 	activity  time.Time // LastActivityDate (server clock, bumped every second while playing)
 	silentFor time.Duration
 	playlist  string
+	capture   capture
 }
 
 // observe extracts an observation from a session, or ok=false when the
@@ -136,7 +138,167 @@ func observe(sess jellyfin.SessionInfo) (observation, bool) {
 	if sess.PlaylistItemId != nil {
 		o.playlist = *sess.PlaylistItemId
 	}
+	o.capture = captureFrom(sess)
 	return o, true
+}
+
+// capture holds the per-poll playback fields recorded for analytics (audio /
+// subtitle choice, video range, network locality). It never feeds the
+// time accounting.
+type capture struct {
+	audioIdx, subIdx   *int
+	audioLang, subLang *string
+	videoRange         *string
+	remote             *bool
+	reasons            []string
+	bitrate            *int64
+	bitrateTranscode   bool // bitrate comes from TranscodingInfo (authoritative)
+	hwAccel            *string
+}
+
+func captureFrom(sess jellyfin.SessionInfo) capture {
+	var c capture
+	streams := sess.NowPlayingItem.MediaStreams
+	var audio *jellyfin.MediaStream
+	if ps := sess.PlayState; ps != nil {
+		if ps.AudioStreamIndex != nil && *ps.AudioStreamIndex >= 0 {
+			audio = findStream(streams, "Audio", *ps.AudioStreamIndex)
+			c.audioIdx = ps.AudioStreamIndex
+		}
+		if ps.SubtitleStreamIndex != nil && *ps.SubtitleStreamIndex >= 0 {
+			c.subIdx = ps.SubtitleStreamIndex // never falls back: none means none
+			if st := findStream(streams, "Subtitle", *ps.SubtitleStreamIndex); st != nil {
+				c.subLang = langPtr(st)
+			}
+		}
+	}
+	if c.audioIdx == nil {
+		// Client did not report its audio track: assume the default one, else the first.
+		if audio = defaultAudio(streams); audio != nil {
+			idx := audio.Index
+			c.audioIdx = &idx
+		}
+	}
+	if audio != nil {
+		c.audioLang = langPtr(audio)
+	}
+	video := pickVideo(streams)
+	if video != nil {
+		// VideoRangeType (SDR, HDR10, HLG, DOVI...) is finer than VideoRange (SDR/HDR).
+		r := string(video.VideoRangeType)
+		if r == "" || r == "Unknown" {
+			r = string(video.VideoRange)
+		}
+		if r != "" && r != "Unknown" {
+			c.videoRange = &r
+		}
+	}
+	if ti := sess.TranscodingInfo; ti != nil {
+		c.reasons = ti.TranscodeReasons
+		if ti.Bitrate != nil && *ti.Bitrate > 0 {
+			c.bitrate, c.bitrateTranscode = ti.Bitrate, true
+		}
+		if hw := string(ti.HardwareAccelerationType); hw != "" && hw != "None" {
+			c.hwAccel = &hw
+		}
+	}
+	if c.bitrate == nil {
+		c.bitrate = mediaBitrate(sess.NowPlayingItem, video, audio)
+	}
+	if sess.RemoteEndPoint != nil {
+		c.remote = isRemoteEndpoint(*sess.RemoteEndPoint)
+	}
+	return c
+}
+
+func langPtr(st *jellyfin.MediaStream) *string {
+	if st == nil || st.Language == nil || *st.Language == "" {
+		return nil
+	}
+	l := *st.Language
+	return &l
+}
+
+// findStream returns the stream of the given type with the given Index.
+func findStream(streams []jellyfin.MediaStream, typ string, idx int) *jellyfin.MediaStream {
+	for i := range streams {
+		if streams[i].Index == idx && streams[i].Type == typ {
+			return &streams[i]
+		}
+	}
+	return nil
+}
+
+// defaultAudio returns the IsDefault audio stream, else the first audio stream.
+func defaultAudio(streams []jellyfin.MediaStream) *jellyfin.MediaStream {
+	var first *jellyfin.MediaStream
+	for i := range streams {
+		if streams[i].Type != "Audio" {
+			continue
+		}
+		if streams[i].IsDefault {
+			return &streams[i]
+		}
+		if first == nil {
+			first = &streams[i]
+		}
+	}
+	return first
+}
+
+// pickVideo prefers an embedded (non-external) stream, then IsDefault, then
+// the lowest Index.
+func pickVideo(streams []jellyfin.MediaStream) *jellyfin.MediaStream {
+	var best *jellyfin.MediaStream
+	better := func(a, b *jellyfin.MediaStream) bool { // a better than b
+		if a.IsExternal != b.IsExternal {
+			return !a.IsExternal
+		}
+		if a.IsDefault != b.IsDefault {
+			return a.IsDefault
+		}
+		return a.Index < b.Index
+	}
+	for i := range streams {
+		if streams[i].Type != "Video" {
+			continue
+		}
+		if best == nil || better(&streams[i], best) {
+			best = &streams[i]
+		}
+	}
+	return best
+}
+
+// mediaBitrate is the bitrate of the media being direct-played: the first
+// MediaSource's, else video + selected audio stream bitrates.
+func mediaBitrate(it *jellyfin.SessionItem, video, audio *jellyfin.MediaStream) *int64 {
+	if len(it.MediaSources) > 0 && it.MediaSources[0].Bitrate != nil && *it.MediaSources[0].Bitrate > 0 {
+		b := *it.MediaSources[0].Bitrate
+		return &b
+	}
+	var sum int64
+	for _, st := range []*jellyfin.MediaStream{video, audio} {
+		if st != nil && st.BitRate != nil && *st.BitRate > 0 {
+			sum += *st.BitRate
+		}
+	}
+	if sum == 0 {
+		return nil
+	}
+	return &sum
+}
+
+// isRemoteEndpoint classifies a session's RemoteEndPoint (IP, optionally with
+// a port or IPv4-mapped IPv6): RFC1918, loopback, link-local and ULA are
+// local. Empty or unparseable returns nil (unknown).
+func isRemoteEndpoint(s string) *bool {
+	addr, ok := netutil.Parse(s)
+	if !ok {
+		return nil
+	}
+	remote := !netutil.IsLocal(addr) // CGNAT (100.64/10) counts as remote
+	return &remote
 }
 
 func ms(d time.Duration) int64 { return d.Milliseconds() }
@@ -224,6 +386,9 @@ func accumulate(prev models.JFActivityWatchdog, o observation, now time.Time) mo
 	next.WatchedMs = prev.WatchedMs + inc
 	if o.paused {
 		next.PausedMs = prev.PausedMs + el
+		if prev.IsPaused != nil && !*prev.IsPaused {
+			next.PauseCount = prev.PauseCount + 1 // playing -> paused transition
+		}
 	}
 	return next
 }
@@ -334,6 +499,36 @@ func refresh(e *models.JFActivityWatchdog, o observation, now time.Time) {
 		}
 	}
 	e.OriginalContainer = s.NowPlayingItem.Container
+	refreshCapture(e, o.capture)
+}
+
+// refreshCapture copies the capture fields onto an entry. Audio / subtitle /
+// range / locality follow the current poll (the viewer can switch tracks
+// mid-play, subtitles can be turned off); transcode details keep the last
+// non-empty values since TranscodingInfo disappears when playback pauses.
+func refreshCapture(e *models.JFActivityWatchdog, c capture) {
+	if c.audioIdx != nil { // keep the last known audio track
+		e.AudioStreamIndex, e.AudioLanguage = c.audioIdx, c.audioLang
+	}
+	e.SubtitleStreamIndex, e.SubtitleLanguage = c.subIdx, c.subLang
+	if c.videoRange != nil {
+		e.VideoRange = c.videoRange
+	}
+	if c.remote != nil {
+		e.IsRemote = c.remote
+	}
+	if len(c.reasons) > 0 {
+		if b, err := json.Marshal(c.reasons); err == nil {
+			e.TranscodeReasons = datatypes.JSON(b)
+		}
+	}
+	// A transcode bitrate always wins; the media bitrate only fills a gap.
+	if c.bitrate != nil && *c.bitrate > 0 && (c.bitrateTranscode || e.Bitrate == nil) {
+		e.Bitrate = c.bitrate
+	}
+	if c.hwAccel != nil {
+		e.HwAccel = c.hwAccel
+	}
 }
 
 // closedPlay is a play that ended during this poll.
@@ -564,6 +759,16 @@ func (s *Service) finalize(ctx context.Context, c closedPlay, now time.Time) (mo
 		StartedAt:            startedAt,
 		EndedAt:              &ended,
 		IsView:               watchedMs >= MinViewSeconds*1000,
+		AudioStreamIndex:     wd.AudioStreamIndex,
+		AudioLanguage:        wd.AudioLanguage,
+		SubtitleStreamIndex:  wd.SubtitleStreamIndex,
+		SubtitleLanguage:     wd.SubtitleLanguage,
+		TranscodeReasons:     wd.TranscodeReasons,
+		Bitrate:              wd.Bitrate,
+		HwAccel:              wd.HwAccel,
+		VideoRange:           wd.VideoRange,
+		PauseCount:           wd.PauseCount,
+		IsRemote:             wd.IsRemote,
 	}, true
 }
 

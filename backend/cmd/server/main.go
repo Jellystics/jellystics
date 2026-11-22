@@ -19,6 +19,7 @@ import (
 	"github.com/Jellystics/Jellystics/internal/router"
 	"github.com/Jellystics/Jellystics/internal/service"
 	authsvc "github.com/Jellystics/Jellystics/internal/service/auth"
+	geosvc "github.com/Jellystics/Jellystics/internal/service/geo"
 	"github.com/Jellystics/Jellystics/internal/service/scheduler"
 	statssvc "github.com/Jellystics/Jellystics/internal/service/stats"
 	syncsvc "github.com/Jellystics/Jellystics/internal/service/sync"
@@ -98,12 +99,24 @@ func main() {
 		webhookSvc.Fire(ctx, eventType, data)
 	})
 
+	// IP geolocation cache (no-op when GeoLite credentials are not set).
+	geoSvc := geosvc.New(db, geosvc.NewGeoLiteFromEnv())
+	runGeo := func(ctx context.Context) {
+		if n, err := geoSvc.Run(ctx); err != nil {
+			log.Printf("[geo] run failed: %v", err)
+		} else if n > 0 {
+			log.Printf("[geo] geolocated %d IP(s)", n)
+		}
+	}
+
 	// Cron scheduler: dispatches tasks based on cron expressions stored in app_config.
 	dispatch := func(ctx context.Context, name string) error {
 		return taskSvc.Run(ctx, name, func(ctx context.Context) error {
 			switch name {
 			case "Full Jellyfin Sync":
-				return syncSvc.FullSync(ctx)
+				err := syncSvc.FullSync(ctx)
+				runGeo(ctx) // after sync
+				return err
 			case "Recently Added Sync":
 				return syncSvc.SyncRecentlyAdded(ctx)
 			case "Backup":
@@ -126,6 +139,15 @@ func main() {
 			} else if n > 0 {
 				log.Printf("pruned %d idle login session(s)", n)
 			}
+			time.Sleep(24 * time.Hour)
+		}
+	}()
+
+	// Daily: fill the IP geolocation cache (first run shortly after startup).
+	go func() {
+		time.Sleep(2 * time.Minute)
+		for {
+			runGeo(context.Background())
 			time.Sleep(24 * time.Hour)
 		}
 	}()

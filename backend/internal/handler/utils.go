@@ -2,12 +2,10 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
 	"net"
 	"net/http"
-	"os"
 
+	"github.com/Jellystics/Jellystics/internal/service/geo"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,10 +37,8 @@ func isPublicIPv4(s string) bool {
 
 // POST /utils/geolocateIp
 func (h *UtilsHandler) GeolocateIP(c *gin.Context) {
-	accountID := os.Getenv("JS_GEOLITE_ACCOUNT_ID")
-	licenseKey := os.Getenv("JS_GEOLITE_LICENSE_KEY")
-
-	if accountID == "" || licenseKey == "" {
+	gl := geo.NewGeoLiteFromEnv()
+	if !gl.Configured() {
 		c.JSON(http.StatusNotImplemented, "GeoLite information missing!")
 		return
 	}
@@ -55,32 +51,16 @@ func (h *UtilsHandler) GeolocateIP(c *gin.Context) {
 		return
 	}
 
-	url := fmt.Sprintf("https://geolite.info/geoip/v2.1/city/%s", body.IPAddress)
-	req, err := http.NewRequestWithContext(c.Request.Context(), "GET", url, nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	req.SetBasicAuth(accountID, licenseKey)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	status, data, err := gl.Raw(c.Request.Context(), body.IPAddress)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
-		return
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	var result any
 	if err := json.Unmarshal(data, &result); err != nil {
-		c.Data(resp.StatusCode, "application/json", data)
+		c.Data(status, "application/json", data)
 		return
 	}
-	c.JSON(resp.StatusCode, result)
+	c.JSON(status, result)
 }
