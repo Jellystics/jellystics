@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { GitCompare, X } from 'lucide-react'
+import { ChevronDown, GitCompare, X } from 'lucide-react'
 import { useUser, useUsers, type UserDetail, type UserRow } from '@/api'
 import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { avatarColor } from '@/ui/Avatar'
-import { AppLink, Avatar, Button, Card, CardBody, CardHeader, EmptyState, ErrorState, Select, Skeleton } from '@/ui'
+import { AppLink, Avatar, Button, Card, CardBody, CardHeader, EmptyState, ErrorState, SearchMenu, Skeleton } from '@/ui'
 import { userHref } from '../history/links'
 import s from './user.module.css'
 
@@ -22,7 +22,7 @@ export function ComparePanel({ user }: { user: UserDetail }) {
   const other = useUser(compare && compare !== user.id ? compare : undefined)
   const users = useUsers()
   const list = Array.isArray(users.data) ? users.data : []
-  const options = list.filter((u) => u.id !== user.id).map((u) => ({ value: u.id, label: u.name }))
+  const options = list.filter((u) => u.id !== user.id).map((u) => ({ value: u.id, label: u.name, avatarId: u.id }))
   const b = other.data && !Array.isArray(other.data) && other.data.totals ? other.data : undefined
   const rowA = list.find((u) => u.id === user.id), rowB = list.find((u) => u.id === compare)
 
@@ -41,7 +41,17 @@ export function ComparePanel({ user }: { user: UserDetail }) {
         subtitle={t('app.userPage.compare.subtitle')}
         action={
           <div className={s.compareActions}>
-            {options.length > 0 && <Select aria-label={t('app.userPage.compare.pick')} value={compare ?? ''} onValueChange={(v) => setCompare(v)} options={options} />}
+            {options.length > 0 && (
+              <SearchMenu
+                align="end"
+                options={options}
+                value={compare ?? ''}
+                onSelect={(v) => setCompare(v)}
+                searchPlaceholder={t('app.picker.search')}
+                emptyLabel={t('app.picker.empty')}
+                trigger={<button type="button" className={s.comparePick} aria-label={t('app.userPage.compare.pick')}>{options.find((o) => o.value === compare)?.label ?? t('app.userPage.compare.pick')}<ChevronDown size={14} strokeWidth={1.6} aria-hidden /></button>}
+              />
+            )}
             {compare && <Button size="sm" variant="ghost" iconOnly aria-label={t('app.userPage.compare.clear')} icon={<X size={14} />} onClick={() => setCompare(undefined)} />}
           </div>
         }

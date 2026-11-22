@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus } from 'lucide-react'
 import { useUsers, type MediaFamily } from '@/api'
-import { Chip, Menu, SearchInput, type MenuItem } from '@/ui'
+import { Chip, Menu, SearchInput, SearchMenu, type MenuItem, type SearchMenuOption } from '@/ui'
 import type { HistoryUrlState } from './useHistoryFilters'
 import s from './history.module.css'
 
@@ -13,6 +13,20 @@ function AddMenu({ label, items }: { label: string; items: MenuItem[] }) {
   return (
     <Menu
       items={items}
+      trigger={<button type="button" className={s.addChip}><Plus size={12} aria-hidden="true" /> {label}</button>}
+    />
+  )
+}
+
+/** « + » picker for long value lists (users, clients, devices): fixed size, searchable. */
+function AddPicker({ label, options, onSelect }: { label: string; options: SearchMenuOption[]; onSelect: (v: string) => void }) {
+  const { t } = useTranslation()
+  return (
+    <SearchMenu
+      options={options}
+      onSelect={onSelect}
+      searchPlaceholder={t('app.picker.search')}
+      emptyLabel={t('app.picker.empty')}
       trigger={<button type="button" className={s.addChip}><Plus size={12} aria-hidden="true" /> {label}</button>}
     />
   )
@@ -54,10 +68,10 @@ export function FilterBar({ state, clients, devices, hideUser }: { state: Histor
         {t('app.history.viewsOnly')}
       </Chip>
       {!hideUser && !values.user && userList.length > 0 && (
-        <AddMenu label={t('app.history.add.user')} items={userList.map((u) => ({ label: u.name, onSelect: () => set('user', u.id) }))} />
+        <AddPicker label={t('app.history.add.user')} options={userList.map((u) => ({ value: u.id, label: u.name, avatarId: u.id }))} onSelect={(v) => set('user', v)} />
       )}
-      {!values.client && clients.length > 0 && <AddMenu label={t('app.history.add.client')} items={clients.map((c) => ({ label: c, onSelect: () => set('client', c) }))} />}
-      {!values.device && devices.length > 0 && <AddMenu label={t('app.history.add.device')} items={devices.map((d) => ({ label: d, onSelect: () => set('device', d) }))} />}
+      {!values.client && clients.length > 0 && <AddPicker label={t('app.history.add.client')} options={clients.map((c) => ({ value: c, label: c }))} onSelect={(v) => set('client', v)} />}
+      {!values.device && devices.length > 0 && <AddPicker label={t('app.history.add.device')} options={devices.map((d) => ({ value: d, label: d }))} onSelect={(v) => set('device', v)} />}
       {!values.method && <AddMenu label={t('app.history.add.method')} items={METHODS.map((m) => ({ label: t(`app.method.${m}`), onSelect: () => set('method', m) }))} />}
     </div>
   )

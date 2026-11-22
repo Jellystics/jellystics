@@ -1181,6 +1181,10 @@
       "audio": "Audio language",
       "subtitles": "Subtitles on: {{value}}",
       "unknown": "Unknown"
+    },
+    "picker": {
+      "search": "Search…",
+      "empty": "No results"
     }
   }
 }

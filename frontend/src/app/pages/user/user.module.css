@@ -28,6 +28,9 @@
 .compareBar span:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
 .compareBar span:last-child { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 .compareActions { display: flex; align-items: center; gap: var(--s-2); }
+.comparePick { display: inline-flex; align-items: center; justify-content: space-between; gap: var(--s-2); height: 32px; width: 200px; max-width: 100%; border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); padding: 0 10px; font: inherit; font-size: var(--fs-md); color: var(--ink); cursor: pointer; }
+.comparePick:hover { border-color: var(--axis); }
+.comparePick:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 .version { font-family: var(--mono); font-size: var(--fs-sm); }
 .tabBody { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
 @media (max-width: 640px) { .profile, .records { grid-template-columns: minmax(0, 1fr); } }
