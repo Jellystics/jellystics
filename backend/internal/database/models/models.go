@@ -283,6 +283,9 @@ type PluginSyncState struct {
 	Detected             bool       `gorm:"column:detected"                json:"detected"`
 	PluginVersion        *string    `gorm:"column:plugin_version"          json:"pluginVersion"`
 	SchemaVersion        *int       `gorm:"column:schema_version"          json:"schemaVersion"`
+	// PluginDatabaseId identifies the plugin database the cursors refer to:
+	// a new id means the plugin data was reset (cursors restart at 0).
+	PluginDatabaseId     *string    `gorm:"column:plugin_database_id"      json:"pluginDatabaseId"`
 	CursorPlays          int64      `gorm:"column:cursor_plays"            json:"cursorPlays"`
 	CursorLibraryEvents  int64      `gorm:"column:cursor_library_events"   json:"cursorLibraryEvents"`
 	CursorUserDataEvents int64      `gorm:"column:cursor_user_data_events" json:"cursorUserDataEvents"`

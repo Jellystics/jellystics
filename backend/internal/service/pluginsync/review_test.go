@@ -39,6 +39,43 @@ func TestRun_PluginResetIsDetectedAndResynced(t *testing.T) {
 	}
 }
 
+// A reinstalled plugin can be ahead of our cursors before the next sync (e.g.
+// a Playback Reporting import right after the reinstall): only the database
+// id tells the reset apart.
+func TestRun_PluginResetAheadOfOurCursorIsDetectedByDatabaseId(t *testing.T) {
+	f := newFakePlugin(t)
+	f.set(func(f *fakePlugin) { f.databaseId = "db-a" })
+	for i := 0; i < 3; i++ {
+		f.putPlay(moviePlay(fmt.Sprintf("old%d", i), t0.Add(time.Duration(i)*time.Hour), 60_000))
+	}
+	s, db := newTestService(t, f)
+	if _, err := s.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if st := state(t, s); st.PluginDatabaseId == nil || *st.PluginDatabaseId != "db-a" {
+		t.Fatalf("database id not stored: %+v", st)
+	}
+
+	f.wipe()
+	f.set(func(f *fakePlugin) { f.databaseId = "db-b" })
+	for i := 0; i < 5; i++ { // versions 1..5: the cursor (5) is past ours (3)
+		f.putPlay(moviePlay(fmt.Sprintf("new%d", i), t0.Add(time.Duration(10+i)*time.Hour), 60_000))
+	}
+	res, err := s.Run(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := state(t, s)
+	if !res.CursorReset || res.Plays != 5 || st.CursorPlays != 5 || *st.PluginDatabaseId != "db-b" || len(plays(t, db)) != 8 {
+		t.Fatalf("res %+v, state %+v, rows %d", res, st, len(plays(t, db)))
+	}
+
+	// Same database: no reset.
+	if res, err = s.Run(ctx); err != nil || res.CursorReset {
+		t.Fatalf("res %+v, err %v", res, err)
+	}
+}
+
 func TestRun_CursorBackwardsIsBlindNotHealthy(t *testing.T) {
 	f := newFakePlugin(t)
 	f.putPlay(moviePlay("p0", t0, 60_000))

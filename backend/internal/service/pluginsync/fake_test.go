@@ -27,6 +27,7 @@ type fakePlugin struct {
 	absent        bool
 	schemaVersion int
 	infoCursor    *int64 // overrides the reported cursor
+	databaseId    string // reported as databaseId when set
 	emptyNextZero bool   // a broken plugin answering next = 0 on empty pages
 	pageSize      int
 	failOn        map[string]int // path -> fail the n-th request (1-based) with 500
@@ -53,8 +54,12 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 		if f.fail(w, r.URL.Path) {
 			return
 		}
-		writeJSON(w, map[string]any{"pluginVersion": "1.0.0.0", "schemaVersion": f.schemaVersion, "cursor": f.cursor(),
-			"counts": map[string]int{"plays": len(f.plays)}, "serverTimeZone": "UTC"})
+		info := map[string]any{"pluginVersion": "1.0.0.0", "schemaVersion": f.schemaVersion, "cursor": f.cursor(),
+			"counts": map[string]int{"plays": len(f.plays)}, "serverTimeZone": "UTC"}
+		if f.databaseId != "" {
+			info["databaseId"] = f.databaseId
+		}
+		writeJSON(w, info)
 	})
 	page := func(path string, versions func() []int64, item func(v int64) any) {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {

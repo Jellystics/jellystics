@@ -163,12 +163,23 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 	res.Compatible = true
 
-	// Plugin database reset (reinstall, lost DB): its cursor is behind ours.
+	// Plugin database reset (reinstall, lost DB): its database id changed
+	// (the new cursor may already be past ours) or its cursor is behind ours.
 	// Re-read everything; upserts are idempotent and dedupe runs again.
-	if maxCur := max(st.CursorPlays, st.CursorLibraryEvents, st.CursorUserDataEvents, st.CursorLogins); info.Cursor < maxCur {
-		log.Printf("[plugin-sync] plugin cursor %d is behind ours (%d): plugin data was reset, resyncing from 0", info.Cursor, maxCur)
-		st.CursorPlays, st.CursorLibraryEvents, st.CursorUserDataEvents, st.CursorLogins = 0, 0, 0, 0
+	maxCur := max(st.CursorPlays, st.CursorLibraryEvents, st.CursorUserDataEvents, st.CursorLogins)
+	if info.DatabaseId != "" && st.PluginDatabaseId != nil && *st.PluginDatabaseId != info.DatabaseId {
+		log.Printf("[plugin-sync] plugin database changed (%s -> %s): plugin data was reset, resyncing from 0", *st.PluginDatabaseId, info.DatabaseId)
 		res.CursorReset = true
+	} else if info.Cursor < maxCur {
+		log.Printf("[plugin-sync] plugin cursor %d is behind ours (%d): plugin data was reset, resyncing from 0", info.Cursor, maxCur)
+		res.CursorReset = true
+	}
+	if res.CursorReset {
+		st.CursorPlays, st.CursorLibraryEvents, st.CursorUserDataEvents, st.CursorLogins = 0, 0, 0, 0
+	}
+	if info.DatabaseId != "" {
+		id := info.DatabaseId
+		st.PluginDatabaseId = &id
 	}
 
 	// Plays decide health.

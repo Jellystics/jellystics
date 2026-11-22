@@ -35,6 +35,7 @@ type JellysticsInfo struct {
 	PluginVersion  string    `json:"pluginVersion"`
 	SchemaVersion  int       `json:"schemaVersion"`
 	Cursor         int64     `json:"cursor"`
+	DatabaseId     string    `json:"databaseId"` // changes when the plugin data is reset; empty if unsupported
 	FirstPlayAt    *FlexTime `json:"firstPlayAt"`
 	ServerTimeZone string    `json:"serverTimeZone"`
 	Counts         struct {
