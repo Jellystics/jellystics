@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { createTheme, alpha } from '@mui/material/styles'
 import type { ThemeMode } from './ThemeModeContext'
 
@@ -163,43 +162,3 @@ export function buildTheme(mode: ThemeMode = getThemeMode()) {
   })
 }
 
-
-// ---- Theme mode hook (new frontend). Shares the legacy storage key so the choice carries over. ----
-
-const listeners = new Set<() => void>()
-let current: ThemeMode | null = null
-
-function readMode(): ThemeMode {
-  try {
-    const v = localStorage.getItem(MODE_KEY)
-    if (v === 'light' || v === 'dark') return v
-  } catch { /* storage blocked */ }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-function getMode(): ThemeMode {
-  return (current ??= readMode())
-}
-
-function setMode(m: ThemeMode) {
-  current = m
-  try { localStorage.setItem(MODE_KEY, m) } catch { /* ignore */ }
-  document.documentElement.dataset.theme = m
-  listeners.forEach((l) => l())
-}
-
-export function useThemeMode() {
-  const mode = useSyncExternalStore(
-    (cb) => { listeners.add(cb); return () => listeners.delete(cb) },
-    getMode,
-    getMode,
-  )
-  useEffect(() => { document.documentElement.dataset.theme = mode }, [mode])
-  const toggle = useCallback(() => setMode(getMode() === 'dark' ? 'light' : 'dark'), [])
-  return { mode, toggle, set: setMode }
-}
-
-/** test helper */
-export function __resetThemeForTests() {
-  current = null
-}

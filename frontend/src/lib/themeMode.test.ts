@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react'
-import { useThemeMode, __resetThemeForTests } from './theme'
+import { useThemeMode, __resetThemeForTests } from './themeMode'
 
 describe('useThemeMode', () => {
   beforeEach(() => {
