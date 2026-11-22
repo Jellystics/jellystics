@@ -195,6 +195,17 @@ type JFPlaybackActivity struct {
 	ServerId             *string        `gorm:"column:ServerId"`
 	Source               string         `gorm:"column:source;default:watchdog"`
 	Imported             bool           `gorm:"column:imported;default:false"`
+
+	// Accurate-tracking fields (migration 008).
+	ItemId             *string    `gorm:"column:ItemId"`    // movie / episode / track actually played
+	MediaType          *string    `gorm:"column:MediaType"` // Movie | Episode | Audio
+	RunTimeTicks       *int64     `gorm:"column:RunTimeTicks"`
+	PositionTicksStart *int64     `gorm:"column:PositionTicksStart"`
+	PositionTicksEnd   *int64     `gorm:"column:PositionTicksEnd"`
+	PausedSeconds      *int64     `gorm:"column:PausedSeconds"`
+	StartedAt          *time.Time `gorm:"column:StartedAt"`
+	EndedAt            *time.Time `gorm:"column:EndedAt"`
+	IsView             bool       `gorm:"column:IsView;not null;default:false"` // PlaybackDuration >= 30 s
 }
 
 func (JFPlaybackActivity) TableName() string { return "jf_playback_activity" }
@@ -226,6 +237,17 @@ type JFActivityWatchdog struct {
 	ServerId             *string        `gorm:"column:ServerId"`
 	WatchedSeconds       int64          `gorm:"column:WatchedSeconds;not null;default:0"`
 	LastTickAt           *time.Time     `gorm:"column:LastTickAt"`
+
+	// Accurate-tracking fields (migration 008).
+	ItemId             *string    `gorm:"column:ItemId"`
+	MediaType          *string    `gorm:"column:MediaType"`
+	RunTimeTicks       *int64     `gorm:"column:RunTimeTicks"`
+	PositionTicksStart *int64     `gorm:"column:PositionTicksStart"`
+	WatchedMs          int64      `gorm:"column:WatchedMs;not null;default:0"`
+	PausedMs           int64      `gorm:"column:PausedMs;not null;default:0"`
+	StartedAt          *time.Time `gorm:"column:StartedAt"`
+	LastCheckIn        *time.Time `gorm:"column:LastCheckIn"`
+	PeriodicReporter   bool       `gorm:"column:PeriodicReporter;not null;default:false"`
 }
 
 func (JFActivityWatchdog) TableName() string { return "jf_activity_watchdog" }

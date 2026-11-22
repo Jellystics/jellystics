@@ -335,6 +335,8 @@ func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActiv
 				"EpisodeId", "SeasonId", "SeriesName", "PlaybackDuration", "PlayMethod",
 				"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
 				"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
+				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
+				"PausedSeconds", "StartedAt", "EndedAt", "IsView",
 			}),
 		}).
 		CreateInBatches(acts, 500).Error
@@ -375,6 +377,8 @@ func (r *watchdogRepo) Upsert(ctx context.Context, entries []models.JFActivityWa
 				"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
 				"OriginalContainer", "RemoteEndPoint", "ServerId",
 				"WatchedSeconds", "LastTickAt",
+				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "WatchedMs", "PausedMs",
+				"StartedAt", "LastCheckIn", "PeriodicReporter",
 			}),
 		}).
 		CreateInBatches(entries, 500).Error
