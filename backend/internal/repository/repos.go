@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -586,6 +587,10 @@ func (r *webhookRepo) Delete(ctx context.Context, id int) error {
 }
 
 // ---- stats ----
+//
+// All aggregates follow package statsql: Movie / Episode / Audio rows only,
+// plays = IsView rows, watch time = SUM(PlaybackDuration), local days in the
+// display time zone.
 
 type statsRepo struct{ db *gorm.DB }
 
@@ -597,11 +602,10 @@ func (r *statsRepo) GetGlobalStats(ctx context.Context) (*GlobalStats, error) {
 	var stats GlobalStats
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
-			COUNT(*)                           AS total_plays,
-			COALESCE(SUM("PlaybackDuration"),0) AS total_duration,
-			(SELECT COUNT(*) FROM jf_users)    AS total_users,
+			(SELECT COUNT(*) FILTER (WHERE a."IsView") FROM jf_playback_activity a WHERE `+statsql.MediaFilter("a")+`) AS total_plays,
+			(SELECT COALESCE(SUM(a."PlaybackDuration"), 0) FROM jf_playback_activity a WHERE `+statsql.MediaFilter("a")+`) AS total_duration,
+			(SELECT COUNT(*) FROM jf_users) AS total_users,
 			(SELECT COUNT(*) FROM jf_libraries WHERE archived = false) AS total_libraries
-		FROM jf_playback_activity
 	`).Scan(&stats).Error
 	return &stats, err
 }
@@ -609,24 +613,18 @@ func (r *statsRepo) GetGlobalStats(ctx context.Context) (*GlobalStats, error) {
 func (r *statsRepo) GetMostViewedLibraries(ctx context.Context, limit int) ([]LibraryPlayStat, error) {
 	var out []LibraryPlayStat
 	err := r.db.WithContext(ctx).Raw(`
-		WITH library_activity AS (
-			SELECT DISTINCT l."Id" AS library_id, a."Id" AS activity_id
-			FROM jf_libraries l
-			LEFT JOIN jf_library_items i  ON i."ParentId" = l."Id" AND i.archived = false
-			LEFT JOIN jf_library_episodes ep ON ep."SeriesId" = i."Id"
-			LEFT JOIN jf_music_tracks mt ON mt."LibraryId" = l."Id" AND mt.archived = false
-			LEFT JOIN jf_playback_activity a ON
-				a."NowPlayingItemId" = i."Id" OR
-				a."EpisodeId" = ep."Id" OR
-				a."NowPlayingItemId" = mt."Id"
-			WHERE l.archived = false
+		WITH plays AS (
+			SELECT `+statsql.LibraryID+` AS library_id, COUNT(*) AS total_plays
+			FROM jf_playback_activity a`+statsql.CatalogJoins+`
+			WHERE a."IsView" AND `+statsql.MediaFilter("a")+`
+			GROUP BY 1
 		)
-		SELECT la.library_id AS id, l."Name" AS name, l."CollectionType" AS collection_type,
-		       COUNT(la.activity_id)::bigint AS total_plays
-		FROM library_activity la
-		JOIN jf_libraries l ON l."Id" = la.library_id
-		GROUP BY la.library_id, l."Name", l."CollectionType"
-		ORDER BY total_plays DESC
+		SELECT l."Id" AS id, l."Name" AS name, l."CollectionType" AS collection_type,
+		       COALESCE(p.total_plays, 0)::bigint AS total_plays
+		FROM jf_libraries l
+		LEFT JOIN plays p ON p.library_id = l."Id"
+		WHERE l.archived = false
+		ORDER BY total_plays DESC, l."Name"
 		LIMIT ?
 	`, limit).Scan(&out).Error
 	return out, err
@@ -635,92 +633,97 @@ func (r *statsRepo) GetMostViewedLibraries(ctx context.Context, limit int) ([]Li
 func (r *statsRepo) GetLibraryStats(ctx context.Context, libraryId string) (*LibraryStats, error) {
 	var stats LibraryStats
 	err := r.db.WithContext(ctx).Raw(`
-		WITH library_plays AS (
-			SELECT DISTINCT a."Id" AS activity_id, a."ActivityDateInserted"
-			FROM jf_libraries l
-			LEFT JOIN jf_library_items i  ON i."ParentId" = l."Id" AND i.archived = false
-			LEFT JOIN jf_library_episodes ep ON ep."SeriesId" = i."Id"
-			LEFT JOIN jf_music_tracks mt ON mt."LibraryId" = l."Id" AND mt.archived = false
-			LEFT JOIN jf_playback_activity a ON
-				a."NowPlayingItemId" = i."Id" OR
-				a."EpisodeId" = ep."Id" OR
-				a."NowPlayingItemId" = mt."Id"
-			WHERE l."Id" = ?
+		WITH plays AS (
+			SELECT COUNT(*) FILTER (WHERE a."IsView")::int AS total_plays,
+			       MAX(`+statsql.StartedAt("a")+`) AS last_activity
+			FROM jf_playback_activity a`+statsql.CatalogJoins+`
+			WHERE `+statsql.MediaFilter("a")+` AND `+statsql.LibraryID+` = ?
 		)
 		SELECT
 			l."Id" AS id,
-			(COUNT(DISTINCT i."Id") FILTER (WHERE i."Type" NOT IN ('Season','Folder'))
-			 + COUNT(DISTINCT mt."Id"))::int AS total_items,
-			COUNT(DISTINCT ep."Id")::int AS total_episodes,
-			(SELECT COUNT(activity_id) FROM library_plays)::int AS total_plays,
-			(SELECT MAX("ActivityDateInserted") FROM library_plays) AS last_activity
+			((SELECT COUNT(*) FROM jf_library_items WHERE "ParentId" = l."Id" AND archived = false AND "Type" = 'Movie')
+			 + (SELECT COUNT(*) FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId" AND s.archived = false
+			    WHERE s."ParentId" = l."Id" AND e.archived = false)
+			 + (SELECT COUNT(*) FROM jf_music_tracks WHERE "LibraryId" = l."Id" AND archived = false))::int AS total_items,
+			(SELECT COUNT(*) FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId" AND s.archived = false
+			 WHERE s."ParentId" = l."Id" AND e.archived = false)::int AS total_episodes,
+			(SELECT total_plays FROM plays) AS total_plays,
+			(SELECT `+statsql.ISO("last_activity")+` FROM plays) AS last_activity
 		FROM jf_libraries l
-		LEFT JOIN jf_library_items    i  ON i."ParentId"  = l."Id" AND i.archived  = false
-		LEFT JOIN jf_library_episodes ep ON ep."SeriesId" = i."Id"
-		LEFT JOIN jf_music_tracks     mt ON mt."LibraryId" = l."Id" AND mt.archived = false
 		WHERE l."Id" = ?
-		GROUP BY l."Id"
 	`, libraryId, libraryId).Scan(&stats).Error
 	return &stats, err
 }
 
 func (r *statsRepo) GetActivityOverTime(ctx context.Context, days int) ([]DailyActivity, error) {
 	var out []DailyActivity
+	loc := statsql.Location()
+	since := statsql.StartOfDay(time.Now(), loc).AddDate(0, 0, -days)
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT
-			DATE("ActivityDateInserted"::timestamptz) AS date,
-			COUNT(*) AS count
-		FROM jf_playback_activity
-		WHERE "ActivityDateInserted"::timestamptz >= NOW() - ? * INTERVAL '1 day'
-		GROUP BY date
-		ORDER BY date ASC
-	`, days).Scan(&out).Error
+		SELECT TO_CHAR(`+statsql.LocalTS("a")+`::date, 'YYYY-MM-DD') AS date, COUNT(*) AS count
+		FROM jf_playback_activity a
+		WHERE a."IsView" AND `+statsql.MediaFilter("a")+` AND `+statsql.StartedAt("a")+` >= ?
+		GROUP BY 1
+		ORDER BY 1 ASC
+	`, since).Scan(&out).Error
 	return out, err
 }
 
+// GetTopUsers returns one row per user id, labelled with the user's current
+// name (a rename must not split a user into two rows / label sets).
 func (r *statsRepo) GetTopUsers(ctx context.Context, limit int) ([]UserStat, error) {
 	var out []UserStat
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
-			a."UserId"  AS user_id,
-			COALESCE(u."Name", a."UserName", a."UserId") AS user_name,
-			COUNT(*)    AS total_plays,
+			a."UserId" AS user_id,
+			COALESCE(MAX(u."Name"), MAX(a."UserName"), a."UserId") AS user_name,
+			COUNT(*) FILTER (WHERE a."IsView") AS total_plays,
 			COALESCE(SUM(a."PlaybackDuration"), 0)::float8 / 3600.0 AS total_hours
 		FROM jf_playback_activity a
 		LEFT JOIN jf_users u ON u."Id" = a."UserId"
-		GROUP BY a."UserId", u."Name", a."UserName"
-		ORDER BY total_plays DESC
+		WHERE a."UserId" IS NOT NULL AND `+statsql.MediaFilter("a")+`
+		GROUP BY a."UserId"
+		ORDER BY total_plays DESC, total_hours DESC
 		LIMIT ?
 	`, limit).Scan(&out).Error
 	return out, err
 }
 
+// GetMostPlayedItems lists the library's movies / series / albums by views
+// (series and albums aggregate their episodes / tracks).
 func (r *statsRepo) GetMostPlayedItems(ctx context.Context, libraryId string, limit int) ([]ItemPlayStat, error) {
 	var out []ItemPlayStat
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
 			i."Id" AS id, i."Name" AS name, i."Type" AS type,
-			COUNT(a."Id")::bigint AS times_played,
-			COALESCE(SUM(a."PlaybackDuration"),0) AS total_duration
-		FROM jf_library_items i
-		JOIN jf_playback_activity a ON a."NowPlayingItemId" = i."Id"
-		WHERE i."ParentId" = ? AND i.archived = false
+			COUNT(*) FILTER (WHERE a."IsView")::bigint AS times_played,
+			COALESCE(SUM(a."PlaybackDuration"), 0) AS total_duration
+		FROM jf_playback_activity a`+statsql.CatalogJoins+`
+		JOIN jf_library_items i ON i."Id" = COALESCE(cm."Id", cs."Id", cal."Id")
+		WHERE `+statsql.MediaFilter("a")+` AND i."ParentId" = ? AND i.archived = false
 		GROUP BY i."Id", i."Name", i."Type"
+		HAVING COUNT(*) FILTER (WHERE a."IsView") > 0
 		ORDER BY times_played DESC
 		LIMIT ?
 	`, libraryId, limit).Scan(&out).Error
 	return out, err
 }
 
+// trackViews counts views per track id.
+const trackViews = `(
+	SELECT "ItemId" AS track_id, COUNT(*) AS plays
+	FROM jf_playback_activity
+	WHERE "MediaType" = 'Audio' AND "IsView"
+	GROUP BY "ItemId"
+)`
+
 func (r *statsRepo) GetMostPlayedArtists(ctx context.Context, libraryId string, limit int) ([]ArtistPlayStat, error) {
 	var out []ArtistPlayStat
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT
-			ar."Id" AS artist_id, ar."Name" AS artist_name,
-			COUNT(a."Id")::bigint AS times_played
+		SELECT ar."Id" AS artist_id, ar."Name" AS artist_name, SUM(v.plays)::bigint AS times_played
 		FROM jf_music_artists ar
 		JOIN jf_music_tracks t ON t."ArtistId" = ar."Id"
-		JOIN jf_playback_activity a ON a."EpisodeId" = t."Id"
+		JOIN `+trackViews+` v ON v.track_id = t."Id"
 		WHERE ar."LibraryId" = ? AND ar.archived = false
 		GROUP BY ar."Id", ar."Name"
 		ORDER BY times_played DESC
@@ -731,16 +734,11 @@ func (r *statsRepo) GetMostPlayedArtists(ctx context.Context, libraryId string, 
 
 func (r *statsRepo) GetMostPlayedAlbums(ctx context.Context, libraryId, artistId string, limit int) ([]AlbumPlayStat, error) {
 	var out []AlbumPlayStat
-	q := r.db.WithContext(ctx)
-	// Album plays are recorded as playback rows whose NowPlayingItemId is the
-	// album id (each track play maps parent=AlbumId, child=trackId). Count them
-	// directly on the album to avoid multiplying by the track count.
 	sql := `
-		SELECT
-			i."Id" AS album_id, i."Name" AS album_name,
-			COUNT(a."Id")::bigint AS times_played
+		SELECT i."Id" AS album_id, i."Name" AS album_name, SUM(v.plays)::bigint AS times_played
 		FROM jf_library_items i
-		JOIN jf_playback_activity a ON a."NowPlayingItemId" = i."Id"
+		JOIN jf_music_tracks t ON t."AlbumId" = i."Id"
+		JOIN ` + trackViews + ` v ON v.track_id = t."Id"
 		WHERE i."Type" = 'MusicAlbum' AND i.archived = false
 	`
 	args := []any{}
@@ -750,23 +748,22 @@ func (r *statsRepo) GetMostPlayedAlbums(ctx context.Context, libraryId, artistId
 	}
 	if artistId != "" {
 		sql += ` AND EXISTS (
-			SELECT 1 FROM jf_music_tracks t
-			WHERE t."AlbumId" = i."Id" AND t."ArtistId" = ?
+			SELECT 1 FROM jf_music_tracks t2
+			WHERE t2."AlbumId" = i."Id" AND t2."ArtistId" = ?
 		)`
 		args = append(args, artistId)
 	}
 	sql += ` GROUP BY i."Id", i."Name" ORDER BY times_played DESC LIMIT ?`
 	args = append(args, limit)
-	return out, q.Raw(sql, args...).Scan(&out).Error
+	return out, r.db.WithContext(ctx).Raw(sql, args...).Scan(&out).Error
 }
 
 func (r *statsRepo) GetMostPlayedTracks(ctx context.Context, libraryId, albumId string, limit int) ([]TrackPlayStat, error) {
 	sql := `
-		SELECT
-			t."Id" AS track_id, t."Name" AS track_name, t."AlbumName" AS album_name,
-			COUNT(a."Id")::bigint AS times_played
+		SELECT t."Id" AS track_id, t."Name" AS track_name, t."AlbumName" AS album_name,
+		       v.plays::bigint AS times_played
 		FROM jf_music_tracks t
-		JOIN jf_playback_activity a ON a."EpisodeId" = t."Id"
+		JOIN ` + trackViews + ` v ON v.track_id = t."Id"
 		WHERE t.archived = false
 	`
 	args := []any{}
@@ -778,7 +775,7 @@ func (r *statsRepo) GetMostPlayedTracks(ctx context.Context, libraryId, albumId 
 		sql += ` AND t."AlbumId" = ?`
 		args = append(args, albumId)
 	}
-	sql += ` GROUP BY t."Id", t."Name", t."AlbumName" ORDER BY times_played DESC LIMIT ?`
+	sql += ` ORDER BY times_played DESC, t."Name" LIMIT ?`
 	args = append(args, limit)
 	var result []TrackPlayStat
 	return result, r.db.WithContext(ctx).Raw(sql, args...).Scan(&result).Error
@@ -786,8 +783,7 @@ func (r *statsRepo) GetMostPlayedTracks(ctx context.Context, libraryId, albumId 
 
 func (r *statsRepo) GetUserHistory(ctx context.Context, userId string, page, pageSize int) ([]ActivityEntry, int64, error) {
 	var total int64
-	r.db.WithContext(ctx).Model(&models.JFPlaybackActivity{}).
-		Where(`"UserId" = ?`, userId).Count(&total)
+	r.db.WithContext(ctx).Raw(`SELECT COUNT(*) FROM jf_playback_activity a WHERE a."UserId" = ? AND `+statsql.MediaFilter("a"), userId).Scan(&total)
 
 	var rows []ActivityEntry
 	err := r.db.WithContext(ctx).Raw(`
@@ -806,8 +802,8 @@ func (r *statsRepo) GetUserHistory(ctx context.Context, userId string, page, pag
 			a."ActivityDateInserted" AS activity_date_inserted
 		FROM jf_playback_activity a
 		LEFT JOIN jf_users u ON u."Id" = a."UserId"
-		WHERE a."UserId" = ?
-		ORDER BY a."ActivityDateInserted" DESC
+		WHERE a."UserId" = ? AND `+statsql.MediaFilter("a")+`
+		ORDER BY `+statsql.StartedAt("a")+` DESC
 		LIMIT ? OFFSET ?
 	`, userId, pageSize, (page-1)*pageSize).Scan(&rows).Error
 	return rows, total, err
