@@ -106,3 +106,9 @@ func weekHourGrid() [][]int {
 	}
 	return g
 }
+
+// statsqlCompletion is the completion ratio of a (user, item, day) unit: an
+// aggregate over its acts rows (same definition as completionCTE).
+var statsqlCompletion = statsql.CompletionRatio("MAX(pos_end)", "MAX(duration)", "MAX(runtime_ticks)")
+
+func completionThreshold() float64 { return statsql.CompletionThreshold }

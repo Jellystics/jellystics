@@ -15,7 +15,6 @@ import (
 	"gorm.io/gorm"
 )
 
-
 func js(s string) datatypes.JSON { return datatypes.JSON([]byte(s)) }
 
 // v2Days are the UTC days used by seedV2 (relative to today).

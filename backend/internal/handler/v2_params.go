@@ -243,4 +243,10 @@ func (h *V2Handler) Register(g *gin.RouterGroup) {
 	v2.GET("/history", h.History)
 	v2.GET("/history.csv", h.HistoryCSV)
 	v2.GET("/history/calendar", h.HistoryCalendar)
+	v2.GET("/movies/:id", h.Movie)
+	v2.GET("/series/:id", h.Series)
+	v2.GET("/episodes/:id", h.Episode)
+	v2.GET("/artists/:id", h.Artist)
+	v2.GET("/albums/:id", h.Album)
+	v2.GET("/tracks/:id", h.Track)
 }
