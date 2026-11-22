@@ -94,6 +94,8 @@ type PluginDataRepository interface {
 	GetMaxRowId(ctx context.Context) (int64, error)
 	// MergeIntoPlaybackActivity inserts unimported plugin rows into jf_playback_activity.
 	MergeIntoPlaybackActivity(ctx context.Context) error
+	// BackfillImportedStartedAt fills StartedAt for legacy imported rows.
+	BackfillImportedStartedAt(ctx context.Context) error
 }
 
 // LogRepository manages jf_logging.
