@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { AppLink as Link } from '@/app/AppLink'
 import { useTranslation } from 'react-i18next'
 import { Pause } from 'lucide-react'
 import { Art } from './Art'

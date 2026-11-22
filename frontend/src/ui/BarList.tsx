@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { AppLink as Link } from '@/app/AppLink'
 import { Tooltip } from './Tooltip'
 import { useFormat } from '@/lib/format'
 import styles from './BarList.module.css'

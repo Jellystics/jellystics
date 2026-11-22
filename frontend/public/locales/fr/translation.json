@@ -433,7 +433,21 @@
       "cancel": "Annuler"
     },
     "nav": {
-      "breadcrumbs": "Fil d’Ariane"
+      "breadcrumbs": "Fil d’Ariane",
+      "main": "Navigation principale",
+      "openMenu": "Ouvrir le menu",
+      "closeMenu": "Fermer le menu",
+      "liveCount_one": "{{count}} lecture en cours",
+      "liveCount_other": "{{count}} lectures en cours",
+      "overview": "Vue d'ensemble",
+      "live": "En direct",
+      "history": "Historique",
+      "libraries": "Bibliothèques",
+      "users": "Utilisateurs",
+      "insights": "Analyses",
+      "discover": "Découverte",
+      "playback": "Lecture",
+      "settings": "Réglages"
     },
     "period": {
       "today": "Aujourd'hui",
@@ -485,6 +499,36 @@
       "timeline": "Frise des lectures",
       "peak": "pic",
       "views": "Vues"
+    },
+    "navGroup": {
+      "observe": "Observer",
+      "explore": "Explorer",
+      "understand": "Comprendre"
+    },
+    "command": {
+      "title": "Palette de commandes",
+      "search": "Rechercher",
+      "open": "Ouvrir la recherche",
+      "placeholder": "Aller à… ou lancer une action",
+      "empty": "Aucun résultat",
+      "sync": "Synchroniser",
+      "syncStarted": "Synchronisation lancée",
+      "syncFailed": "Échec de la synchronisation",
+      "toggleTheme": "Basculer le thème"
+    },
+    "user": {
+      "guest": "Invité",
+      "menu": "Menu utilisateur",
+      "lightTheme": "Thème clair",
+      "darkTheme": "Thème sombre",
+      "language": "Langue",
+      "lang": {
+        "fr": "Français",
+        "en": "English",
+        "es": "Español"
+      },
+      "settings": "Réglages",
+      "logout": "Se déconnecter"
     }
   }
 }

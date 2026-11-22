@@ -433,7 +433,21 @@
       "cancel": "Cancel"
     },
     "nav": {
-      "breadcrumbs": "Breadcrumbs"
+      "breadcrumbs": "Breadcrumbs",
+      "main": "Main navigation",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "liveCount_one": "{{count}} active playback",
+      "liveCount_other": "{{count}} active playbacks",
+      "overview": "Overview",
+      "live": "Live",
+      "history": "History",
+      "libraries": "Libraries",
+      "users": "Users",
+      "insights": "Insights",
+      "discover": "Discover",
+      "playback": "Playback",
+      "settings": "Settings"
     },
     "period": {
       "today": "Today",
@@ -485,6 +499,36 @@
       "timeline": "Playback timeline",
       "peak": "peak",
       "views": "Views"
+    },
+    "navGroup": {
+      "observe": "Observe",
+      "explore": "Explore",
+      "understand": "Understand"
+    },
+    "command": {
+      "title": "Command palette",
+      "search": "Search",
+      "open": "Open search",
+      "placeholder": "Go to… or run an action",
+      "empty": "No results",
+      "sync": "Sync",
+      "syncStarted": "Sync started",
+      "syncFailed": "Sync failed",
+      "toggleTheme": "Toggle theme"
+    },
+    "user": {
+      "guest": "Guest",
+      "menu": "User menu",
+      "lightTheme": "Light theme",
+      "darkTheme": "Dark theme",
+      "language": "Language",
+      "lang": {
+        "fr": "Français",
+        "en": "English",
+        "es": "Español"
+      },
+      "settings": "Settings",
+      "logout": "Log out"
     }
   }
 }
