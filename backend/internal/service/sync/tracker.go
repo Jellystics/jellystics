@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
@@ -86,6 +88,7 @@ type observation struct {
 	activity  time.Time // LastActivityDate (server clock, bumped every second while playing)
 	silentFor time.Duration
 	playlist  string
+	capture   capture
 }
 
 // observe extracts an observation from a session, or ok=false when the
@@ -136,7 +139,98 @@ func observe(sess jellyfin.SessionInfo) (observation, bool) {
 	if sess.PlaylistItemId != nil {
 		o.playlist = *sess.PlaylistItemId
 	}
+	o.capture = captureFrom(sess)
 	return o, true
+}
+
+// capture holds the per-poll playback fields recorded for analytics (audio /
+// subtitle choice, video range, network locality). It never feeds the
+// time accounting.
+type capture struct {
+	audioIdx, subIdx   *int
+	audioLang, subLang *string
+	videoRange         *string
+	remote             *bool
+	reasons            []string
+	bitrate            *int64
+	hwAccel            *string
+}
+
+func captureFrom(sess jellyfin.SessionInfo) capture {
+	var c capture
+	streams := sess.NowPlayingItem.MediaStreams
+	if ps := sess.PlayState; ps != nil {
+		if ps.AudioStreamIndex != nil && *ps.AudioStreamIndex >= 0 {
+			c.audioIdx = ps.AudioStreamIndex
+			c.audioLang = streamLanguage(streams, "Audio", *ps.AudioStreamIndex)
+		}
+		if ps.SubtitleStreamIndex != nil && *ps.SubtitleStreamIndex >= 0 {
+			c.subIdx = ps.SubtitleStreamIndex
+			c.subLang = streamLanguage(streams, "Subtitle", *ps.SubtitleStreamIndex)
+		}
+	}
+	for _, st := range streams {
+		if st.Type != "Video" {
+			continue
+		}
+		// VideoRangeType (SDR, HDR10, HLG, DOVI...) is finer than VideoRange (SDR/HDR).
+		r := string(st.VideoRangeType)
+		if r == "" || r == "Unknown" {
+			r = string(st.VideoRange)
+		}
+		if r != "" && r != "Unknown" {
+			c.videoRange = &r
+		}
+		break
+	}
+	if ti := sess.TranscodingInfo; ti != nil {
+		c.reasons = ti.TranscodeReasons
+		c.bitrate = ti.Bitrate
+		if hw := string(ti.HardwareAccelerationType); hw != "" && hw != "None" {
+			c.hwAccel = &hw
+		}
+	}
+	if sess.RemoteEndPoint != nil {
+		c.remote = isRemoteEndpoint(*sess.RemoteEndPoint)
+	}
+	return c
+}
+
+// streamLanguage returns the language of the stream with the given Index.
+func streamLanguage(streams []jellyfin.MediaStream, typ string, idx int) *string {
+	for _, st := range streams {
+		if st.Index == idx && st.Type == typ {
+			if st.Language != nil && *st.Language != "" {
+				l := *st.Language
+				return &l
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
+// isRemoteEndpoint classifies a session's RemoteEndPoint (IP, optionally with
+// a port or IPv4-mapped IPv6): RFC1918, loopback, link-local and ULA are
+// local. Empty or unparseable returns nil (unknown).
+func isRemoteEndpoint(s string) *bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	var addr netip.Addr
+	if ap, err := netip.ParseAddrPort(s); err == nil {
+		addr = ap.Addr()
+	} else if a, err := netip.ParseAddr(strings.Trim(s, "[]")); err == nil {
+		addr = a
+	} else {
+		return nil
+	}
+	addr = addr.Unmap().WithZone("")
+	local := addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() ||
+		addr.IsLinkLocalMulticast() || addr.IsUnspecified()
+	remote := !local
+	return &remote
 }
 
 func ms(d time.Duration) int64 { return d.Milliseconds() }
@@ -224,6 +318,9 @@ func accumulate(prev models.JFActivityWatchdog, o observation, now time.Time) mo
 	next.WatchedMs = prev.WatchedMs + inc
 	if o.paused {
 		next.PausedMs = prev.PausedMs + el
+		if prev.IsPaused != nil && !*prev.IsPaused {
+			next.PauseCount = prev.PauseCount + 1 // playing -> paused transition
+		}
 	}
 	return next
 }
@@ -334,6 +431,33 @@ func refresh(e *models.JFActivityWatchdog, o observation, now time.Time) {
 		}
 	}
 	e.OriginalContainer = s.NowPlayingItem.Container
+	refreshCapture(e, o.capture)
+}
+
+// refreshCapture copies the capture fields onto an entry. Audio / subtitle /
+// range / locality follow the current poll (the viewer can switch tracks
+// mid-play, subtitles can be turned off); transcode details keep the last
+// non-empty values since TranscodingInfo disappears when playback pauses.
+func refreshCapture(e *models.JFActivityWatchdog, c capture) {
+	e.AudioStreamIndex, e.AudioLanguage = c.audioIdx, c.audioLang
+	e.SubtitleStreamIndex, e.SubtitleLanguage = c.subIdx, c.subLang
+	if c.videoRange != nil {
+		e.VideoRange = c.videoRange
+	}
+	if c.remote != nil {
+		e.IsRemote = c.remote
+	}
+	if len(c.reasons) > 0 {
+		if b, err := json.Marshal(c.reasons); err == nil {
+			e.TranscodeReasons = datatypes.JSON(b)
+		}
+	}
+	if c.bitrate != nil && *c.bitrate > 0 {
+		e.Bitrate = c.bitrate
+	}
+	if c.hwAccel != nil {
+		e.HwAccel = c.hwAccel
+	}
 }
 
 // closedPlay is a play that ended during this poll.
@@ -564,6 +688,16 @@ func (s *Service) finalize(ctx context.Context, c closedPlay, now time.Time) (mo
 		StartedAt:            startedAt,
 		EndedAt:              &ended,
 		IsView:               watchedMs >= MinViewSeconds*1000,
+		AudioStreamIndex:     wd.AudioStreamIndex,
+		AudioLanguage:        wd.AudioLanguage,
+		SubtitleStreamIndex:  wd.SubtitleStreamIndex,
+		SubtitleLanguage:     wd.SubtitleLanguage,
+		TranscodeReasons:     wd.TranscodeReasons,
+		Bitrate:              wd.Bitrate,
+		HwAccel:              wd.HwAccel,
+		VideoRange:           wd.VideoRange,
+		PauseCount:           wd.PauseCount,
+		IsRemote:             wd.IsRemote,
 	}, true
 }
 
