@@ -110,6 +110,24 @@ func TestParseV2(t *testing.T) {
 	}
 }
 
+func TestCSVSafe(t *testing.T) {
+	for in, want := range map[string]string{
+		"":         "",
+		"Alice":    "Alice",
+		"=1+1":     "'=1+1",
+		"+1":       "'+1",
+		"-1":       "'-1",
+		"@SUM(A1)": "'@SUM(A1)",
+		"\t=1":     "'\t=1",
+		"\r=1":     "'\r=1",
+		"a=b":      "a=b",
+	} {
+		if got := csvSafe(in); got != want {
+			t.Errorf("csvSafe(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestResetStatsCaches(t *testing.T) {
 	collectedSinceCache.Lock()
 	collectedSinceCache.m[nil] = "2020-01-01"

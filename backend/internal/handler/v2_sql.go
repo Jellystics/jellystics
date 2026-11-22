@@ -119,3 +119,7 @@ const episodeOrder = `COALESCE(e."ParentIndexNumber" = 0, false), COALESCE(e."Pa
 
 // notSpecial excludes specials (season 0) of episodes aliased `e`.
 const notSpecial = `COALESCE(e."ParentIndexNumber", -1) <> 0`
+
+// notSpecialPlay (an actFilter condition on jf_playback_activity `a`) drops
+// plays of specials; episodes missing from the catalog are kept.
+const notSpecialPlay = `NOT EXISTS (SELECT 1 FROM jf_library_episodes e WHERE e."Id" = a."ItemId" AND NOT (` + notSpecial + `))`

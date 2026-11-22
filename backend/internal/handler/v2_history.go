@@ -310,9 +310,9 @@ func (h *V2Handler) HistoryCalendar(c *gin.Context) {
 }
 
 // csvSafe neutralises spreadsheet formula injection: cells starting with
-// = + - @ get a leading apostrophe.
+// = + - @ (or a tab / carriage return) get a leading apostrophe.
 func csvSafe(s string) string {
-	if s != "" && strings.ContainsRune("=+-@", rune(s[0])) {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
 		return "'" + s
 	}
 	return s

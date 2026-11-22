@@ -289,7 +289,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 	if v2Fail(c, h.raw(c, &item, `
 		SELECT i."Id" AS id, i."Name" AS name, i."ProductionYear" AS year_from, i."EndDate" AS end_date, i."Genres"::text AS genres,
 		       (SELECT COUNT(DISTINCT COALESCE(e."ParentIndexNumber", 1)) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived AND `+notSpecial+`)::int AS seasons,
-		       (SELECT COUNT(*) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived)::int AS episodes,
+		       (SELECT COUNT(*) FROM jf_library_episodes e WHERE e."SeriesId" = i."Id" AND NOT e.archived AND `+notSpecial+`)::int AS episodes,
 		       i."ParentId" AS library_id
 		FROM jf_library_items i WHERE i."Id" = ? AND i."Type" = 'Series'`, id)) {
 		return

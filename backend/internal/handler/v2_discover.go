@@ -189,7 +189,7 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 	cutoff := time.Now().AddDate(0, 0, -abandonDays)
 	pp := p
 	pp.Type, pp.MediaType = "", ""
-	f := pp.filter(TimeRange{AllTime: true}).where(`a."IsView"`)
+	f := pp.filter(TimeRange{AllTime: true}).where(`a."IsView"`).where(notSpecialPlay)
 	switch p.Type {
 	case "movie":
 		f.where(`a."MediaType" = 'Movie'`)
@@ -210,7 +210,7 @@ func (h *V2Handler) DiscoverAbandoned(c *gin.Context) {
 	  GROUP BY group_id, user_id
 	  HAVING MAX(` + ratioExpr + `) >= 0.1 AND MAX(` + ratioExpr + `) < 0.8 AND MAX(started_at) < ?
 	),
-	eps AS (SELECT "SeriesId" AS series_id, COUNT(*)::int AS total FROM jf_library_episodes WHERE NOT archived GROUP BY 1),
+	eps AS (SELECT e."SeriesId" AS series_id, COUNT(*)::int AS total FROM jf_library_episodes e WHERE NOT e.archived AND ` + notSpecial + ` GROUP BY 1),
 	sr AS (
 	  SELECT 'series' AS kind, group_id AS id, MAX(group_name) AS name, user_id, MAX(user_name) AS user_name,
 	         COUNT(DISTINCT item_id)::float8 / MAX(eps.total) AS progress, MAX(started_at) AS last_played,

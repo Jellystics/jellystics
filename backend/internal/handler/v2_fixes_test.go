@@ -199,6 +199,52 @@ func TestV2AllRangeClampedToFirstPlay(t *testing.T) {
 	}
 }
 
+// Viewed specials (season 0) break neither "in progress" nor abandon counts.
+func TestV2SpecialsInProgressAndAbandoned(t *testing.T) {
+	db := v2Seeded(t)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(db.Create(&[]models.JFLibraryEpisode{
+		{Id: "e4", Name: sp("Finale"), SeriesId: sp("s1"), ParentIndexNumber: ip(2), IndexNumber: ip(2), RunTimeTicks: i64(100 * secTicks)},
+		{Id: "e0", Name: sp("Making of"), SeriesId: sp("s1"), ParentIndexNumber: ip(0), IndexNumber: ip(1), RunTimeTicks: i64(100 * secTicks)},
+	}).Error)
+	pos := int64(100)
+	special := trackedRow("sp1", "u1", "e0", "Episode", time.Now().Add(-time.Hour), 100, 100, &pos)
+	special.NowPlayingItemId, special.EpisodeId = sp("s1"), sp("e0")
+	oldEp := trackedRow("sp2", "u2", "e1", "Episode", testutil.RecentDay(100).Add(20*time.Hour), 100, 100, &pos)
+	oldEp.NowPlayingItemId, oldEp.EpisodeId = sp("s1"), sp("e1")
+	oldSpecial := trackedRow("sp3", "u2", "e0", "Episode", testutil.RecentDay(100).Add(21*time.Hour), 100, 100, &pos)
+	oldSpecial.NowPlayingItemId, oldSpecial.EpisodeId = sp("s1"), sp("e0")
+	must(db.Create(&[]models.JFPlaybackActivity{special, oldEp, oldSpecial}).Error)
+
+	var user struct {
+		InProgress []struct {
+			NextID   string
+			Progress float64
+		}
+	}
+	v2JSON(t, db, "/api/v2/users/u1", &user)
+	if len(user.InProgress) != 1 || user.InProgress[0].NextID != "e4" || user.InProgress[0].Progress != 0.75 {
+		t.Errorf("inProgress = %+v", user.InProgress)
+	}
+
+	var ab struct {
+		Items []struct {
+			ID                            string
+			EpisodesViewed, EpisodesTotal *int
+		}
+	}
+	v5JSON(t, db, "/api/v2/discover/abandoned?type=series&userId=u2", &ab)
+	if len(ab.Items) != 1 || ab.Items[0].ID != "s1" || ab.Items[0].EpisodesViewed == nil || *ab.Items[0].EpisodesViewed != 1 ||
+		ab.Items[0].EpisodesTotal == nil || *ab.Items[0].EpisodesTotal != 4 {
+		t.Errorf("abandoned = %+v", ab.Items)
+	}
+}
+
 func TestV2SpecialsAndMisc(t *testing.T) {
 	db := v2Seeded(t)
 	must := func(err error) {
@@ -221,7 +267,7 @@ func TestV2SpecialsAndMisc(t *testing.T) {
 	v2JSON(t, db, "/api/v2/series/s1", &series)
 	last := series.Seasons[len(series.Seasons)-1]
 	if series.Item.Seasons != 2 || len(series.Seasons) != 3 || !last.Special || last.Number != 0 || last.Episodes[0].ID != "e0" ||
-		series.Seasons[0].Special || !approx(series.Totals.Retention, 1) {
+		series.Seasons[0].Special || !approx(series.Totals.Retention, 1) || series.Item.Episodes != 3 {
 		t.Errorf("series = %+v", series)
 	}
 	var lib struct {
