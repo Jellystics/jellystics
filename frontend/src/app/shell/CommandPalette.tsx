@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Clapperboard, Disc3, MicVocal, MoonStar, Music, RefreshCw, Tv, User, type LucideIcon } from 'lucide-react'
@@ -27,6 +27,17 @@ function useDebounced<T>(value: T, ms: number): T {
 
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
+  // The body mounts with the dialog content, so its query/selection state starts fresh on every open (before first paint).
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('app.command.title')}>
+      <PaletteBody open={open} onOpenChange={onOpenChange} />
+    </Dialog>
+  )
+}
+
+function PaletteBody({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { t } = useTranslation()
+  const listId = useId()
   const navigate = useNavigate()
   const { search } = useLocation()
   const { toggle } = useThemeMode()
@@ -34,8 +45,6 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const [active, setActive] = useState(0)
   const term = useDebounced(query.trim(), SEARCH_DEBOUNCE_MS)
   const found = useSearch(open ? term : '')
-
-  useEffect(() => { if (open) { setQuery(''); setActive(0) } }, [open])
 
   const commands = useMemo<Entry[]>(() => {
     const cur = new URLSearchParams(search)
@@ -85,15 +94,22 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const searching = !!q && (query.trim() !== term || found.isFetching) && results.length === 0
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={t('app.command.title')}>
-      <div onKeyDown={onKeyDown} className={styles.wrap}>
-        <SearchInput value={query} onChange={(v) => { setQuery(v); setActive(0) }} placeholder={t('app.command.placeholder')} />
-        <ul className={styles.list} role="listbox" aria-label={t('app.command.title')} aria-busy={searching || undefined}>
+    <div onKeyDown={onKeyDown} className={styles.wrap}>
+        <SearchInput
+          value={query}
+          onChange={(v) => { setQuery(v); setActive(0) }}
+          placeholder={t('app.command.placeholder')}
+          inputProps={{
+            role: 'combobox', 'aria-expanded': true, 'aria-controls': listId, 'aria-autocomplete': 'list',
+            'aria-activedescendant': shown.length > 0 ? `${listId}-${idx}` : undefined,
+          }}
+        />
+        <ul id={listId} className={styles.list} role="listbox" aria-label={t('app.command.title')} aria-busy={searching || undefined}>
           {shown.map((c, i) => {
             const cls = [styles.cmd, i === idx && styles.on].filter(Boolean).join(' ')
             const body = <><c.icon size={16} strokeWidth={1.6} aria-hidden /><span className={styles.label}>{c.label}</span>{c.sub && <span className={styles.sub}>{c.sub}</span>}</>
             return (
-              <li key={c.id} role="option" aria-selected={i === idx}>
+              <li key={c.id} id={`${listId}-${i}`} role="option" aria-selected={i === idx}>
                 {c.to
                   ? <AppLink to={c.to} tabIndex={-1} className={cls} onMouseEnter={() => setActive(i)} onClick={close}>{body}</AppLink>
                   : <button type="button" tabIndex={-1} className={cls} onMouseEnter={() => setActive(i)} onClick={() => exec(c)}>{body}</button>}
@@ -102,7 +118,6 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
           })}
           {shown.length === 0 && <li className={styles.empty}>{t(searching ? 'app.command.searching' : 'app.command.empty')}</li>}
         </ul>
-      </div>
-    </Dialog>
+    </div>
   )
 }

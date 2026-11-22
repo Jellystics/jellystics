@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -40,10 +40,40 @@ it('renders breadcrumbs from route handles', () => {
 it('resets the palette query when reopened', async () => {
   renderAt('/')
   await userEvent.keyboard('{Control>}k{/Control}')
-  await userEvent.type(screen.getByRole('searchbox'), 'xyz')
+  await userEvent.type(screen.getByRole('combobox'), 'xyz')
   await userEvent.keyboard('{Control>}k{/Control}')
   await userEvent.keyboard('{Control>}k{/Control}')
-  expect(screen.getByRole('searchbox')).toHaveValue('')
+  expect(screen.getByRole('combobox')).toHaveValue('')
+})
+it('palette input is a combobox that tracks the active option', async () => {
+  renderAt('/')
+  await userEvent.keyboard('{Control>}k{/Control}')
+  const input = screen.getByRole('combobox')
+  const list = screen.getByRole('listbox')
+  expect(input).toHaveAttribute('aria-controls', list.id)
+  const first = screen.getAllByRole('option')[0]
+  expect(input).toHaveAttribute('aria-activedescendant', first.id)
+  await userEvent.keyboard('{ArrowDown}')
+  expect(input).toHaveAttribute('aria-activedescendant', screen.getAllByRole('option')[1].id)
+})
+it('offers a skip link that focuses the main landmark', async () => {
+  renderAt('/')
+  await userEvent.click(screen.getByRole('link', { name: 'app.nav.skipToContent' }))
+  expect(screen.getByRole('main')).toHaveFocus()
+})
+it('closes the mobile drawer when the viewport reaches the desktop layout', async () => {
+  let listener: ((e: { matches: boolean }) => void) | undefined
+  const orig = window.matchMedia
+  window.matchMedia = ((q: string) => ({
+    matches: false, media: q, addEventListener: (_: string, l: typeof listener) => { listener = l }, removeEventListener: () => {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+  try {
+    renderAt('/')
+    await userEvent.click(screen.getByRole('button', { name: 'app.nav.openMenu' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    act(() => listener?.({ matches: true }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  } finally { window.matchMedia = orig }
 })
 it('hides the period picker on routes flagged period:false', () => {
   const qc = new QueryClient(); qc.setQueryData(['server-config'], { configured: true, timezone: 'Europe/Paris' })
@@ -75,7 +105,7 @@ it('palette searches the catalog (debounced) and links results with the period',
   })
   const router = renderAt('/?range=7d')
   await userEvent.keyboard('{Control>}k{/Control}')
-  await userEvent.type(screen.getByRole('searchbox'), 'inc')
+  await userEvent.type(screen.getByRole('combobox'), 'inc')
   const movie = await screen.findByRole('link', { name: /Inception/ })
   expect(movie).toHaveAttribute('href', '/movies/m1?range=7d')
   expect(screen.getByRole('link', { name: /Incipit/ })).toHaveAttribute('href', '/albums/al1?track=t1&range=7d')

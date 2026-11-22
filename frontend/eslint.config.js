@@ -24,10 +24,17 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }],
-      'react-hooks/rules-of-hooks': 'error',
+      // v7 recommended set, including the React Compiler rules (refs, purity, set-state-in-effect, …).
+      ...reactHooks.configs.recommended.rules,
       'react-hooks/exhaustive-deps': 'error',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
+  },
+  {
+    // Pages seed form state from query data in effects (and a test helper mutates a counter); rewriting
+    // them is out of scope for the kit follow-ups, so these two compiler rules stay off for pages only (TODO: re-enable).
+    files: ['src/app/pages/**/*.{ts,tsx}'],
+    rules: { 'react-hooks/set-state-in-effect': 'off', 'react-hooks/immutability': 'off' },
   },
   {
     // Primitives deliberately co-export small helpers next to their components.

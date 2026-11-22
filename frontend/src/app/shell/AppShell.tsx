@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Outlet } from 'react-router-dom'
 import { toast } from '@/ui'
 import socket, { useSocketEvent } from '@/lib/socket'
@@ -10,19 +11,23 @@ import styles from './AppShell.module.css'
 
 const TASK_EVENTS = ['PlaybackSyncTask', 'PartialSyncTask', 'FullSyncTask', 'BackupTask', 'TaskError', 'GeneralAlert']
 
-function TaskToast({ event }: { event: string }) {
-  useSocketEvent(event, (msg) => {
+/** One instance for all task events: subscribes each event on the shared socket. */
+function TaskToast() {
+  const handler = useCallback((msg: unknown) => {
     const m = msg as { type?: string; message?: string } | string | null
     const text = typeof m === 'string' ? m : m?.message ?? String(m)
     const type = typeof m === 'object' && m !== null ? m.type : undefined
     if (type === 'Success') toast.success(text)
     else if (type === 'Error') toast.error(text)
     else toast.info(text)
-  })
+  }, [])
+  useSocketEvent(TASK_EVENTS, handler)
   return null
 }
 
 export function AppShell() {
+  const { t } = useTranslation()
+  const mainRef = useRef<HTMLElement>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [liveCount, setLiveCount] = useState(0)
   const [label, setLabel] = useState<CrumbOverride>(null)
@@ -50,15 +55,16 @@ export function AppShell() {
 
   return (
     <CrumbLabelContext.Provider value={crumbCtx}>
+      <a href="#main" className={styles.skip} onClick={(e) => { e.preventDefault(); mainRef.current?.focus() }}>{t('app.nav.skipToContent')}</a>
       <div className={styles.app}>
         <Sidebar liveCount={liveCount} onOpenCommand={openPalette} />
         <div className={styles.main}>
           <TopBar liveCount={liveCount} onOpenCommand={openPalette} />
-          <main className={styles.body}><Outlet /></main>
+          <main id="main" tabIndex={-1} ref={mainRef} className={styles.body}><Outlet /></main>
         </div>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-      {TASK_EVENTS.map((e) => <TaskToast key={e} event={e} />)}
+      <TaskToast />
     </CrumbLabelContext.Provider>
   )
 }

@@ -17,13 +17,15 @@ socket.on('connect_error', (err) => {
 
 export default socket
 
-/** Subscribe to a socket event for the lifetime of the component. */
-export function useSocketEvent(event: string, handler: (data: unknown) => void) {
+/** Subscribe to one socket event (or several, sharing a handler) for the lifetime of the component. */
+export function useSocketEvent(event: string | readonly string[], handler: (data: unknown) => void) {
   const ref = useRef(handler)
   useEffect(() => { ref.current = handler })
+  const key = typeof event === 'string' ? event : event.join('\u0000')
   useEffect(() => {
     const fn = (data: unknown) => ref.current(data)
-    socket.on(event, fn)
-    return () => { socket.off(event, fn) }
-  }, [event])
+    const names = key.split('\u0000')
+    names.forEach((e) => socket.on(e, fn))
+    return () => { names.forEach((e) => socket.off(e, fn)) }
+  }, [key])
 }

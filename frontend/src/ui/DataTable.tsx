@@ -29,6 +29,8 @@ export type DataTableProps<T> = {
 export function DataTable<T>({ columns, data, rowHref, rowState, pagination, sort, dense, empty, loading }: DataTableProps<T>) {
   const { t } = useTranslation()
   const sorting: SortingState = sort ? [{ id: sort.id, desc: sort.desc }] : []
+  // TanStack Table returns unmemoizable functions; the compiler skips this component, which is the intended behaviour.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     columns, data, getCoreRowModel: getCoreRowModel(),
     manualSorting: true, enableSortingRemoval: false, state: { sorting },

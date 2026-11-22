@@ -28,7 +28,8 @@ export function RetentionChart({ seasons, seasonNumbers, onEpisodeClick, height 
   const color = 'var(--t-series)'
   const d = linePath(pts.map((p, i) => [x(i), y(p.v)]))
   const last = n - 1
-  let idx = 0
+  // Index of the first episode of each season in the flattened series.
+  const starts = seasons.reduce<number[]>((acc, s, i) => { acc.push(i === 0 ? 0 : acc[i - 1] + seasons[i - 1].length); void s; return acc }, [])
   const sn = (si: number) => seasonNumbers?.[si] ?? si + 1
 
   return (
@@ -41,14 +42,13 @@ export function RetentionChart({ seasons, seasonNumbers, onEpisodeClick, height 
           </g>
         ))}
         {seasons.map((s, si) => {
-          const x0 = x(idx), x1 = x(idx + s.length - 1)
+          const x0 = x(starts[si]), x1 = x(starts[si] + s.length - 1)
           const el = (
             <g key={si}>
               {si > 0 && <line x1={x0 - step / 2} x2={x0 - step / 2} y1={m.t} y2={y(0)} stroke="var(--axis)" />}
               <text x={(x0 + x1) / 2} y={height - 8} textAnchor="middle">{`${t('app.chart.season')} ${sn(si)}`}</text>
             </g>
           )
-          idx += s.length
           return el
         })}
         {n > 0 && (
