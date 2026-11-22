@@ -58,6 +58,9 @@ const (
 	periodicMaxGap    = 30 * time.Second // check-ins closer than this ⇒ client reports periodically
 	silentClientAfter = 45 * time.Second // periodic client silent this long ⇒ stop counting
 	userDataTimeout   = 5 * time.Second
+
+	// maxTailMs bounds the time credited between the last poll and the stop.
+	maxTailMs = 2*int64(PollInterval/time.Millisecond) + int64(silentClientAfter/time.Millisecond)
 )
 
 // trackedTypes maps Jellyfin item types to the MediaType stored on plays.
@@ -157,6 +160,9 @@ func elapsedMs(prev *models.JFActivityWatchdog, now time.Time) int64 {
 func samePlay(prev *models.JFActivityWatchdog, o observation, now time.Time) bool {
 	if prev.ItemId == nil || *prev.ItemId != o.itemId {
 		return false
+	}
+	if prev.UserId != nil && *prev.UserId != o.sess.UserId {
+		return false // shared device (10.10 session key is app+device): user switched
 	}
 	// Same item: a jump back to the very beginning is a new play when the
 	// previous one was near its end (repeat-one / play again) or the client
@@ -406,6 +412,11 @@ func (s *Service) SessionTick(ctx context.Context) {
 // from the stop position Jellyfin saved in the user's item data. It returns 0
 // when the saved state is not consistent with this play.
 func (s *Service) tailMs(ctx context.Context, wd models.JFActivityWatchdog, budgetMs int64) (int64, *int64) {
+	// After a long Jellystics outage the budget would be the whole downtime; a
+	// stop position saved much later (another session) must not be credited.
+	if budgetMs > maxTailMs {
+		budgetMs = maxTailMs
+	}
 	if budgetMs <= 0 || wd.UserId == nil || wd.ItemId == nil || wd.PlaybackDuration == nil {
 		return 0, nil
 	}
@@ -445,8 +456,10 @@ func (s *Service) finalize(ctx context.Context, wd models.JFActivityWatchdog, ta
 	if wd.ItemId == nil {
 		watchedMs = wd.WatchedSeconds * 1000 // legacy row
 	}
-	if watchedMs < 1000 {
-		return models.JFPlaybackActivity{}, false // no evidence of playback
+	// Every observed playback is a click, even with no progress (started then
+	// stopped while buffering or paused). Legacy rows keep the old filter.
+	if wd.ItemId == nil && watchedMs < 1000 {
+		return models.JFPlaybackActivity{}, false
 	}
 	secs := (watchedMs + 500) / 1000
 	paused := (wd.PausedMs + 500) / 1000
@@ -512,7 +525,7 @@ func (s *Service) finalize(ctx context.Context, wd models.JFActivityWatchdog, ta
 		PausedSeconds:        &paused,
 		StartedAt:            startedAt,
 		EndedAt:              &ended,
-		IsView:               secs >= MinViewSeconds,
+		IsView:               watchedMs >= MinViewSeconds*1000,
 	}, true
 }
 
