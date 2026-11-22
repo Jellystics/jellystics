@@ -187,6 +187,7 @@ binge_sessions AS (
 var completionCTE = `,
 completion AS (
   SELECT
+    item_id,
     MAX(media_type) AS item_type,
     ` + unitRatio + ` AS completion_ratio,
     BOOL_OR(trusted_ptc IS NOT NULL) AS measured,

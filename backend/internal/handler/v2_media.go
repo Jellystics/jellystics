@@ -49,12 +49,13 @@ type funnelStats struct {
 }
 
 // funnel: clicks/views are rows; half/completed count the (user, item, day)
-// view units reaching 50 % / the completion threshold.
+// view units reaching 50 % (or finished, so the funnel stays monotone) /
+// finished (completionCTE).
 func (h *V2Handler) funnel(c *gin.Context, f *actFilter) (funnelStats, error) {
 	var out funnelStats
 	q, args := f.sql(completionCTE + `
 		SELECT ` + aggClicks + ` AS clicks, ` + aggPlays + ` AS views,
-		       (SELECT COUNT(*) FROM completion WHERE completion_ratio >= 0.5)::int AS half,
+		       (SELECT COUNT(*) FROM completion WHERE completion_ratio >= 0.5 OR finished)::int AS half,
 		       (SELECT COUNT(*) FROM completion WHERE ` + completedCond + `)::int AS completed
 		FROM acts`)
 	err := h.raw(c, &out, q, args...)
@@ -340,18 +341,15 @@ func (h *V2Handler) Series(c *gin.Context) {
 		SkipCounts
 	}
 	q, args := f.sql(`,
-		units AS (
-		  SELECT user_id, item_id, `+statsqlCompletion+` AS r
-		  FROM acts WHERE is_view AND NOT plugin_open GROUP BY user_id, item_id, local_ts::date
-		),
+		`+strings.TrimPrefix(completionCTE, ",")+`,
 		ep AS (
 		  SELECT item_id, COUNT(*) FILTER (WHERE is_view)::int AS views,
 		         COUNT(DISTINCT user_id) FILTER (WHERE is_view)::int AS viewers
 		  FROM acts GROUP BY item_id
 		),
 		comp AS (
-		  SELECT item_id, AVG(r)::float8 AS avg_completion, COUNT(*) FILTER (WHERE r < ?)::int AS abandons
-		  FROM units GROUP BY item_id
+		  SELECT item_id, AVG(completion_ratio)::float8 AS avg_completion, COUNT(*) FILTER (WHERE NOT finished)::int AS abandons
+		  FROM completion GROUP BY item_id
 		),
 		sk AS (SELECT item_id, `+skipCols+` FROM acts GROUP BY item_id)
 		SELECT e."Id" AS id, COALESCE(e."ParentIndexNumber", 0) AS season, COALESCE(e."ParentIndexNumber" = 0, false) AS special, e."IndexNumber" AS number, e."Name" AS name,
@@ -363,7 +361,7 @@ func (h *V2Handler) Series(c *gin.Context) {
 		LEFT JOIN comp ON comp.item_id = e."Id"
 		LEFT JOIN sk ON sk.item_id = e."Id"
 		WHERE e."SeriesId" = ? AND NOT e.archived
-		ORDER BY `+episodeOrder, completionThreshold(), id)
+		ORDER BY `+episodeOrder, id)
 	if v2Fail(c, h.raw(c, &eps, q, args...)) {
 		return
 	}

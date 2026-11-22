@@ -206,6 +206,55 @@ func TestV2PluginMovieAndUserPlayedToEnd(t *testing.T) {
 	}
 }
 
+// Series abandons are the episode's unfinished units (same definition as
+// the episode "finished views" tile).
+func TestV2PluginSeriesAbandonsAgreeWithEpisode(t *testing.T) {
+	db := v2Seeded(t)
+	seedPlugin(t, db)
+	var ep struct{ PlayedToEnd pteResp }
+	v2JSON(t, db, "/api/v2/episodes/e1", &ep)
+	var series struct {
+		Seasons []struct {
+			Episodes []struct {
+				ID       string
+				Abandons int
+			}
+		}
+	}
+	v2JSON(t, db, "/api/v2/series/s1", &series)
+	e1 := series.Seasons[0].Episodes[0]
+	// u2 stopped at the end of e1 on day1 but Jellyfin reported it not played
+	// to completion: one abandon.
+	if e1.ID != "e1" || e1.Abandons != ep.PlayedToEnd.Plays-ep.PlayedToEnd.Finished || e1.Abandons != 1 {
+		t.Errorf("e1 abandons = %d, episode units %d finished %d", e1.Abandons, ep.PlayedToEnd.Plays, ep.PlayedToEnd.Finished)
+	}
+}
+
+// A low-ratio play Jellyfin reported played to completion finishes the movie
+// (sittings) and still counts in the funnel's half step (monotone funnel).
+func TestV2PluginSittingsAndFunnelUsePlayedToCompletion(t *testing.T) {
+	db := v2Seeded(t)
+	at := func(day time.Time, h int) time.Time { return day.Add(time.Duration(h) * time.Hour) }
+	if err := db.Create(&[]models.JFPlaybackActivity{
+		pluginRow("q1", "u3", "m1", "Movie", at(v2Day2, 20), 120, 600, 0, 120, 0, 0, nil, false),
+		pluginRow("q2", "u3", "m1", "Movie", at(v2Day1, 20), 120, 600, 0, 120, 0, 0, bp(true), false),
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	var sit []struct{ Sittings, Count int }
+	v2JSON(t, db, "/api/v2/movies/m1/sittings?userId=u3", &sit)
+	if len(sit) != 4 || sit[0].Count != 0 || sit[1].Count != 1 || sit[2].Count != 0 || sit[3].Count != 0 {
+		t.Errorf("sittings = %+v, want one finish in 2 sittings", sit)
+	}
+	var movie struct {
+		Funnel struct{ Views, Half, Completed int }
+	}
+	v2JSON(t, db, "/api/v2/movies/m1?userId=u3", &movie)
+	if movie.Funnel.Views != 2 || movie.Funnel.Completed != 1 || movie.Funnel.Half != 1 {
+		t.Errorf("funnel = %+v, want half 1 >= completed 1", movie.Funnel)
+	}
+}
+
 // PlayedToCompletion is ignored on music and on media shorter than 300 s.
 func TestV2PluginPlayedToCompletionTrust(t *testing.T) {
 	db := v2Seeded(t)

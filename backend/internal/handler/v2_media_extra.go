@@ -43,7 +43,7 @@ func (h *V2Handler) MovieSittings(c *gin.Context) {
 	var rows []struct{ Sittings, N int }
 	q, args := acts().forUser(p.UserID).where(`a."MediaType" = 'Movie' AND a."ItemId" = ?`, id).sql(`,
 		seq AS (
-		  SELECT user_id, started_at, COALESCE(`+ratioExpr+` >= ?, false) AS done FROM acts WHERE is_view
+		  SELECT user_id, started_at, COALESCE(trusted_ptc, `+ratioExpr+` >= ?, false) AS done FROM acts WHERE is_view AND NOT plugin_open
 		),
 		seg AS (
 		  SELECT user_id, started_at, done,
