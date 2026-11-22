@@ -327,3 +327,19 @@ func TestPolling_ConnectRejectedWithoutValidToken(t *testing.T) {
 		}
 	}
 }
+
+func TestStillAuthorized_RevalidatesAfterInterval(t *testing.T) {
+	h := NewHub()
+	valid := true
+	h.SetAuthorizer(func(tok string) bool { return valid && tok == "t" })
+	c := &wsClient{token: "t", authedAt: time.Now()}
+
+	valid = false // session revoked
+	if !h.stillAuthorized(c) {
+		t.Fatal("re-validation must be rate-limited")
+	}
+	c.authedAt = time.Now().Add(-reauthEvery - time.Second)
+	if h.stillAuthorized(c) {
+		t.Fatal("revoked session must be rejected once the interval elapsed")
+	}
+}

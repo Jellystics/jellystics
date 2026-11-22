@@ -35,3 +35,8 @@ func (r *authSessionRepo) Touch(ctx context.Context, id string, validated bool) 
 func (r *authSessionRepo) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&models.AuthSession{}).Error
 }
+
+func (r *authSessionRepo) ListIdle(ctx context.Context, before time.Time) ([]models.AuthSession, error) {
+	var out []models.AuthSession
+	return out, r.db.WithContext(ctx).Where("last_seen_at < ?", before).Find(&out).Error
+}

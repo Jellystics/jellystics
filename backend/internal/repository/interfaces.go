@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
 )
@@ -213,4 +214,6 @@ type AuthSessionRepository interface {
 	Get(ctx context.Context, id string) (*models.AuthSession, error)
 	Touch(ctx context.Context, id string, validated bool) error
 	Delete(ctx context.Context, id string) error
+	// ListIdle returns sessions not seen since before.
+	ListIdle(ctx context.Context, before time.Time) ([]models.AuthSession, error)
 }

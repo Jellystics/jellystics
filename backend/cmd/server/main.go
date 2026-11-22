@@ -22,9 +22,9 @@ import (
 	"github.com/Jellystics/Jellystics/internal/service/scheduler"
 	statssvc "github.com/Jellystics/Jellystics/internal/service/stats"
 	syncsvc "github.com/Jellystics/Jellystics/internal/service/sync"
-	"github.com/Jellystics/Jellystics/internal/statsql"
 	tasksvc "github.com/Jellystics/Jellystics/internal/service/task"
 	webhooksvc "github.com/Jellystics/Jellystics/internal/service/webhook"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/Jellystics/Jellystics/internal/ws"
 	"github.com/gin-gonic/gin"
 )
@@ -117,6 +117,18 @@ func main() {
 	runner := scheduler.NewRunner(taskSvc, dispatch)
 	sched := scheduler.New(repos, runner)
 	sched.Start(context.Background())
+
+	// Daily: revoke and delete browser sessions unused for 30 days.
+	go func() {
+		for {
+			if n, err := svcs.Auth.PruneIdleSessions(context.Background()); err != nil {
+				log.Printf("prune idle sessions: %v", err)
+			} else if n > 0 {
+				log.Printf("pruned %d idle login session(s)", n)
+			}
+			time.Sleep(24 * time.Hour)
+		}
+	}()
 
 	// Every PollInterval: broadcast live sessions, update watchdog, promote finished
 	// sessions to jf_playback_activity (ActivityMonitor equivalent).

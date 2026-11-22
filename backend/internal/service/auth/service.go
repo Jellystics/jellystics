@@ -229,5 +229,29 @@ func (s *Service) IsConfigured(ctx context.Context) bool {
 		return true
 	}
 	cfg, err := s.repos.Config.Get(ctx)
-	return err == nil && cfg.JFHost != nil && *cfg.JFHost != ""
+	if err != nil {
+		return true // fail closed: never open setup routes on a DB error
+	}
+	return cfg.JFHost != nil && *cfg.JFHost != ""
+}
+
+// SessionMaxIdle is how long an unused browser session is kept. Its Jellyfin
+// admin token is revoked when the session is pruned.
+const SessionMaxIdle = 30 * 24 * time.Hour
+
+// PruneIdleSessions revokes and deletes sessions unused for SessionMaxIdle.
+func (s *Service) PruneIdleSessions(ctx context.Context) (int, error) {
+	idle, err := s.repos.AuthSession.ListIdle(ctx, s.now().Add(-SessionMaxIdle))
+	if err != nil {
+		return 0, err
+	}
+	jf, jfErr := s.jfClient(ctx)
+	for _, sess := range idle {
+		if jfErr == nil {
+			dev := jellyfin.DeviceInfo{DeviceId: sess.DeviceId, DeviceName: sess.DeviceName}
+			_ = jf.Logout(ctx, sess.JFToken, dev)
+		}
+		_ = s.repos.AuthSession.Delete(ctx, sess.Id)
+	}
+	return len(idle), nil
 }

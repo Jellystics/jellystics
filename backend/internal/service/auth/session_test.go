@@ -182,3 +182,20 @@ func TestAuthenticate_RejectsLegacyTokenWithoutSession(t *testing.T) {
 		t.Error("legacy token without session id must be rejected")
 	}
 }
+
+func TestPruneIdleSessions_RevokesAbandonedTokens(t *testing.T) {
+	svc, fj, clock := setup(t)
+	ctx := context.Background()
+	tok, _ := svc.Login(ctx, "alice", "good", "d1", "")
+	*clock = clock.Add(SessionMaxIdle + time.Hour)
+	n, err := svc.PruneIdleSessions(ctx)
+	if err != nil || n != 1 {
+		t.Fatalf("pruned %d, err %v", n, err)
+	}
+	if fj.tokens["tok-alice"] {
+		t.Error("Jellyfin token of a pruned session must be revoked")
+	}
+	if _, err := svc.Authenticate(ctx, tok); err == nil {
+		t.Error("pruned session still accepted")
+	}
+}
