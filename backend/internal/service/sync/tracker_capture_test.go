@@ -115,23 +115,20 @@ func TestTracker_TranscodeBitrateOverridesAndSurvivesMediaFallback(t *testing.T)
 	}
 }
 
-func TestTracker_AudioFallsBackToDefaultThenFirst(t *testing.T) {
+func TestTracker_UnreportedAudioIsNull(t *testing.T) {
+	// The client did not report its audio track: nothing is inferred from the
+	// default / first stream, so the row stays unknown for VO / VF.
 	d := newDriver(t)
 	s := captureMovie("s1", "m1", 0, false)
 	s.PlayState.AudioStreamIndex = nil
 	s.NowPlayingItem.MediaStreams[2].IsDefault = true
 	d.tick(0, s)
 	wd := d.watchdog("s1")
-	if wd.AudioStreamIndex == nil || *wd.AudioStreamIndex != 2 || *wd.AudioLanguage != "fre" {
-		t.Fatalf("default audio: %v %v", wd.AudioStreamIndex, wd.AudioLanguage)
+	if wd.AudioStreamIndex != nil || wd.AudioLanguage != nil {
+		t.Fatalf("unreported audio must be null: %v %v", wd.AudioStreamIndex, wd.AudioLanguage)
 	}
-	d2 := newDriver(t)
-	s = captureMovie("s1", "m1", 0, false)
-	s.PlayState.AudioStreamIndex = nil
-	d2.tick(0, s)
-	wd = d2.watchdog("s1")
-	if wd.AudioStreamIndex == nil || *wd.AudioStreamIndex != 1 || *wd.AudioLanguage != "eng" {
-		t.Fatalf("first audio: %v %v", wd.AudioStreamIndex, wd.AudioLanguage)
+	if wd.Bitrate == nil {
+		t.Fatalf("bitrate estimate should still use the default stream")
 	}
 	// Subtitles never fall back.
 	d3 := newDriver(t)
@@ -183,8 +180,8 @@ func TestTracker_SubtitleOffAndMissingIndexAreNull(t *testing.T) {
 	if wd.SubtitleStreamIndex != nil || wd.SubtitleLanguage != nil {
 		t.Errorf("subtitle should be null: %v %v", wd.SubtitleStreamIndex, wd.SubtitleLanguage)
 	}
-	if wd.AudioStreamIndex == nil || *wd.AudioStreamIndex != 1 {
-		t.Errorf("audio should fall back to first stream: %v", wd.AudioStreamIndex)
+	if wd.AudioStreamIndex != nil {
+		t.Errorf("unreported audio should be null: %v", *wd.AudioStreamIndex)
 	}
 	if wd.IsRemote != nil {
 		t.Errorf("IsRemote should be null without endpoint")

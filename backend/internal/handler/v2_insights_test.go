@@ -80,8 +80,8 @@ func TestV2InsightsCompletionSessionsMoments(t *testing.T) {
 		MedianSeconds *float64
 	}
 	v5JSON(t, db, "/api/v2/insights/sessions", &sess)
-	// Durations 100, 30, 10, 100, 90, 50, 200, 10.
-	if len(sess.Buckets) != 9 || sess.Buckets[0] != 4 || sess.Buckets[1] != 4 || sess.Sessions != 8 || !ptrNear(sess.MedianSeconds, 70) {
+	// Views only (the two 10 s false starts are left out): 100, 30, 100, 90, 50, 200.
+	if len(sess.Buckets) != 9 || sess.Buckets[0] != 2 || sess.Buckets[1] != 4 || sess.Sessions != 6 || !ptrNear(sess.MedianSeconds, 95) {
 		t.Errorf("sessions = %+v", sess)
 	}
 
@@ -104,9 +104,11 @@ func TestV2InsightsCompletionSessionsMoments(t *testing.T) {
 		ID, Kind, Name              string
 		Ratio                       float64
 		PausedSeconds, WatchSeconds int64
+		PauseCount                  int
 	}
+	mustExec(t, db, `UPDATE jf_playback_activity SET "PauseCount" = 3 WHERE "Id" = 'r5'`)
 	v5JSON(t, db, "/api/v2/insights/pauses", &pauses)
-	if len(pauses) != 1 || pauses[0].ID != "s1" || pauses[0].Kind != "series" || pauses[0].PausedSeconds != 42 ||
+	if len(pauses) != 1 || pauses[0].ID != "s1" || pauses[0].Kind != "series" || pauses[0].PausedSeconds != 42 || pauses[0].PauseCount != 3 ||
 		pauses[0].WatchSeconds != 240 || !near(pauses[0].Ratio, 42.0/240) {
 		t.Errorf("pauses = %+v", pauses)
 	}
@@ -234,5 +236,77 @@ func TestV2InsightsMomentsTimezone(t *testing.T) {
 	musicHour := v2Day1.Add(8 * time.Hour).In(paris).Hour()
 	if movieHour == 20 || moments.Movie[movieHour] != 2 || moments.Movie[20] != 0 || moments.Music[musicHour] != 1 {
 		t.Errorf("paris moments: movie hour %d → %v, music hour %d → %v", movieHour, moments.Movie, musicHour, moments.Music)
+	}
+}
+
+// Month (genres) and day (rewatches) boundaries are local: 2025-01-31 23:30
+// UTC is already February in Paris, and two views at 21:00 / 23:30 UTC on
+// the same UTC day fall on two Paris days.
+func TestV2InsightsLocalBoundaries(t *testing.T) {
+	db := v2Seeded(t)
+	pos := int64(100)
+	rows := []models.JFPlaybackActivity{
+		trackedRow("tz1", "u1", "m1", "Movie", time.Date(2025, 1, 31, 23, 30, 0, 0, time.UTC), 100, 100, &pos),
+		trackedRow("tz2", "u1", "m1", "Movie", time.Date(2025, 1, 10, 21, 0, 0, 0, time.UTC), 100, 100, &pos),
+		trackedRow("tz3", "u1", "m1", "Movie", time.Date(2025, 1, 10, 23, 30, 0, 0, time.UTC), 100, 100, &pos),
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	type genresJSON struct {
+		Bucket string
+		Months []string
+		Series []struct {
+			Name   string
+			Values []int64
+		}
+	}
+	type rewatchJSON []struct {
+		ID    string
+		Views int
+	}
+	const genresURL = "/api/v2/insights/genres?from=2025-01-01&to=2025-03-01"
+	const rewatchURL = "/api/v2/insights/rewatches?from=2025-01-01&to=2025-01-31"
+
+	var g genresJSON
+	v5JSON(t, db, genresURL, &g)
+	if g.Bucket != "month" || len(g.Months) != 2 || len(g.Series) != 1 || g.Series[0].Values[0] != 300 || g.Series[0].Values[1] != 0 {
+		t.Errorf("utc genres = %+v", g)
+	}
+	var rw rewatchJSON
+	v5JSON(t, db, rewatchURL, &rw)
+	if len(rw) != 0 {
+		t.Errorf("utc rewatches = %+v", rw)
+	}
+
+	t.Setenv("TZ", "Europe/Paris")
+	g = genresJSON{}
+	v5JSON(t, db, genresURL, &g)
+	if len(g.Months) != 2 || g.Months[1] != "2025-02" || len(g.Series) != 1 || g.Series[0].Values[0] != 200 || g.Series[0].Values[1] != 100 {
+		t.Errorf("paris genres = %+v", g)
+	}
+	rw = nil
+	v5JSON(t, db, rewatchURL, &rw)
+	if len(rw) != 1 || rw[0].ID != "m1" || rw[0].Views != 2 {
+		t.Errorf("paris rewatches = %+v", rw)
+	}
+}
+
+// Ranges over 400 days are bucketed by week, leading empty weeks trimmed.
+func TestV2PlaybackMethodsLongRange(t *testing.T) {
+	db := v2Seeded(t)
+	var m struct {
+		Bucket string
+		Daily  []struct {
+			Date                      string
+			Direct, Stream, Transcode int
+		}
+	}
+	v5JSON(t, db, "/api/v2/playback/methods?from=2000-01-01", &m)
+	if m.Bucket != "week" || len(m.Daily) == 0 || len(m.Daily) > 60 {
+		t.Fatalf("long range methods: bucket %q, %d points", m.Bucket, len(m.Daily))
+	}
+	if d := m.Daily[0]; d.Direct+d.Stream+d.Transcode == 0 {
+		t.Errorf("leading empty week kept: %+v", d)
 	}
 }

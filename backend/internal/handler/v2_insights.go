@@ -28,8 +28,6 @@ func (h *V2Handler) RegisterAnalytics(g *gin.RouterGroup) {
 	v2.GET("/discover/abandoned", h.DiscoverAbandoned)
 	v2.GET("/discover/added", h.DiscoverAdded)
 	v2.GET("/discover/storage", h.DiscoverStorage)
-	v2.GET("/discover/decades", h.DiscoverDecades)
-	v2.GET("/discover/growth", h.DiscoverGrowth)
 
 	v2.GET("/playback/methods", h.PlaybackMethods)
 	v2.GET("/playback/clients", h.PlaybackClients)
@@ -38,23 +36,6 @@ func (h *V2Handler) RegisterAnalytics(g *gin.RouterGroup) {
 
 	v2.GET("/recap/:userId/:period", h.Recap)
 	v2.GET("/users/:id/languages", h.UserLanguages)
-}
-
-// analyticsFilter is p.filter with an index-friendly range predicate on the
-// plain StartedAt column (idx_playback_started_at). Rows whose StartedAt has
-// not been backfilled are not counted by the analysis endpoints.
-func (p V2Params) analyticsFilter(tr TimeRange) *actFilter {
-	f := acts().forUser(p.UserID)
-	if !tr.AllTime {
-		f.where(`a."StartedAt" >= ? AND a."StartedAt" < ?`, tr.From, tr.To)
-	}
-	if p.MediaType != "" {
-		f.where(`a."MediaType" = ?`, p.MediaType)
-	}
-	if p.LibraryID != "" {
-		f.where(statsql.LibraryID+` = ?`, p.LibraryID)
-	}
-	return f
 }
 
 // resumeTicks: a view starting at or after 30 s into the item is a resume.
@@ -95,7 +76,7 @@ func (h *V2Handler) InsightsCompletion(c *gin.Context) {
 		ItemType string
 		N, Done  int
 	}
-	q, args := p.analyticsFilter(p.Range).sql(completionCTE + `
+	q, args := p.filter(p.Range).sql(completionCTE + `
 		SELECT LEAST(GREATEST(FLOOR(completion_ratio * 10)::int, 0), 9) AS bucket, item_type,
 		       COUNT(*)::int AS n, COUNT(*) FILTER (WHERE ` + completedCond + `)::int AS done
 		FROM completion GROUP BY 1, 2`)
@@ -115,7 +96,7 @@ func (h *V2Handler) InsightsCompletion(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/v2/insights/sessions — length of the playback rows (clicks too)
+// GET /api/v2/insights/sessions — length of the views (false starts excluded)
 // ---------------------------------------------------------------------------
 
 // sessionBounds are the upper bounds (seconds, exclusive) of the session
@@ -140,7 +121,7 @@ func (h *V2Handler) InsightsSessions(c *gin.Context) {
 	}
 	cases += fmt.Sprintf(" ELSE %d END", len(sessionBounds))
 	var rows []struct{ Bucket, N int }
-	f := p.analyticsFilter(p.Range)
+	f := p.filter(p.Range).where(`a."IsView"`)
 	q, args := f.sql(`SELECT ` + cases + ` AS bucket, COUNT(*)::int AS n FROM acts GROUP BY 1`)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return
@@ -180,7 +161,7 @@ func (h *V2Handler) InsightsResumes(c *gin.Context) {
 		N         int
 		Resumed   int
 	}
-	q, args := p.analyticsFilter(p.Range).sql(`
+	q, args := p.filter(p.Range).sql(`
 		SELECT media_type, COUNT(*)::int AS n, COUNT(*) FILTER (WHERE pos_start >= ?)::int AS resumed
 		FROM acts WHERE is_view AND pos_start IS NOT NULL GROUP BY 1`, resumeTicks)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
@@ -231,7 +212,7 @@ func (h *V2Handler) InsightsRewatches(c *gin.Context) {
 		Views                int
 		UserID, UserName     string
 	}
-	q, args := p.analyticsFilter(p.Range).sql(`,
+	q, args := p.filter(p.Range).sql(`,
 		per AS (
 		  SELECT item_id, user_id, MAX(user_name) AS user_name, MAX(media_type) AS media_type,
 		         MAX(item_name) AS item_name, MAX(group_id) AS group_id, MAX(group_name) AS group_name,
@@ -270,7 +251,8 @@ type genreSeries struct {
 }
 
 type genresInsight struct {
-	Months []string      `json:"months"` // YYYY-MM, every month overlapping the range
+	Bucket string        `json:"bucket"` // always "month"
+	Months []string      `json:"months"` // YYYY-MM, every month overlapping the range (leading empty ones trimmed on long ranges)
 	Series []genreSeries `json:"series"` // top 3 genres by watch time, best first
 	Other  []int64       `json:"other"`  // every other genre
 }
@@ -287,14 +269,14 @@ func (h *V2Handler) InsightsGenres(c *gin.Context) {
 		Month, Genre string
 		Seconds      int64
 	}
-	q, args := p.analyticsFilter(p.Range).sql(`
+	q, args := p.filter(p.Range).sql(`
 		SELECT to_char(local_ts, 'YYYY-MM') AS month, genres->>0 AS genre, ` + aggSeconds + ` AS seconds
 		FROM acts WHERE jsonb_typeof(genres) = 'array' AND genres->>0 IS NOT NULL AND genres->>0 <> ''
 		GROUP BY 1, 2`)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
 		return
 	}
-	out := genresInsight{Months: monthsOf(p.Range), Series: []genreSeries{}}
+	out := genresInsight{Bucket: "month", Months: monthsOf(p.Range), Series: []genreSeries{}}
 	idx := map[string]int{}
 	for i, m := range out.Months {
 		idx[m] = i
@@ -333,7 +315,34 @@ func (h *V2Handler) InsightsGenres(c *gin.Context) {
 			out.Other[mi] += r.Seconds
 		}
 	}
+	if useWeeks(p.Range) {
+		start := leadingEmpty(len(out.Months), func(i int) bool {
+			if out.Other[i] != 0 {
+				return false
+			}
+			for _, s := range out.Series {
+				if s.Values[i] != 0 {
+					return false
+				}
+			}
+			return true
+		})
+		out.Months, out.Other = out.Months[start:], out.Other[start:]
+		for i := range out.Series {
+			out.Series[i].Values = out.Series[i].Values[start:]
+		}
+	}
 	c.JSON(http.StatusOK, out)
+}
+
+// leadingEmpty is the index of the first non-empty period among n (the last
+// one when all are empty, so at least one period is kept).
+func leadingEmpty(n int, empty func(i int) bool) int {
+	i := 0
+	for i < n-1 && empty(i) {
+		i++
+	}
+	return i
 }
 
 // monthsOf lists the local months (YYYY-MM) overlapping tr.
@@ -360,7 +369,7 @@ func (h *V2Handler) InsightsMoments(c *gin.Context) {
 		MediaType string
 		Hour, N   int
 	}
-	q, args := p.analyticsFilter(p.Range).sql(`
+	q, args := p.filter(p.Range).sql(`
 		SELECT media_type, EXTRACT(HOUR FROM local_ts)::int AS hour, COUNT(*)::int AS n
 		FROM acts WHERE is_view GROUP BY 1, 2`)
 	if v2Fail(c, h.raw(c, &rows, q, args...)) {
@@ -393,6 +402,7 @@ type pauseRow struct {
 	Name          string  `json:"name"`
 	Ratio         float64 `json:"ratio"`
 	PausedSeconds int64   `json:"pausedSeconds"`
+	PauseCount    int     `json:"pauseCount"`
 	WatchSeconds  int64   `json:"watchSeconds"`
 }
 
@@ -402,11 +412,13 @@ func (h *V2Handler) InsightsPauses(c *gin.Context) {
 		return
 	}
 	out := []pauseRow{}
-	q, args := p.analyticsFilter(p.Range).sql(`
+	q, args := p.filter(p.Range).sql(`
 		SELECT group_id AS id, ` + kindExpr + ` AS kind, COALESCE(MAX(group_name), '') AS name,
 		       COALESCE(SUM(paused_seconds), 0)::bigint AS paused_seconds, ` + aggSeconds + ` AS watch_seconds,
+		       COALESCE(SUM(pa."PauseCount"), 0)::int AS pause_count,
 		       (COALESCE(SUM(paused_seconds), 0)::float8 / NULLIF(SUM(duration), 0)::float8) AS ratio
-		FROM acts WHERE group_id IS NOT NULL
+		FROM acts JOIN jf_playback_activity pa ON pa."Id" = acts.id
+		WHERE group_id IS NOT NULL
 		GROUP BY group_id, display_type
 		HAVING SUM(paused_seconds) > 0 AND SUM(duration) > 0
 		ORDER BY ratio DESC, name, id LIMIT 10`)
@@ -433,7 +445,7 @@ func (h *V2Handler) InsightsBinges(c *gin.Context) {
 		return
 	}
 	out := []bingeRow{}
-	q, args := p.analyticsFilter(p.Range).sql(bingeCTE + `
+	q, args := p.filter(p.Range).sql(bingeCTE + `
 		SELECT series_id AS id, COALESCE(MAX(series_name), '') AS name, COUNT(*)::int AS binges,
 		       COUNT(DISTINCT user_id)::int AS users
 		FROM binge_sessions WHERE series_id IS NOT NULL
@@ -450,7 +462,7 @@ func (h *V2Handler) InsightsRhythm(c *gin.Context) {
 	if !ok {
 		return
 	}
-	g, err := h.weekHour(c, p.analyticsFilter(p.Range))
+	g, err := h.weekHour(c, p.filter(p.Range))
 	if v2Fail(c, err) {
 		return
 	}
