@@ -8,7 +8,8 @@ import { ChartFrame, Columns, SessionTimeline } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useServerConfig } from '@/lib/serverConfig'
 import { AppLink, Card, CardBody, CardHeader, EmptyState, ErrorState, MethodBadge, PageHeader, SessionCard, Skeleton, StatStrip, StatTile } from '@/ui'
-import { methodOf, userHref, wallClock } from '../history/links'
+import { playMethodOf, userPath } from '@/lib/routes'
+import { wallClock } from '../history/links'
 import { slotLabels, timelineRows } from './timeline'
 import { toLiveSession } from './toLiveSession'
 import l from '../overview/layout.module.css'
@@ -30,7 +31,7 @@ export default function LivePage() {
 
   const sessions = useMemo(() => live.data ?? [], [live.data])
   const day = conc.data && !Array.isArray(conc.data) && Array.isArray(conc.data.slots) ? conc.data : undefined
-  const transcodes = sessions.filter((s) => methodOf(s.PlayState?.PlayMethod) === 'transcode')
+  const transcodes = sessions.filter((s) => playMethodOf(s.PlayState?.PlayMethod) === 'transcode')
   const hw = transcodes.filter((s) => s.TranscodingInfo?.HardwareAccelerationType && s.TranscodingInfo.HardwareAccelerationType !== 'none').length
   const bitrates = sessions.map((s) => ({ s, bps: sessionBitrate(s) })).filter((b): b is { s: JellyfinSession; bps: number } => !!b.bps)
   const totalBps = bitrates.reduce((a, b) => a + b.bps, 0)
@@ -72,12 +73,12 @@ export default function LivePage() {
           <CardBody>
             <ul className={`${l.stack} ${l.plainList}`}>
               {bitrates.sort((a, b) => b.bps - a.bps).map(({ s, bps }) => {
-                const m = methodOf(s.PlayState?.PlayMethod)
+                const m = playMethodOf(s.PlayState?.PlayMethod)
                 const ls = toLiveSession(s, t)
                 return (
                   <li key={s.Id} className={l.row}>
                     {m && <MethodBadge method={m} />}
-                    <span className={`${l.ellipsis} ${l.grow}`}><AppLink to={ls.itemHref}>{ls.title}</AppLink> · <AppLink to={userHref(s.UserId)}>{s.UserName}</AppLink></span>
+                    <span className={`${l.ellipsis} ${l.grow}`}><AppLink to={ls.itemHref}>{ls.title}</AppLink> · <AppLink to={userPath(s.UserId)}>{s.UserName}</AppLink></span>
                     <span className="num">{mbps(bps, f)} {t('app.live.mbps')}</span>
                   </li>
                 )

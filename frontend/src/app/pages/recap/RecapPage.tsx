@@ -10,7 +10,8 @@ import { useFormat } from '@/lib/format'
 import { useSetCrumbTail } from '@/app/shell/crumbs'
 import { useServerConfig } from '@/lib/serverConfig'
 import { NoData } from '../_shared/shared'
-import { entityPath, formatHours, formatMonth } from '../_shared/analyticsFormat'
+import { entityPath } from '@/lib/routes'
+import { formatHours, formatMonth } from '../_shared/analyticsFormat'
 import shared from '../_shared/analytics.module.css'
 import styles from './RecapPage.module.css'
 import { recapOptions } from './recapOptions'
@@ -126,7 +127,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
                 foot={d.records.bestBucket ? (d.granularity === 'month' ? formatMonth(d.records.bestBucket.key, f.locale, true) : f.day(new Date(`${d.records.bestBucket.key}T12:00:00`))) : undefined} />
               <StatTile label={t('app.recap.binge')} value={d.records.binge ? t('app.recap.episodes', { count: d.records.binge.episodes }) : t('app.recap.noValue')}
                 foot={d.records.binge ? (
-                  <span><AppLink to={entityPath('series', d.records.binge.seriesId) ?? '/'}>{d.records.binge.seriesName}</AppLink>{` · ${f.day(new Date(`${d.records.binge.date}T12:00:00`))}`}</span>
+                  <span><AppLink to={entityPath('series', d.records.binge.seriesId)}>{d.records.binge.seriesName}</AppLink>{` · ${f.day(new Date(`${d.records.binge.date}T12:00:00`))}`}</span>
                 ) : undefined} />
               <StatTile label={t('app.recap.streak')} value={t('app.recap.days', { count: d.records.longestStreak })} />
             </StatStrip>
@@ -165,7 +166,7 @@ function RecapView({ data: d, label, switcher }: { data: Recap; label: string; s
                             <div className={shared.media}>
                               <Art title={r.name} seed={r.id} src={itemImage(r.id)} kind={r.kind === 'album' ? 'square' : 'poster'} />
                               <div>
-                                <AppLink className={shared.title} to={entityPath(r.kind, r.id) ?? '/'}>{r.name}</AppLink>
+                                <AppLink className={shared.title} to={entityPath(r.kind, r.id)}>{r.name}</AppLink>
                                 {r.parentName && <div className={shared.sub}>{r.parentName}</div>}
                               </div>
                             </div>

@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import InsightsPage from './InsightsPage'
 import { mockApi, renderPage } from '../_shared/testUtils'
-import { entityPath, formatBitrate, formatBytes } from '../_shared/analyticsFormat'
+import { formatBitrate } from '../_shared/analyticsFormat'
 
 const zeros = (n: number) => Array.from({ length: n }, () => 0)
 const week = () => Array.from({ length: 7 }, () => zeros(24))
@@ -67,9 +67,5 @@ it('shows empty states without data and an error state with retry', async () => 
 })
 
 it('formats helpers', () => {
-  expect(entityPath('track', 't1', 'al1')).toBe('/albums/al1?track=t1')
-  expect(entityPath('episode', 'e1')).toBeUndefined()
-  expect(formatBytes(4_000_000_000, 'fr')).toBe('4 Go')
-  expect(formatBytes(1_234_000_000_000, 'en')).toBe('1.2 TB')
   expect(formatBitrate(8_500_000, 'en')).toBe('8.5 Mb/s')
 })

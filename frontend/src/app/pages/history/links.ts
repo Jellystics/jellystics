@@ -1,37 +1,3 @@
-import type { GroupKind, HistoryItem, MediaType as ApiMediaType } from '@/api'
-import type { MediaType, PlayMethod } from '@/ui'
-
-/** Route of a movie / series / album. */
-export function groupHref(kind: GroupKind, id: string): string {
-  const seg = encodeURIComponent(id)
-  if (kind === 'series') return `/series/${seg}`
-  if (kind === 'album') return `/albums/${seg}`
-  return `/movies/${seg}`
-}
-
-/** Route of the item actually played (episode page, album with the track panel, movie). */
-export function itemHref(item: HistoryItem): string {
-  const id = encodeURIComponent(item.id)
-  if (item.kind === 'episode') return item.parentId ? `/series/${encodeURIComponent(item.parentId)}/episodes/${id}` : `/items/${id}`
-  if (item.kind === 'track') return item.parentId ? `/albums/${encodeURIComponent(item.parentId)}?track=${id}` : `/items/${id}`
-  return `/movies/${id}`
-}
-
-export const familyOf = (t: ApiMediaType | string): MediaType => (t === 'Episode' ? 'series' : t === 'Audio' ? 'music' : 'movie')
-export const groupFamily = (k: GroupKind): MediaType => (k === 'album' ? 'music' : k)
-
-/** Normalises a stored PlayMethod (DirectPlay / DirectStream / Transcode / direct …). */
-export function methodOf(raw: string | null | undefined): PlayMethod | null {
-  switch ((raw ?? '').toLowerCase()) {
-    case 'directplay': case 'direct': return 'direct'
-    case 'directstream': case 'stream': return 'stream'
-    case 'transcode': return 'transcode'
-  }
-  return null
-}
-
-export const userHref = (id: string) => `/users/${encodeURIComponent(id)}`
-
 /** Wall-clock hour (fractional) of an ISO time with offset, as written by the server (its time zone). */
 export function wallHours(iso: string): number {
   const m = /T(\d{2}):(\d{2})/.exec(iso)

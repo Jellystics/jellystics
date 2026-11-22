@@ -6,12 +6,13 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { AppLink, Art, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, SearchInput, SegmentedControl, StatStrip, StatTile, Tabs } from '@/ui'
 import { Sparkline } from '@/charts'
 import { useFormat } from '@/lib/format'
+import { entityPath } from '@/lib/routes'
 import { useSearchParam } from '@/lib/useUrlState'
 import { useHistory, useLibrary, type LibraryDetail, type LibraryItem } from '@/api'
 import { useSetCrumbLabel } from '@/app/shell/crumbs'
 import { EntitySkeleton, HistoryTable, QueryView, RatioCell } from './EntityParts'
 import { LibraryStats } from './LibraryStats'
-import { entityPath, formatBytes, itemArt, libraryFamily, share } from './entity'
+import { itemArt, libraryFamily, share } from './entity'
 import styles from './entity.module.css'
 
 const PAGE_SIZE = 25
@@ -158,7 +159,7 @@ function Library({ id, data, loading }: { id: string; data: LibraryDetail; loadi
   }, { replace: true })
   return (
     <div className={styles.stack}>
-      <PageHeader title={lib.name} subtitle={`${t(`app.libraries.items.${family}`, { count: lib.items })} · ${formatBytes(lib.sizeBytes, f.locale)}`} />
+      <PageHeader title={lib.name} subtitle={`${t(`app.libraries.items.${family}`, { count: lib.items })} · ${f.bytes(lib.sizeBytes)}`} />
       <Card>
         <StatStrip columns={4}>
           <StatTile label={t('app.entity.watchTime')} value={f.duration(lib.totals.watchSeconds)} />

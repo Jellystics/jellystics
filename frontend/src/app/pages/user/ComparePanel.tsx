@@ -5,7 +5,7 @@ import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { avatarColor } from '@/ui/Avatar'
 import { AppLink, Avatar, Button, Card, CardBody, CardHeader, EmptyState, ErrorState, Select, Skeleton } from '@/ui'
-import { userHref } from '../history/links'
+import { userPath } from '@/lib/routes'
 import s from './user.module.css'
 
 const seriesShare = (r?: UserRow) => {
@@ -58,7 +58,7 @@ export function ComparePanel({ user }: { user: UserDetail }) {
             <div className={s.compareHead}>
               <span className={s.compareWho}><Avatar id={user.id} name={user.name} size="sm" />{user.name}</span>
               <span className="muted">{t('app.userPage.compare.vs')}</span>
-              <AppLink to={userHref(b.id)} className={s.compareWho}>{b.name}<Avatar id={b.id} name={b.name} size="sm" /></AppLink>
+              <AppLink to={userPath(b.id)} className={s.compareWho}>{b.name}<Avatar id={b.id} name={b.name} size="sm" /></AppLink>
             </div>
             <div className={s.tabBody}>
               {metrics.map((m) => {

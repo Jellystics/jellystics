@@ -7,7 +7,8 @@ import { useFormat } from '@/lib/format'
 import { useEpisode, type EpisodeDetail, type EpisodeRef } from '@/api'
 import { CompletionCell, EntitySkeleton, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
-import { entityPath, formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
+import { entityPath } from '@/lib/routes'
+import { formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
 import styles from '../library/entity.module.css'
 
 type Viewer = EpisodeDetail['viewers'][number]

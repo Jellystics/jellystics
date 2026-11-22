@@ -5,8 +5,9 @@ import { SearchX } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { AppLink, Avatar, Card, DataTable, EmptyState, ErrorState, MediaTypeBadge, Meter, MethodBadge, Skeleton, StatStrip, ViewBadge } from '@/ui'
 import { useFormat } from '@/lib/format'
+import { entityPath, playMethodOf } from '@/lib/routes'
 import type { HistoryRow, LibraryRef, RefUser } from '@/api'
-import { formatWhen, historyItemPath, isNotFound, playMethod } from './entity'
+import { formatWhen, isNotFound } from './entity'
 import styles from './entity.module.css'
 
 /** Loading / error / not-found wrapper of an entity query (keeps data on refetch). */
@@ -114,7 +115,7 @@ export function HistoryTable({ rows, showItem = true, pagination, loading }: {
         const code = it.kind === 'episode' && it.season != null && it.episode != null ? t('app.entity.episodeCode', { season: it.season, episode: it.episode }) : null
         return (
           <span className={styles.itemCell}>
-            <AppLink to={historyItemPath(it)} className={styles.link}>{it.name}</AppLink>
+            <AppLink to={entityPath(it.kind, it.id, it.parentId)} className={styles.link}>{it.name}</AppLink>
             {code && <span className="muted"> · {code}</span>}
           </span>
         )
@@ -125,7 +126,7 @@ export function HistoryTable({ rows, showItem = true, pagination, loading }: {
     { id: 'device', header: t('app.entity.col.device'), cell: ({ row }) => <span className="ink2">{[row.original.client, row.original.device].filter(Boolean).join(' · ')}</span> },
     {
       id: 'method', header: t('app.entity.col.method'),
-      cell: ({ row }) => { const m = playMethod(row.original.method); return m ? <MethodBadge method={m} /> : <span className="muted">—</span> },
+      cell: ({ row }) => { const m = playMethodOf(row.original.method); return m ? <MethodBadge method={m} /> : <span className="muted">—</span> },
     },
     { id: 'view', header: t('app.entity.col.type'), cell: ({ row }) => <ViewBadge view={row.original.isView} /> },
   ]

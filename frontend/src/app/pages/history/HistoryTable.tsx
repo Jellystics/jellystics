@@ -5,7 +5,8 @@ import type { HistoryRow } from '@/api'
 import { itemImageUrl } from '@/api/live'
 import { useFormat } from '@/lib/format'
 import { AppLink, Art, Avatar, Badge, Card, DataTable, EmptyState, ErrorState, Meter, MethodBadge, TypeKey, ViewBadge } from '@/ui'
-import { dateOf, familyOf, itemHref, methodOf, userHref, wallClock, wallDate } from './links'
+import { entityPath, mediaTypeFamily, playMethodOf, userPath } from '@/lib/routes'
+import { dateOf, wallClock, wallDate } from './links'
 import { useHistoryRows, type FilterKey, type HistoryUrlState } from './useHistoryFilters'
 import l from '../overview/layout.module.css'
 import s from './history.module.css'
@@ -38,19 +39,19 @@ export function HistoryTable({ state, hideUser }: { state: HistoryUrlState; hide
     ...(hideUser ? [] : [{
       id: 'user', header: t('app.history.col.user'), enableSorting: false,
       cell: ({ row: { original: r } }) => (
-        <div className={l.cellMedia}><Avatar id={r.user.id} name={r.user.name} size="sm" /><AppLink to={userHref(r.user.id)}>{r.user.name}</AppLink></div>
+        <div className={l.cellMedia}><Avatar id={r.user.id} name={r.user.name} size="sm" /><AppLink to={userPath(r.user.id)}>{r.user.name}</AppLink></div>
       ),
     } satisfies ColumnDef<HistoryRow>]),
     {
       id: 'content', header: t('app.history.col.content'), enableSorting: false,
       cell: ({ row: { original: r } }) => {
-        const fam = familyOf(r.mediaType)
+        const fam = mediaTypeFamily(r.mediaType)
         const title = r.item.name
         return (
           <div className={l.cellMedia}>
             <Art title={r.item.parentName || title} kind={fam === 'music' ? 'square' : 'poster'} src={itemImageUrl(r.item.kind === 'movie' ? r.item.id : r.item.parentId || r.item.id, 64)} />
             <div className={l.ellipsis}>
-              <AppLink to={itemHref(r.item)} className={s.title}>{title}</AppLink>
+              <AppLink to={entityPath(r.item.kind, r.item.id, r.item.parentId)} className={s.title}>{title}</AppLink>
               <div className={l.cellSub}><TypeKey type={fam} label={subtitle(r, t) || t(`app.type.${fam}`)} /></div>
             </div>
           </div>
@@ -81,7 +82,7 @@ export function HistoryTable({ state, hideUser }: { state: HistoryUrlState; hide
     },
     {
       id: 'method', header: t('app.history.col.method'), enableSorting: false,
-      cell: ({ row: { original: r } }) => { const m = methodOf(r.method); return m ? <MethodBadge method={m} /> : <Badge>{r.method || '—'}</Badge> },
+      cell: ({ row: { original: r } }) => { const m = playMethodOf(r.method); return m ? <MethodBadge method={m} /> : <Badge>{r.method || '—'}</Badge> },
     },
     {
       id: 'view', header: () => <span className="sr-only">{t('app.history.col.view')}</span>, enableSorting: false,

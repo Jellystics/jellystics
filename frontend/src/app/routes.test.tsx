@@ -58,7 +58,8 @@ it.each([
   [{ type: 'series', id: 'x1' }, '/series/x1'],
   [{ type: 'album', id: 'x1' }, '/albums/x1'],
   [{ type: 'track', id: 'x1', albumId: 'a1' }, '/albums/a1?track=x1'],
-  [{ type: 'other', id: 'x1' }, '/movies/x1'],
+  [{ type: 'artist', id: 'x1' }, '/artists/x1'],
+  [{ type: 'movie', id: 'x1', ignored: 'a b' }, '/movies/x1'],
 ])('item redirect resolves %j', async (body, to) => {
   mockFetch({ '/api/v2/items/x1/route': body })
   const router = renderApp('/items/x1')
@@ -68,6 +69,20 @@ it('item redirect resolves the episode case from the brief', async () => {
   mockFetch({ '/api/v2/items/e1/route': { type: 'episode', id: 'e1', seriesId: 's1' } })
   const router = renderApp('/libraries/l1/items/e1')
   await waitFor(() => expect(router.state.location.pathname).toBe('/series/s1/episodes/e1'))
+})
+it.each([
+  [{ type: 'other', id: 'x1' }],
+  [{ type: 'episode', id: 'x1' }],
+  [{ type: 'track', id: 'x1' }],
+])('item redirect shows 404 for an unresolvable %j', async (body) => {
+  mockFetch({ '/api/v2/items/x1/route': body })
+  renderApp('/items/x1')
+  expect(await screen.findByText('app.notFound.title')).toBeInTheDocument()
+})
+it('item redirect encodes ids', async () => {
+  mockFetch({ '/api/v2/items/x1/route': { type: 'episode', id: 'e 1', seriesId: 's/1' } })
+  const router = renderApp('/items/x1')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/series/s%2F1/episodes/e%201'))
 })
 it('item redirect shows 404 when unknown', async () => {
   renderApp('/items/zzz')

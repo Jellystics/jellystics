@@ -8,7 +8,8 @@ import { ChartFrame, Matrix, Sparkline } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useSearchParams } from 'react-router-dom'
 import { AppLink, Avatar, Card, DataTable, EmptyState, ErrorState, PageHeader, SegBar, Skeleton } from '@/ui'
-import { dateOf, userHref } from '../history/links'
+import { userPath } from '@/lib/routes'
+import { dateOf } from '../history/links'
 import l from '../overview/layout.module.css'
 import s from './users.module.css'
 
@@ -77,7 +78,7 @@ export default function UsersPage() {
             columns={columns}
             data={rows}
             loading={!data}
-            rowHref={(r) => userHref(r.id)}
+            rowHref={(r) => userPath(r.id)}
             sort={{ id: sort, desc, onChange: onSort }}
             empty={<EmptyState icon={<UsersIcon size={20} strokeWidth={1.6} />} title={t('app.users.empty')} />}
           />
@@ -136,7 +137,7 @@ function ShareCard() {
           {data.users.map((u) => (
             <li key={u.id} className={s.shareRow}>
               <Avatar id={u.id} name={u.name} size="sm" />
-              <AppLink to={userHref(u.id)} className={s.shareName}>{u.name}</AppLink>
+              <AppLink to={userPath(u.id)} className={s.shareName}>{u.name}</AppLink>
               <span className={s.shareSpark}><Sparkline values={u.values.length > 1 ? u.values : [u.share, u.share]} width={200} height={24} /></span>
               <span className={`num ${s.sharePct}`}>{f.percent(u.share)}</span>
             </li>

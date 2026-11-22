@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useHistoryCalendar, type HistoryFilters } from '@/api'
 import { useFormat } from '@/lib/format'
 import { AppLink, Button, Card, ErrorState, Skeleton } from '@/ui'
-import { groupFamily, groupHref, shiftMonth } from './links'
+import { entityPath, familyOf } from '@/lib/routes'
+import { shiftMonth } from './links'
 import s from './history.module.css'
 
 const MAX_ITEMS = 3
@@ -47,8 +48,8 @@ export function HistoryCalendar({ month, today, filters, onMonth }: { month: str
                   </div>
                   {items.slice(0, MAX_ITEMS).map((it) => (
                     <div key={it.id} className={s.calItem} title={`${it.name} · ${it.user}`}>
-                      <i style={{ background: `var(--t-${groupFamily(it.kind)})` }} aria-hidden="true" />
-                      <AppLink to={groupHref(it.kind, it.id)}>{it.name}</AppLink>
+                      <i style={{ background: `var(--t-${familyOf(it.kind)})` }} aria-hidden="true" />
+                      <AppLink to={entityPath(it.kind, it.id)}>{it.name}</AppLink>
                     </div>
                   ))}
                   {items.length > MAX_ITEMS && <span className={s.calMore}>{t('app.history.calendar.more', { count: items.length - MAX_ITEMS })}</span>}
