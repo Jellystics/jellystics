@@ -115,7 +115,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
           {tile('clicks', f.number(totals.clicks))}
           <StatTile label={t('app.overview.activeUsers')} value={f.number(totals.activeUsers)} delta={previous ? ratioDelta(totals.activeUsers, previous.activeUsers, f) : undefined} />
           <StatTile
-            label={t('app.overview.completion')}
+            label={t('app.metric.completionAvg')}
             value={totals.completion === null ? '—' : f.number(totals.completion * 100)}
             unit={totals.completion === null ? undefined : '%'}
             delta={previous ? pointsDelta(totals.completion, previous.completion, t) : undefined}

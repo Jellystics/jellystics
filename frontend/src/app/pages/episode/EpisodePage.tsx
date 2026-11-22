@@ -54,7 +54,7 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
         <StatStrip columns={4}>
           <StatTile label={t('app.entity.views')} value={f.number(totals.views)} />
           <StatTile label={t('app.entity.viewers')} value={f.number(totals.viewers)} />
-          <StatTile label={t('app.episode.avgCompletion')} value={totals.avgCompletion == null ? '—' : f.percent(totals.avgCompletion)} />
+          <StatTile label={t('app.metric.completionAvg')} value={totals.avgCompletion == null ? '—' : f.percent(totals.avgCompletion)} />
           <StatTile label={t('app.episode.pauses')} value={totals.pausedSecondsAvg == null ? '—' : f.duration(totals.pausedSecondsAvg)} foot={t('app.episode.pausesFoot')} />
         </StatStrip>
       </Card>

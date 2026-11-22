@@ -102,7 +102,6 @@
         "clicks": "Clics"
       },
       "activeUsers": "Usuarios activos",
-      "completion": "Finalización media",
       "points_one": "{{count}} pt",
       "points_other": "{{count}} pts",
       "perDay": "{{metric}} por día",
@@ -301,8 +300,7 @@
         "streak": "Racha actual",
         "daysUnit": "días",
         "record_one": "récord: {{count}} día",
-        "record_other": "récord: {{count}} días",
-        "completion": "Finalización"
+        "record_other": "récord: {{count}} días"
       },
       "calendar": {
         "title": "Actividad en 12 meses",
@@ -333,8 +331,7 @@
         "discoveryHint": "primeras vistas",
         "concentration": "Concentración",
         "concentrationHint": "parte del top 3",
-        "completion": "Finalización",
-        "completionHint": "vistas terminadas"
+        "completionHint": "parte de las vistas reproducidas al 90 % o más"
       },
       "streak": {
         "title": "Racha y récords",
@@ -370,7 +367,6 @@
         "vs": "vs",
         "time": "Tiempo",
         "views": "Vistas",
-        "completion": "Finalización",
         "regularity": "Regularidad",
         "seriesShare": "Parte de series"
       },
@@ -778,7 +774,6 @@
       }
     },
     "movie": {
-      "completed": "Terminado",
       "completedFoot": "{{done}} de {{count}} vistas",
       "transcoded": "Transcodificado",
       "funnel": "Embudo de finalización",
@@ -820,7 +815,6 @@
         "number": "E",
         "title": "Título",
         "episode": "Episodio",
-        "avgCompletion": "Finalización media",
         "abandons": "Abandonos",
         "episodesWatched": "Episodios vistos"
       },
@@ -863,7 +857,6 @@
       "next": "Episodio siguiente",
       "prevShort": "Anterior",
       "nextShort": "Siguiente",
-      "avgCompletion": "Finalización media",
       "pauses": "Pausas",
       "pausesFoot": "de media por vista",
       "funnel": "Embudo",
@@ -935,9 +928,8 @@
         "range": "{{from}}–{{to}} %"
       },
       "byType": {
-        "title": "Finalización por tipo",
-        "subtitle": "parte de vistas terminadas (≥ 90 %)",
-        "value": "Terminado"
+        "title": "Vistas terminadas por tipo",
+        "subtitle": "parte de vistas terminadas (≥ 90 %)"
       },
       "binges": {
         "title": "Maratones",
@@ -1181,6 +1173,10 @@
       "audio": "Idioma de audio",
       "subtitles": "Subtítulos activados: {{value}}",
       "unknown": "Desconocido"
+    },
+    "metric": {
+      "completionAvg": "Finalización media",
+      "finishedViews": "Vistas terminadas"
     }
   }
 }

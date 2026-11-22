@@ -61,7 +61,7 @@ export default function InsightsPage() {
               <CardHeader title={t('app.insights.byType.title')} subtitle={t('app.insights.byType.subtitle')} />
               <CardBody>
                 <BarList
-                  labelHeader={t('app.insights.type')} valueLabel={t('app.insights.byType.value')} max={1} format={f.percent}
+                  labelHeader={t('app.insights.type')} valueLabel={t('app.metric.finishedViews')} max={1} format={f.percent}
                   rows={TYPES.filter((k) => d.byType[k] !== null).map((k) => ({ key: k, label: typeLabel(k), value: d.byType[k] ?? 0, fill: typeFill(k) }))}
                 />
               </CardBody>

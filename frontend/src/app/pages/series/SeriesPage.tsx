@@ -59,7 +59,7 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
     },
     { id: 'views', header: t('app.entity.col.views'), meta: { numeric: true }, cell: ({ row }) => f.number(row.original.views) },
     { id: 'viewers', header: t('app.entity.col.viewers'), meta: { numeric: true }, cell: ({ row }) => f.number(row.original.viewers) },
-    { id: 'completion', header: t('app.series.col.avgCompletion'), cell: ({ row }) => <CompletionCell value={row.original.avgCompletion} /> },
+    { id: 'completion', header: t('app.metric.completionAvg'), cell: ({ row }) => <CompletionCell value={row.original.avgCompletion} /> },
     {
       id: 'abandons', header: t('app.series.col.abandons'), meta: { numeric: true },
       cell: ({ row }) => row.original.abandons > 0

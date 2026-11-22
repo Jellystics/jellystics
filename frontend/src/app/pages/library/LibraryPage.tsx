@@ -165,7 +165,7 @@ function Library({ id, data, loading }: { id: string; data: LibraryDetail; loadi
           <StatTile label={t('app.entity.watchTime')} value={f.duration(lib.totals.watchSeconds)} />
           <StatTile label={t('app.entity.views')} value={f.number(lib.totals.views)} foot={t('app.entity.viewersFoot', { count: lib.totals.activeUsers })} />
           <StatTile label={t('app.library.neverWatched')} value={f.number(data.unwatched.count)} foot={unwatchedShare != null ? t('app.library.ofCatalog', { pct: f.percent(unwatchedShare) }) : undefined} />
-          <StatTile label={t('app.entity.completion')} value={lib.totals.completion == null ? '—' : f.percent(lib.totals.completion)} />
+          <StatTile label={t('app.metric.completionAvg')} value={lib.totals.completion == null ? '—' : f.percent(lib.totals.completion)} />
         </StatStrip>
       </Card>
       <Tabs value={tab} onValueChange={setTab} items={[

@@ -102,7 +102,6 @@
         "clicks": "Clicks"
       },
       "activeUsers": "Active users",
-      "completion": "Average completion",
       "points_one": "{{count}} pt",
       "points_other": "{{count}} pts",
       "perDay": "{{metric}} per day",
@@ -301,8 +300,7 @@
         "streak": "Current streak",
         "daysUnit": "days",
         "record_one": "record: {{count}} day",
-        "record_other": "record: {{count}} days",
-        "completion": "Completion"
+        "record_other": "record: {{count}} days"
       },
       "calendar": {
         "title": "Activity over 12 months",
@@ -333,8 +331,7 @@
         "discoveryHint": "first views",
         "concentration": "Concentration",
         "concentrationHint": "share of top 3",
-        "completion": "Completion",
-        "completionHint": "finished views"
+        "completionHint": "share of views watched to 90 % or more"
       },
       "streak": {
         "title": "Streak & records",
@@ -370,7 +367,6 @@
         "vs": "vs",
         "time": "Time",
         "views": "Views",
-        "completion": "Completion",
         "regularity": "Regularity",
         "seriesShare": "Series share"
       },
@@ -778,7 +774,6 @@
       }
     },
     "movie": {
-      "completed": "Finished",
       "completedFoot": "{{done}} of {{count}} views",
       "transcoded": "Transcoded",
       "funnel": "Completion funnel",
@@ -820,7 +815,6 @@
         "number": "E",
         "title": "Title",
         "episode": "Episode",
-        "avgCompletion": "Average completion",
         "abandons": "Drop-offs",
         "episodesWatched": "Episodes watched"
       },
@@ -863,7 +857,6 @@
       "next": "Next episode",
       "prevShort": "Previous",
       "nextShort": "Next",
-      "avgCompletion": "Average completion",
       "pauses": "Pauses",
       "pausesFoot": "on average per view",
       "funnel": "Funnel",
@@ -935,9 +928,8 @@
         "range": "{{from}}–{{to}}%"
       },
       "byType": {
-        "title": "Completion by type",
-        "subtitle": "share of finished views (≥ 90 %)",
-        "value": "Finished"
+        "title": "Finished views by type",
+        "subtitle": "share of finished views (≥ 90 %)"
       },
       "binges": {
         "title": "Binges",
@@ -1181,6 +1173,10 @@
       "audio": "Audio language",
       "subtitles": "Subtitles on: {{value}}",
       "unknown": "Unknown"
+    },
+    "metric": {
+      "completionAvg": "Average completion",
+      "finishedViews": "Finished views"
     }
   }
 }

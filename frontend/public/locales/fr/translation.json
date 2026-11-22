@@ -102,7 +102,6 @@
         "clicks": "Clics"
       },
       "activeUsers": "Utilisateurs actifs",
-      "completion": "Complétion moyenne",
       "points_one": "{{count}} pt",
       "points_other": "{{count}} pts",
       "perDay": "{{metric}} par jour",
@@ -301,8 +300,7 @@
         "streak": "Série en cours",
         "daysUnit": "jours",
         "record_one": "record : {{count}} jour",
-        "record_other": "record : {{count}} jours",
-        "completion": "Complétion"
+        "record_other": "record : {{count}} jours"
       },
       "calendar": {
         "title": "Activité sur 12 mois",
@@ -333,8 +331,7 @@
         "discoveryHint": "premières vues",
         "concentration": "Concentration",
         "concentrationHint": "part du top 3",
-        "completion": "Complétion",
-        "completionHint": "vues terminées"
+        "completionHint": "part des vues lues à 90 % ou plus"
       },
       "streak": {
         "title": "Série en cours & records",
@@ -370,7 +367,6 @@
         "vs": "vs",
         "time": "Temps",
         "views": "Vues",
-        "completion": "Complétion",
         "regularity": "Régularité",
         "seriesShare": "Part de séries"
       },
@@ -778,7 +774,6 @@
       }
     },
     "movie": {
-      "completed": "Terminé",
       "completedFoot": "{{done}} vues sur {{count}}",
       "transcoded": "Transcodé",
       "funnel": "Entonnoir de complétion",
@@ -820,7 +815,6 @@
         "number": "É",
         "title": "Titre",
         "episode": "Épisode",
-        "avgCompletion": "Complétion moyenne",
         "abandons": "Abandons",
         "episodesWatched": "Épisodes vus"
       },
@@ -863,7 +857,6 @@
       "next": "Épisode suivant",
       "prevShort": "Précédent",
       "nextShort": "Suivant",
-      "avgCompletion": "Complétion moyenne",
       "pauses": "Pauses",
       "pausesFoot": "en moyenne par vue",
       "funnel": "Entonnoir",
@@ -935,9 +928,8 @@
         "range": "{{from}}–{{to}} %"
       },
       "byType": {
-        "title": "Complétion par type",
-        "subtitle": "part des vues terminées (≥ 90 %)",
-        "value": "Terminé"
+        "title": "Vues terminées par type",
+        "subtitle": "part des vues terminées (≥ 90 %)"
       },
       "binges": {
         "title": "Binges",
@@ -1181,6 +1173,10 @@
       "audio": "Langue audio",
       "subtitles": "Sous-titres activés : {{value}}",
       "unknown": "Inconnue"
+    },
+    "metric": {
+      "completionAvg": "Complétion moyenne",
+      "finishedViews": "Vues terminées"
     }
   }
 }

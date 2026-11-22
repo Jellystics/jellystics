@@ -63,7 +63,7 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
         <StatStrip columns={4}>
           <StatTile label={t('app.entity.views')} value={f.number(totals.views)} foot={t('app.entity.clicksFoot', { count: totals.clicks })} />
           <StatTile label={t('app.entity.viewers')} value={f.number(totals.viewers)} foot={f.duration(totals.watchSeconds)} />
-          <StatTile label={t('app.movie.completed')} value={totals.completedRatio == null ? '—' : f.percent(totals.completedRatio)} foot={t('app.movie.completedFoot', { done: f.number(funnel.completed), count: funnel.views })} />
+          <StatTile label={t('app.metric.finishedViews')} value={totals.completedRatio == null ? '—' : f.percent(totals.completedRatio)} foot={t('app.movie.completedFoot', { done: f.number(funnel.completed), count: funnel.views })} />
           <StatTile label={t('app.movie.transcoded')} value={totals.transcodeRatio == null ? '—' : f.percent(totals.transcodeRatio)} />
         </StatStrip>
       </Card>

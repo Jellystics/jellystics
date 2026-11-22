@@ -29,7 +29,7 @@ export function ComparePanel({ user }: { user: UserDetail }) {
   const metrics: { label: string; a: number | null; b: number | null; fmt: (v: number) => string }[] = b ? [
     { label: t('app.userPage.compare.time'), a: user.totals.watchSeconds, b: b.totals.watchSeconds, fmt: f.duration },
     { label: t('app.userPage.compare.views'), a: user.totals.views, b: b.totals.views, fmt: f.number },
-    { label: t('app.userPage.compare.completion'), a: user.totals.completion, b: b.totals.completion, fmt: f.percent },
+    { label: t('app.metric.completionAvg'), a: user.totals.completion, b: b.totals.completion, fmt: f.percent },
     { label: t('app.userPage.compare.regularity'), a: user.profile.regularity, b: b.profile.regularity, fmt: f.percent },
     { label: t('app.userPage.compare.seriesShare'), a: seriesShare(rowA), b: seriesShare(rowB), fmt: f.percent },
   ] : []
