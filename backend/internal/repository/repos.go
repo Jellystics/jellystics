@@ -455,6 +455,10 @@ func displayTZ() string {
 //     Jellystics tracker (or is being tracked right now): same user and item,
 //     and either overlapping in time (TZ-interpreted), or — robust to a
 //     missing/wrong TZ setting — starting within ±14 h with a similar duration.
+// samePlaySrc: existing row a is the same play as staged PBR row src.
+var samePlaySrc = SamePlayCond(`a."UserId"`, `a."ItemId"`, `a."StartedAt"`, `a."PlaybackDuration"`,
+	`src."UserId"`, `src."ItemId"`, `src.started_at`, `src.dur`)
+
 func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`
 		WITH src AS (
@@ -519,27 +523,23 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 			SELECT 1 FROM jf_activity_watchdog w
 			WHERE w."UserId" = src."UserId" AND w."ItemId" = src."ItemId"
 		  )
+		  -- One play = one row (shared same-play rule): skipped when a row
+		  -- recorded by the tracker / the Jellystics plugin, or imported from
+		  -- another origin (plugin PBR import, Jellystics history, TSV), is the
+		  -- same play. Tracker / plugin rows also match when shifted by a whole
+		  -- time-zone offset (missing or wrong TZ setting) with a similar
+		  -- duration.
 		  AND NOT EXISTS (
 			SELECT 1 FROM jf_playback_activity a
-			WHERE COALESCE(a.imported, false) = false
-			  AND a."UserId" = src."UserId"
-			  AND a."ItemId" = src."ItemId"
+			WHERE (COALESCE(a.imported, false) = false OR a.source IN ('import-pbr', 'import-jellystics', 'import'))
 			  AND (
-				(a."StartedAt" <= src.started_at + make_interval(secs => src.dur) + interval '2 minutes'
-				 AND COALESCE(a."EndedAt", a."StartedAt") >= src.started_at - interval '2 minutes')
-				OR
-				(a."StartedAt" BETWEEN src.started_at - interval '14 hours' AND src.started_at + interval '14 hours'
+				`+samePlaySrc+`
+				OR (COALESCE(a.imported, false) = false
+				 AND a."UserId" = src."UserId" AND a."ItemId" = src."ItemId"
+				 AND a."StartedAt" BETWEEN src.started_at - interval '14 hours' AND src.started_at + interval '14 hours'
+				 AND mod(abs(extract(epoch FROM a."StartedAt" - src.started_at))::numeric + 120, 1800) <= 240
 				 AND abs(COALESCE(a."PlaybackDuration", 0) - src.dur) <= GREATEST(60, 0.15 * GREATEST(COALESCE(a."PlaybackDuration", 0), src.dur)))
 			  )
-		  )
-		  -- One play = one row: also skipped when an imported row of another
-		  -- origin (plugin PBR import, Jellystics history, TSV import) records it.
-		  AND NOT EXISTS (
-			SELECT 1 FROM jf_playback_activity a
-			WHERE a.imported AND a.source IN ('import-pbr', 'import-jellystics', 'import')
-			  AND a."UserId" = src."UserId" AND a."ItemId" = src."ItemId"
-			  AND a."StartedAt" <= src.started_at + make_interval(secs => src.dur) + interval '2 minutes'
-			  AND COALESCE(a."EndedAt", a."StartedAt") >= src.started_at - interval '2 minutes'
 		  )
 		ON CONFLICT ("Id") DO NOTHING
 	`, sql.Named("tz", displayTZ())).Error

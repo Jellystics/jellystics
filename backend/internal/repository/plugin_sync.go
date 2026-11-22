@@ -34,10 +34,72 @@ const (
 // times from the Jellystics clock: the 10 s tracker slack (which also absorbs
 // the tracker's start estimate and poll granularity) assumes both machines
 // are NTP-synchronised; a larger skew breaks tracker/plugin dedupe.
-const (
-	trackerOverlapSlack = "interval '10 seconds'"
-	importOverlapSlack  = "interval '2 minutes'" // imported plays have imprecise times
-)
+const trackerOverlapSlack = "interval '10 seconds'"
+
+// RestorePlays restores backup rows: a row whose Id exists is updated (same
+// row); a new row that is the same play as an existing row of another source
+// is skipped (one play = one row); others are inserted. Only rows existing
+// before the restore are compared, so an empty database gets the whole
+// backup.
+func (r *playbackRepo) RestorePlays(ctx context.Context, rows []models.JFPlaybackActivity) (restored, skipped int, err error) {
+	if len(rows) == 0 {
+		return 0, 0, nil
+	}
+	// Last occurrence of a duplicated Id wins (one ON CONFLICT per row).
+	pos := map[string]int{}
+	uniq := make([]models.JFPlaybackActivity, 0, len(rows))
+	for _, a := range rows {
+		if i, ok := pos[a.Id]; ok {
+			uniq[i] = a
+			continue
+		}
+		pos[a.Id] = len(uniq)
+		uniq = append(uniq, a)
+	}
+	const tmp = "tmp_restore_plays"
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`CREATE TEMP TABLE ` + tmp + ` (LIKE jf_playback_activity INCLUDING DEFAULTS) ON COMMIT DROP`).Error; err != nil {
+			return err
+		}
+		if err := tx.Table(tmp).CreateInBatches(&uniq, 500).Error; err != nil {
+			return err
+		}
+		del := tx.Exec(`
+			DELETE FROM ` + tmp + ` t
+			WHERE NOT EXISTS (SELECT 1 FROM jf_playback_activity x WHERE x."Id" = t."Id")
+			  AND EXISTS (SELECT 1 FROM jf_playback_activity a WHERE a.source IS DISTINCT FROM t.source AND ` + samePlay("a", "t") + `)`)
+		if del.Error != nil {
+			return del.Error
+		}
+		skipped = int(del.RowsAffected)
+		ins := tx.Exec(`INSERT INTO jf_playback_activity SELECT t.* FROM ` + tmp + ` t
+			ON CONFLICT ("Id") DO UPDATE SET ` + strings.Join(upsertSet(false), ", "))
+		if ins.Error != nil {
+			return ins.Error
+		}
+		restored = int(ins.RowsAffected)
+		return nil
+	})
+	return restored, skipped, err
+}
+
+// upsertSet is the ON CONFLICT update list of playbackUpsertColumns;
+// stickyRepaired keeps DurationRepaired once set.
+func upsertSet(stickyRepaired bool) []string {
+	updates := make([]string, 0, len(playbackUpsertColumns))
+	for _, c := range playbackUpsertColumns {
+		q := c
+		if c != "source" && c != "imported" {
+			q = `"` + c + `"`
+		}
+		if c == "DurationRepaired" && stickyRepaired {
+			updates = append(updates, `"DurationRepaired" = jf_playback_activity."DurationRepaired" OR EXCLUDED."DurationRepaired"`)
+			continue
+		}
+		updates = append(updates, fmt.Sprintf("%s = EXCLUDED.%s", q, q))
+	}
+	return updates
+}
 
 func (r *playbackRepo) DeleteCoveredTSVImports(ctx context.Context, ids []string) (int64, error) {
 	var total int64
@@ -48,7 +110,7 @@ func (r *playbackRepo) DeleteCoveredTSVImports(ctx context.Context, ids []string
 			WHERE t.source = @tsv AND t."Id" IN @ids AND t."StartedAt" IS NOT NULL
 			  AND EXISTS (
 				SELECT 1 FROM jf_playback_activity a
-				WHERE a.source <> @tsv AND a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`)`,
+				WHERE a.source <> @tsv AND `+samePlay("a", "t")+`)`,
 			map[string]any{"tsv": SourceTSVImport, "ids": ids[start:end]})
 		if res.Error != nil {
 			return total, res.Error
@@ -58,10 +120,32 @@ func (r *playbackRepo) DeleteCoveredTSVImports(ctx context.Context, ids []string
 	return total, nil
 }
 
-// overlapImport: rows a and t overlap in time within importOverlapSlack.
-func overlapImport(a, t string) string {
-	return a + `."StartedAt" <= COALESCE(` + t + `."EndedAt", ` + t + `."StartedAt") + ` + importOverlapSlack +
-		` AND COALESCE(` + a + `."EndedAt", ` + a + `."StartedAt") >= ` + t + `."StartedAt" - ` + importOverlapSlack
+// SamePlayCond is THE "same play" rule, shared by every dedupe / guard path
+// (plugin imports, history gap-fill, TSV and legacy Playback Reporting
+// imports, backup restore, tracker / plugin reconciliation): same user, same
+// item, start times within ±2 minutes and, when both durations are known
+// (> 0), similar durations: |d1 − d2| ≤ max(60 s, 20 % of the longer).
+// A mere time overlap is not enough: a track replayed back to back (A
+// 0:00–3:00, B 3:00–6:00) is two plays.
+//
+// Arguments are SQL expressions: user, item, start (timestamptz) and duration
+// (seconds) of each side.
+func SamePlayCond(userA, itemA, startA, durA, userB, itemB, startB, durB string) string {
+	return `(` + userA + ` = ` + userB + ` AND ` + itemA + ` = ` + itemB +
+		` AND ` + startA + ` BETWEEN ` + startB + ` - ` + samePlayStartSlack + ` AND ` + startB + ` + ` + samePlayStartSlack +
+		` AND (COALESCE(` + durA + `, 0) <= 0 OR COALESCE(` + durB + `, 0) <= 0` +
+		` OR abs(` + durA + ` - ` + durB + `) <= GREATEST(60, 0.2 * GREATEST(` + durA + `, ` + durB + `))))`
+}
+
+// samePlayStartSlack: start times of the same play recorded by two sources
+// (imported starts are estimates: Playback Reporting writes ~20 s late).
+const samePlayStartSlack = "interval '2 minutes'"
+
+// samePlay is SamePlayCond for two jf_playback_activity aliases.
+func samePlay(a, b string) string {
+	col := func(t, c string) string { return t + `."` + c + `"` }
+	return SamePlayCond(col(a, "UserId"), col(a, "ItemId"), col(a, "StartedAt"), col(a, "PlaybackDuration"),
+		col(b, "UserId"), col(b, "ItemId"), col(b, "StartedAt"), col(b, "PlaybackDuration"))
 }
 
 // UpsertResult counts the plays written by UpsertPlays.
@@ -226,7 +310,7 @@ func (r *pluginSyncRepo) UpsertPlays(ctx context.Context, acts []models.JFPlayba
 				WHERE t.source = @pbr AND a.source IN (@legacy, @tsv) AND a.imported
 				  AND (
 					(t."Id" LIKE 'pbr-%' AND a."Id" IN (substr(t."Id", 5), 'plugin-' || substr(t."Id", 5)))
-					OR (a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`)
+					OR `+samePlay("a", "t")+`
 				  )
 				RETURNING t."Id" AS tid, a."DurationRepaired" AS repaired
 			)
@@ -234,20 +318,9 @@ func (r *pluginSyncRepo) UpsertPlays(ctx context.Context, acts []models.JFPlayba
 			map[string]any{"pbr": SourceImportPBR, "legacy": SourceLegacyPBR, "tsv": SourceTSVImport}).Error; err != nil {
 			return err
 		}
-		updates := make([]string, 0, len(playbackUpsertColumns))
-		for _, c := range playbackUpsertColumns {
-			q := c
-			if c != "source" && c != "imported" {
-				q = `"` + c + `"`
-			}
-			if c == "DurationRepaired" {
-				// Sticky: once repaired (by Jellystics or the plugin), a
-				// re-read of the same play does not clear it.
-				updates = append(updates, `"DurationRepaired" = jf_playback_activity."DurationRepaired" OR EXCLUDED."DurationRepaired"`)
-				continue
-			}
-			updates = append(updates, fmt.Sprintf("%s = EXCLUDED.%s", q, q))
-		}
+		// Sticky repaired flag: once repaired (by Jellystics or the plugin),
+		// a re-read of the same play does not clear it.
+		updates := upsertSet(true)
 		// A PBR import is skipped when another row already records the play
 		// (tracker, plugin, restored or Jellystics history); other PBR rows
 		// do not block it (two real plays can be close).
@@ -256,7 +329,7 @@ func (r *pluginSyncRepo) UpsertPlays(ctx context.Context, acts []models.JFPlayba
 			WHERE t.source = @pbr AND NOT EXISTS (
 				SELECT 1 FROM jf_playback_activity a
 				WHERE a.source <> @pbr AND NOT (COALESCE(a.imported, false) AND a.source IN (@legacy, @tsv))
-				  AND a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`)
+				  AND `+samePlay("a", "t")+`)
 			ON CONFLICT ("Id") DO UPDATE SET `+strings.Join(updates, ", "),
 			map[string]any{"pbr": SourceImportPBR, "legacy": SourceLegacyPBR, "tsv": SourceTSVImport})
 		if ins.Error != nil {
@@ -264,16 +337,16 @@ func (r *pluginSyncRepo) UpsertPlays(ctx context.Context, acts []models.JFPlayba
 		}
 		res.Imported += int(ins.RowsAffected)
 		// Jellystics history coming back from the plugin only fills genuine
-		// gaps: never when any row (whatever its source, its own Id included)
-		// already records that play. Otherwise a pushed row that was since
-		// replaced (plugin play, PBR import) would come back as a duplicate.
+		// gaps: never when its own Id exists or a row of another source
+		// records the same play (a pushed row since replaced by a plugin play
+		// or a PBR import must not come back). Other import-jellystics rows
+		// never block it: the plugin already dedupes its own.
 		ins = tx.Exec(`
 			INSERT INTO jf_playback_activity SELECT t.* FROM `+importTmp+` t
-			WHERE t.source = ? AND NOT EXISTS (
+			WHERE t.source = @js AND NOT EXISTS (
 				SELECT 1 FROM jf_playback_activity a
-				WHERE a."Id" = t."Id"
-				   OR (a."UserId" = t."UserId" AND a."ItemId" = t."ItemId" AND `+overlapImport("a", "t")+`))
-			ON CONFLICT ("Id") DO NOTHING`, SourceImportJellystics)
+				WHERE a."Id" = t."Id" OR (a.source <> @js AND `+samePlay("a", "t")+`))
+			ON CONFLICT ("Id") DO NOTHING`, map[string]any{"js": SourceImportJellystics})
 		if ins.Error != nil {
 			return ins.Error
 		}
@@ -283,16 +356,23 @@ func (r *pluginSyncRepo) UpsertPlays(ctx context.Context, acts []models.JFPlayba
 	return res, err
 }
 
-// dedupeSQL deletes tracker rows t covered by plugin rows p (p filtered by
-// the extra condition).
-const dedupeSQL = `
+// trackerInside: tracker row t lies within plugin row p (10 s slack): the
+// tracker took over in the middle of a play the plugin recorded whole.
+func trackerInside(t, p string) string {
+	return t + `."StartedAt" >= ` + p + `."StartedAt" - ` + trackerOverlapSlack +
+		` AND COALESCE(` + t + `."EndedAt", ` + t + `."StartedAt") <= COALESCE(` + p + `."EndedAt", ` + p + `."StartedAt") + ` + trackerOverlapSlack
+}
+
+// dedupeSQL deletes tracker rows t that are the same play as plugin rows p
+// on the same device (the shared rule, or a partial tracker row inside the
+// plugin play); p is filtered by the extra condition.
+var dedupeSQL = `
 	DELETE FROM jf_playback_activity t
 	USING jf_playback_activity p
 	WHERE p.source = @plugin AND t.source = @tracker AND NOT COALESCE(t.imported, false)
 	  AND t."UserId" = p."UserId" AND t."ItemId" = p."ItemId"
 	  AND t."DeviceId" IS NOT DISTINCT FROM p."DeviceId"
-	  AND t."StartedAt" < COALESCE(p."EndedAt", p."StartedAt") + ` + trackerOverlapSlack + `
-	  AND COALESCE(t."EndedAt", t."StartedAt") > p."StartedAt" - ` + trackerOverlapSlack
+	  AND (` + samePlay("t", "p") + ` OR (` + trackerInside("t", "p") + `))`
 
 func (r *pluginSyncRepo) DedupeTrackerRows(ctx context.Context, pluginIds []string) (int64, error) {
 	var total int64
@@ -336,7 +416,13 @@ func (r *pluginSyncRepo) FilterTrackerPlays(ctx context.Context, acts []models.J
 			FROM jf_playback_activity
 			WHERE source = @plugin AND "UserId" = @user AND "ItemId" = @item AND "DeviceId" IS NOT DISTINCT FROM @device
 			  AND "StartedAt" < CAST(@end AS timestamptz) + `+trackerOverlapSlack+`
-			  AND COALESCE("EndedAt", "StartedAt") > CAST(@start AS timestamptz) - `+trackerOverlapSlack,
+			  AND COALESCE("EndedAt", "StartedAt") > CAST(@start AS timestamptz) - `+trackerOverlapSlack+`
+			  -- Same play, not just adjacent ones (back-to-back replays): starts
+			  -- within the shared slack, or the tracker play inside the plugin
+			  -- play. Durations are not compared: open plugin plays are partial.
+			  AND ("StartedAt" BETWEEN CAST(@start AS timestamptz) - `+samePlayStartSlack+` AND CAST(@start AS timestamptz) + `+samePlayStartSlack+`
+			       OR (CAST(@start AS timestamptz) >= "StartedAt" - `+trackerOverlapSlack+`
+			           AND CAST(@end AS timestamptz) <= COALESCE("EndedAt", "StartedAt") + `+trackerOverlapSlack+`))`,
 			map[string]any{"plugin": SourceJellysticsPlugin, "user": *a.UserId, "item": *a.ItemId,
 				"device": a.DeviceId, "start": *a.StartedAt, "end": end}).Scan(&rows).Error
 		if err != nil {

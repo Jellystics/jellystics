@@ -87,6 +87,9 @@ type PlaybackRepository interface {
 	// user + item, overlapping within the import slack): one play = one row.
 	// Run it after BackfillTracking (the TSV rows need their StartedAt).
 	DeleteCoveredTSVImports(ctx context.Context, ids []string) (int64, error)
+	// RestorePlays restores backup rows (upsert by Id), skipping new rows that
+	// are the same play as an existing row of another source.
+	RestorePlays(ctx context.Context, rows []models.JFPlaybackActivity) (restored, skipped int, err error)
 }
 
 // WatchdogRepository manages jf_activity_watchdog.
