@@ -261,19 +261,20 @@ func (h *V2Handler) weekHour(c *gin.Context, f *actFilter) ([][]int, error) {
 // concurrencyPeak returns, per local day (or ISO week) of the range, the
 // maximum number of playback rows running at the same time (zero-filled).
 // Sessions started up to 24 h before the range are included so that a session
-// running across the range start is counted; at equal timestamps a start is
-// processed before an end (a zero-length row still counts as 1).
+// running across the range start is counted. Same rules as concurrencySlots:
+// zero-length rows are ignored and, at equal timestamps, an end is processed
+// before a start (back-to-back plays count once).
 func (h *V2Handler) concurrencyPeak(c *gin.Context, p V2Params, week bool) ([]peakPoint, error) {
 	f := p.filter(TimeRange{From: p.Range.From.Add(-24 * time.Hour), To: p.Range.To})
 	var rows []peakPoint
 	q, args := f.sql(`,
 		ev AS (
-		  SELECT started_at AS ts, 1 AS d FROM acts
+		  SELECT started_at AS ts, 1 AS d FROM acts WHERE ended_at > started_at
 		  UNION ALL
-		  SELECT GREATEST(ended_at, started_at), -1 FROM acts
+		  SELECT ended_at, -1 FROM acts WHERE ended_at > started_at
 		),
 		run AS (
-		  SELECT ts, d, SUM(d) OVER (ORDER BY ts, d DESC ROWS UNBOUNDED PRECEDING) AS n FROM ev
+		  SELECT ts, d, SUM(d) OVER (ORDER BY ts, d ROWS UNBOUNDED PRECEDING) AS n FROM ev
 		)
 		SELECT to_char(`+statsql.AtLocal("ts")+`::date, 'YYYY-MM-DD') AS date, MAX(n)::int AS peak
 		FROM run WHERE d = 1 AND ts >= ? GROUP BY 1`, p.Range.From)

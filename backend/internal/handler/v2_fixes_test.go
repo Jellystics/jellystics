@@ -116,6 +116,37 @@ func TestV2LocalDaysParisDST(t *testing.T) {
 	}
 }
 
+// Back-to-back plays (autoplay: the old end equals the new start) and
+// zero-length rows count once in the overview peak, like /concurrency.
+func TestV2OverviewPeakBackToBack(t *testing.T) {
+	t.Setenv("TZ", "Europe/Paris")
+	db := testutil.NewDB(t)
+	start := mustUTC(t, "2026-03-10T10:00:00Z")
+	rows := []models.JFPlaybackActivity{
+		trackedRow("b1", "u1", "m1", "Movie", start, 600, 600, nil),
+		trackedRow("b2", "u1", "m2", "Movie", start.Add(600*time.Second), 600, 600, nil),
+		trackedRow("b3", "u2", "m2", "Movie", start.Add(300*time.Second), 0, 600, nil),
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		ConcurrencyPeak []struct {
+			Date string
+			Peak int
+		}
+	}
+	v2JSON(t, db, "/api/v2/overview?from=2026-03-10&to=2026-03-11", &got)
+	if len(got.ConcurrencyPeak) != 1 || got.ConcurrencyPeak[0].Peak != 1 {
+		t.Errorf("peak = %+v, want 1", got.ConcurrencyPeak)
+	}
+	var live struct{ Peak int }
+	v2JSON(t, db, "/api/v2/concurrency?date=2026-03-10", &live)
+	if live.Peak != 1 {
+		t.Errorf("concurrency peak = %d, want 1", live.Peak)
+	}
+}
+
 func TestV2SpecialsAndMisc(t *testing.T) {
 	db := v2Seeded(t)
 	must := func(err error) {
