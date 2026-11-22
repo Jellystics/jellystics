@@ -197,7 +197,12 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 		playDurationStr := strings.TrimSpace(parts[8])
 
 		// PlaybackReporting plugin PlayDuration is already in seconds.
+		// Negative values (an int32 overflow in the plugin) become 0; overlong
+		// ones are capped against the runtime by BackfillTracking below.
 		playDurationSecs, _ := strconv.ParseInt(playDurationStr, 10, 64)
+		if playDurationSecs < 0 {
+			playDurationSecs = 0
+		}
 
 		// Generate an ID based on content
 		id := fmt.Sprintf("import-%s-%s-%s", userId, itemId, dateCreated)
