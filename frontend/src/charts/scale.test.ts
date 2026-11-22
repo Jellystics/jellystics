@@ -7,3 +7,9 @@ it('barPath has a square baseline and rounded top', () => {
   expect(d).toContain('Q0,10 4,10')
   expect(barPath(0, 0, 20, 0)).toBe('')
 })
+import { defaultFormat } from './scale'
+it('defaultFormat follows the given locale', () => {
+  expect(defaultFormat(1500, 'en')).toBe('1.5K')
+  expect(defaultFormat(1500, 'fr')).not.toBe('1.5K')
+  expect(defaultFormat(0.5, 'en')).toBe('0.5')
+})

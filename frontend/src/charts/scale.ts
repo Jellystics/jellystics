@@ -27,8 +27,12 @@ export function linePath(points: [number, number][]): string {
   return points.map(([x, y], i) => `${i ? 'L' : 'M'}${+x.toFixed(1)},${+y.toFixed(1)}`).join('')
 }
 
-const nf = new Intl.NumberFormat('fr', { notation: 'compact', maximumFractionDigits: 1 })
-export const defaultFormat = (v: number): string => nf.format(v)
+const formatters = new Map<string, Intl.NumberFormat>()
+export function defaultFormat(v: number, locale = 'fr'): string {
+  let f = formatters.get(locale)
+  if (!f) { f = new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }); formatters.set(locale, f) }
+  return f.format(v)
+}
 
 export const showXLabel = (i: number, n: number, every: number): boolean =>
   i % every === 0 || (i === n - 1 && i % every >= every / 2)

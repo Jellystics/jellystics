@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useChartTooltip } from './ChartTooltip'
+import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { defaultFormat, linePath, niceMax, showXLabel, ticks } from './scale'
+import { linePath, niceMax, showXLabel, ticks } from './scale'
 import styles from './charts.module.css'
 
-export function LineChart({ labels, series, compare, area = true, height = 220, yFormat = defaultFormat, xEvery = 5, onPointClick }: {
+export function LineChart({ labels, series, compare, area = true, height = 220, yFormat: yFormatProp, xEvery = 5, onPointClick }: {
   labels: string[]
   series: { name: string; color: string; values: number[] }[]
   compare?: { name: string; values: number[] }
@@ -14,6 +15,8 @@ export function LineChart({ labels, series, compare, area = true, height = 220, 
   xEvery?: number
   onPointClick?: (index: number) => void
 }) {
+  const defaultFmt = useDefaultFormat()
+  const yFormat = yFormatProp ?? defaultFmt
   const [ref, width] = useChartWidth()
   const tip = useChartTooltip()
   const [hover, setHover] = useState<number | null>(null)

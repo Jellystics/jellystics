@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { useChartTooltip } from './ChartTooltip'
+import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { barPath, defaultFormat, niceMax, showXLabel, ticks } from './scale'
+import { barPath, niceMax, showXLabel, ticks } from './scale'
 import styles from './charts.module.css'
 
-export function StackedColumns({ labels, series, height = 220, yFormat = defaultFormat, xEvery = 5 }: {
+export function StackedColumns({ labels, series, height = 220, yFormat: yFormatProp, xEvery = 5 }: {
   labels: string[]
   series: { name: string; color: string; values: number[] }[]
   height?: number
@@ -12,6 +13,8 @@ export function StackedColumns({ labels, series, height = 220, yFormat = default
   xEvery?: number
 }) {
   const { t } = useTranslation()
+  const defaultFmt = useDefaultFormat()
+  const yFormat = yFormatProp ?? defaultFmt
   const [ref, width] = useChartWidth()
   const tip = useChartTooltip()
   const m = { t: 10, r: 8, b: 26, l: 46 }

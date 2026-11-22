@@ -28,3 +28,7 @@ it('ChartFrame toggles to a table view', () => {
   fireEvent.click(screen.getByRole('radio', { name: 'app.chart.table' }))
   expect(screen.getByRole('table')).toHaveTextContent('lun.')
 })
+import { toCsv } from './ChartFrame'
+it('toCsv escapes quotes, commas and newlines', () => {
+  expect(toCsv({ columns: ['a', 'b'], rows: [['x"y', 'p,q'], ['l1\nl2', 3]] })).toBe('a,b\n"x""y","p,q"\n"l1\nl2",3')
+})

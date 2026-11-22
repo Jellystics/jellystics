@@ -1,9 +1,10 @@
 import { useChartTooltip } from './ChartTooltip'
+import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { barPath, defaultFormat, niceMax, ticks as makeTicks } from './scale'
+import { barPath, niceMax, ticks as makeTicks } from './scale'
 import styles from './charts.module.css'
 
-export function Columns({ labels, values, name, color = 'var(--accent)', emphasis = -1, height = 180, yFormat = defaultFormat, xEvery = 1, ticks = true, onBarClick }: {
+export function Columns({ labels, values, name, color = 'var(--accent)', emphasis = -1, height = 180, yFormat: yFormatProp, xEvery = 1, ticks = true, onBarClick }: {
   labels: string[]
   values: number[]
   name: string
@@ -15,6 +16,8 @@ export function Columns({ labels, values, name, color = 'var(--accent)', emphasi
   ticks?: boolean
   onBarClick?: (i: number) => void
 }) {
+  const defaultFmt = useDefaultFormat()
+  const yFormat = yFormatProp ?? defaultFmt
   const [ref, width] = useChartWidth()
   const tip = useChartTooltip()
   const m = { t: 18, r: 8, b: 24, l: ticks ? 40 : 8 }
@@ -35,7 +38,7 @@ export function Columns({ labels, values, name, color = 'var(--accent)', emphasi
         ))}
         {values.map((v, i) => {
           const cx = m.l + band * i + band / 2
-          const c = hasEmphasis && i !== emphasis ? 'color-mix(in srgb, var(--accent) 35%, var(--surface-3))' : color
+          const c = hasEmphasis && i !== emphasis ? `color-mix(in srgb, ${color} 35%, var(--surface-3))` : color
           return (
             <g key={i}>
               <path d={barPath(cx - bw / 2, y(v), bw, y(0) - y(v))} fill={c} />
