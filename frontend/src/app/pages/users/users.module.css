@@ -1,0 +1,7 @@
+.name { font-weight: 550; }
+.split { width: 160px; max-width: 100%; }
+.shareRow { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.shareName { width: 96px; flex: none; font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shareName:hover { text-decoration: underline; }
+.shareSpark { flex: 1; min-width: 0; overflow: hidden; }
+.sharePct { margin-left: auto; font-size: var(--fs-sm); color: var(--ink-3); width: 44px; text-align: right; flex: none; }

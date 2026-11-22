@@ -8,15 +8,15 @@ import LoginPage from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ItemRedirect } from './pages/ItemRedirect'
 import { ComingSoon } from './pages/ComingSoon'
-import DashboardPage from '@/features/dashboard/DashboardPage'
-import ActivityPage from '@/features/activity/ActivityPage'
-import TimelinePage from '@/features/activity/TimelinePage'
+import OverviewPage from './pages/overview/OverviewPage'
+import LivePage from './pages/live/LivePage'
+import HistoryPage from './pages/history/HistoryPage'
 import LibrariesPage from '@/features/libraries/LibrariesPage'
 import LibraryDetailPage from '@/features/libraries/LibraryDetailPage'
 import ItemDetailPage from '@/features/libraries/ItemDetailPage'
 import AlbumDetailPage from '@/features/libraries/AlbumDetailPage'
-import UsersPage from '@/features/users/UsersPage'
-import UserDetailPage from '@/features/users/UserDetailPage'
+import UsersPage from './pages/users/UsersPage'
+import UserPage from './pages/user/UserPage'
 import StatisticsPage from '@/features/statistics/StatisticsPage'
 import SettingsPage from '@/features/settings/SettingsPage'
 import AboutPage from '@/features/about/AboutPage'
@@ -36,11 +36,6 @@ function TimelineRedirect() {
 function ParamTo({ build }: { build: (p: Record<string, string | undefined>) => string }) {
   const p = useParams()
   return <To to={build(p)} />
-}
-
-function History() {
-  const [sp] = useSearchParams()
-  return <LegacyPage>{sp.get('view') === 'calendar' ? <TimelinePage /> : <ActivityPage />}</LegacyPage>
 }
 
 function SettingsIndex() {
@@ -86,9 +81,9 @@ export const routes: RouteObject[] = [
   {
     element: <RequireAuth><AppShell /></RequireAuth>,
     children: [
-      { path: '/', ...ownPeriod('overview'), element: legacy(<DashboardPage />) },
-      { path: '/live', ...nav('live'), element: <ComingSoon nav="live" /> },
-      { path: '/history', ...ownPeriod('history'), element: <History /> },
+      { path: '/', ...nav('overview'), element: <OverviewPage /> },
+      { path: '/live', ...nav('live'), element: <LivePage /> },
+      { path: '/history', ...nav('history'), element: <HistoryPage /> },
       { path: '/libraries', ...nav('libraries'), element: legacy(<LibrariesPage />) },
       { path: '/libraries/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.library' })), element: legacy(<LibraryDetailPage />) },
       { path: '/movies/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.movie' })), element: <ItemPage /> },
@@ -96,8 +91,8 @@ export const routes: RouteObject[] = [
       { path: '/series/:id/episodes/:episodeId', ...nav('libraries', (m) => [LIBS, { label: 'app.crumb.series', to: `/series/${m.params.id}` }, { label: 'app.crumb.episode' }]), element: <ItemPage /> },
       { path: '/artists/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.artist' })), element: <ComingSoon nav="libraries" /> },
       { path: '/albums/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.album' })), element: <AlbumPage /> },
-      { path: '/users', ...nav('users'), element: legacy(<UsersPage />) },
-      { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: legacy(<UserDetailPage />) },
+      { path: '/users', ...nav('users'), element: <UsersPage /> },
+      { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: <UserPage /> },
       { path: '/users/:id/recap/:period', ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]), element: <ComingSoon nav="users" /> },
       { path: '/insights', ...ownPeriod('insights'), element: legacy(<StatisticsPage />) },
       { path: '/discover', ...nav('discover'), element: <ComingSoon nav="discover" /> },

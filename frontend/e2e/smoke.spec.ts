@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test'
 import { mockApi, login } from './mockApi'
 
 const ROUTES = ['/', '/live', '/history', '/history?view=calendar', '/libraries', '/users', '/insights', '/discover', '/playback', '/settings/config', '/settings/about', '/nope']
+// --- phase 3 ---
+ROUTES.push('/?metric=views&compare=1', '/users/u2', '/users/u2?tab=history', '/users/u2?tab=taste&vs=u1')
+// --- end phase 3 ---
 
 test.beforeEach(async ({ page }) => { await mockApi(page) })
 
