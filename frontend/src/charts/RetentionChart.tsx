@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useFormat } from '@/lib/format'
 import { useChartTooltip } from './ChartTooltip'
 import { useChartWidth } from './useChartWidth'
-import { linePath, niceMax, ticks as makeTicks } from './scale'
+import { linePath, niceMax, ticks as makeTicks, clamp01 } from './scale'
 import styles from './charts.module.css'
 
 export function RetentionChart({ seasons, seasonNumbers, onEpisodeClick, height = 200 }: {
@@ -23,7 +23,7 @@ export function RetentionChart({ seasons, seasonNumbers, onEpisodeClick, height 
   const iw = width - m.l - m.r, ih = height - m.t - m.b
   const ymax = niceMax(Math.max(0, ...pts.map((p) => p.v)))
   const step = iw / Math.max(1, n - 1)
-  const x = (i: number) => m.l + i * step, y = (v: number) => m.t + ih - (v / ymax) * ih
+  const x = (i: number) => m.l + i * step, y = (v: number) => m.t + ih - (clamp01(v / ymax)) * ih
   const base = pts[0]?.v || 1
   const color = 'var(--t-series)'
   const d = linePath(pts.map((p, i) => [x(i), y(p.v)]))

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useChartTooltip } from './ChartTooltip'
 import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { linePath, niceMax, showXLabel, ticks } from './scale'
+import { linePath, niceMax, showXLabel, ticks, clamp01 } from './scale'
 import styles from './charts.module.css'
 
 export function LineChart({ labels, series, compare, area = true, height = 220, yFormat: yFormatProp, xEvery = 5, onPointClick }: {
@@ -25,7 +25,7 @@ export function LineChart({ labels, series, compare, area = true, height = 220, 
   const all = series.flatMap((s) => s.values).concat(compare?.values ?? [])
   const ymax = niceMax(Math.max(0, ...all) * 1.05)
   const x = (i: number) => m.l + (labels.length <= 1 ? iw / 2 : (i * iw) / (labels.length - 1))
-  const y = (v: number) => m.t + ih - (v / ymax) * ih
+  const y = (v: number) => m.t + ih - (clamp01(v / ymax)) * ih
   const pts = (vals: number[]) => vals.map((v, i) => [x(i), y(v)] as [number, number])
   const step = iw / Math.max(1, labels.length - 1)
   const name = series.map((s) => s.name).join(', ')

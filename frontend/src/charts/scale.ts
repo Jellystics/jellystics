@@ -36,3 +36,6 @@ export function defaultFormat(v: number, locale = 'fr'): string {
 
 export const showXLabel = (i: number, n: number, every: number): boolean =>
   i % every === 0 || (i === n - 1 && i % every >= every / 2)
+
+/** Clamp a 0..1 ratio so an out-of-range value (e.g. a corrupt negative) never draws outside the plot. */
+export const clamp01 = (r: number): number => (Number.isFinite(r) ? Math.min(1, Math.max(0, r)) : 0)

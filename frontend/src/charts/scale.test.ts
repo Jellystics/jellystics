@@ -13,3 +13,11 @@ it('defaultFormat follows the given locale', () => {
   expect(defaultFormat(1500, 'fr')).not.toBe('1.5K')
   expect(defaultFormat(0.5, 'en')).toBe('0.5')
 })
+
+it('clamp01 keeps out-of-range and non-finite ratios inside the plot', async () => {
+  const { clamp01 } = await import('./scale')
+  expect(clamp01(-2147483648 / 10)).toBe(0)
+  expect(clamp01(3)).toBe(1)
+  expect(clamp01(0.4)).toBe(0.4)
+  expect(clamp01(Number.NaN)).toBe(0)
+})

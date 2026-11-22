@@ -1,7 +1,7 @@
 import { useChartTooltip } from './ChartTooltip'
 import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { niceMax, ticks as makeTicks } from './scale'
+import { niceMax, ticks as makeTicks, clamp01 } from './scale'
 import styles from './charts.module.css'
 
 export function Scatter({ points, xLabel, yLabel, xFormat, yFormat, note, height = 240 }: {
@@ -20,7 +20,7 @@ export function Scatter({ points, xLabel, yLabel, xFormat, yFormat, note, height
   const m = { t: 16, r: 12, b: 34, l: 46 }
   const iw = width - m.l - m.r, ih = height - m.t - m.b
   const xmax = niceMax(Math.max(0, ...points.map((p) => p.x))), ymax = niceMax(Math.max(0, ...points.map((p) => p.y)))
-  const x = (v: number) => m.l + (v / xmax) * iw, y = (v: number) => m.t + ih - (v / ymax) * ih
+  const x = (v: number) => m.l + (v / xmax) * iw, y = (v: number) => m.t + ih - (clamp01(v / ymax)) * ih
 
   return (
     <div className={styles.chart} ref={ref}>

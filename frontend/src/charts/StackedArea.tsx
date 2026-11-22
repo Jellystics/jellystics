@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useChartTooltip } from './ChartTooltip'
 import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { niceMax, showXLabel, ticks as makeTicks } from './scale'
+import { niceMax, showXLabel, ticks as makeTicks, clamp01 } from './scale'
 import styles from './charts.module.css'
 
 export function StackedArea({ labels, series, yFormat, height = 220 }: {
@@ -22,7 +22,7 @@ export function StackedArea({ labels, series, yFormat, height = 220 }: {
   const totals = labels.map((_, i) => series.reduce((a, s) => a + (s.values[i] ?? 0), 0))
   const ymax = niceMax(Math.max(0, ...totals) * 1.05)
   const step = iw / Math.max(1, n - 1)
-  const x = (i: number) => m.l + i * step, y = (v: number) => m.t + ih - (v / ymax) * ih
+  const x = (i: number) => m.l + i * step, y = (v: number) => m.t + ih - (clamp01(v / ymax)) * ih
   const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(iw / 60))))
   const acc = labels.map(() => 0)
   const areas = series.map((s) => {

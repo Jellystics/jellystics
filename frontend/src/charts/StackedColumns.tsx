@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useChartTooltip } from './ChartTooltip'
 import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { barPath, niceMax, showXLabel, ticks } from './scale'
+import { barPath, niceMax, showXLabel, ticks, clamp01 } from './scale'
 import styles from './charts.module.css'
 
 export function StackedColumns({ labels, series, height = 220, yFormat: yFormatProp, xEvery = 5 }: {
@@ -22,7 +22,7 @@ export function StackedColumns({ labels, series, height = 220, yFormat: yFormatP
   const totals = labels.map((_, i) => series.reduce((a, s) => a + (s.values[i] ?? 0), 0))
   const ymax = niceMax(Math.max(0, ...totals) * 1.05)
   const band = iw / Math.max(1, labels.length), bw = Math.min(24, band - 2)
-  const y = (v: number) => m.t + ih - (v / ymax) * ih
+  const y = (v: number) => m.t + ih - (clamp01(v / ymax)) * ih
 
   return (
     <div className={styles.chart} ref={ref}>

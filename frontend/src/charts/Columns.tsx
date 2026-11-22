@@ -1,7 +1,7 @@
 import { useChartTooltip } from './ChartTooltip'
 import { useDefaultFormat } from './useDefaultFormat'
 import { useChartWidth } from './useChartWidth'
-import { barPath, niceMax, ticks as makeTicks } from './scale'
+import { barPath, niceMax, ticks as makeTicks, clamp01 } from './scale'
 import styles from './charts.module.css'
 
 export function Columns({ labels, values, name, color = 'var(--accent)', emphasis = -1, height = 180, yFormat: yFormatProp, xEvery = 1, showXLabel, ticks = true, onBarClick }: {
@@ -26,7 +26,7 @@ export function Columns({ labels, values, name, color = 'var(--accent)', emphasi
   const iw = width - m.l - m.r, ih = height - m.t - m.b
   const ymax = niceMax(Math.max(0, ...values) * 1.05)
   const band = iw / Math.max(1, values.length), bw = Math.min(24, band - 2)
-  const y = (v: number) => m.t + ih - (v / ymax) * ih
+  const y = (v: number) => m.t + ih - (clamp01(v / ymax)) * ih
   const hasEmphasis = emphasis >= 0
 
   return (
