@@ -1,0 +1,20 @@
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; overflow: visible; }
+.chart text { font-family: var(--font); font-size: var(--fs-xs); fill: var(--ink-3); }
+.chart text.strong { fill: var(--ink); font-weight: 600; font-size: var(--fs-xs); }
+.chart rect[data-hit]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.actions { display: flex; align-items: center; gap: var(--s-2); }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--fs-sm); color: var(--ink-2); margin-bottom: var(--s-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: var(--r-sm); display: inline-block; }
+.legend i.line { height: 2px; border-radius: var(--r-sm); width: 14px; }
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.table th { text-align: left; color: var(--ink-3); font-weight: 500; padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--border); }
+.table td { padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--border); color: var(--ink); }
+.tip { position: fixed; z-index: 100; pointer-events: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-pop); border-radius: var(--r-md); padding: 8px 10px; font-size: var(--fs-sm); min-width: 140px; }
+.tipH { color: var(--ink-3); margin-bottom: 4px; }
+.tipR { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.tipR span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.tipR b { font-weight: 600; color: var(--ink); }
+.tipR i { width: 8px; height: 8px; border-radius: var(--r-sm); display: inline-block; }

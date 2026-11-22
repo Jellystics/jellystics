@@ -460,6 +460,12 @@
     "session": {
       "paused": "En pausa",
       "progress": "Progreso"
+    },
+    "chart": {
+      "chart": "Gráfico",
+      "table": "Tabla",
+      "csv": "CSV",
+      "total": "Total"
     }
   }
 }

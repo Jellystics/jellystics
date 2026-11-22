@@ -1,0 +1,58 @@
+import { useChartTooltip } from './ChartTooltip'
+import { useChartWidth } from './useChartWidth'
+import { barPath, defaultFormat, niceMax, ticks as makeTicks } from './scale'
+import styles from './charts.module.css'
+
+export function Columns({ labels, values, name, color = 'var(--accent)', emphasis = -1, height = 180, yFormat = defaultFormat, xEvery = 1, ticks = true, onBarClick }: {
+  labels: string[]
+  values: number[]
+  name: string
+  color?: string
+  emphasis?: number
+  height?: number
+  yFormat?: (v: number) => string
+  xEvery?: number
+  ticks?: boolean
+  onBarClick?: (i: number) => void
+}) {
+  const [ref, width] = useChartWidth()
+  const tip = useChartTooltip()
+  const m = { t: 18, r: 8, b: 24, l: ticks ? 40 : 8 }
+  const iw = width - m.l - m.r, ih = height - m.t - m.b
+  const ymax = niceMax(Math.max(0, ...values) * 1.05)
+  const band = iw / Math.max(1, values.length), bw = Math.min(24, band - 2)
+  const y = (v: number) => m.t + ih - (v / ymax) * ih
+  const hasEmphasis = emphasis >= 0
+
+  return (
+    <div className={styles.chart} ref={ref}>
+      <svg width={width} height={height} role="img" aria-label={name}>
+        {ticks && makeTicks(ymax).map((v) => (
+          <g key={v}>
+            <line x1={m.l} x2={width - m.r} y1={y(v)} y2={y(v)} stroke="var(--grid)" />
+            <text x={m.l - 8} y={y(v) + 3.5} textAnchor="end">{yFormat(v)}</text>
+          </g>
+        ))}
+        {values.map((v, i) => {
+          const cx = m.l + band * i + band / 2
+          const c = hasEmphasis && i !== emphasis ? 'color-mix(in srgb, var(--accent) 35%, var(--surface-3))' : color
+          return (
+            <g key={i}>
+              <path d={barPath(cx - bw / 2, y(v), bw, y(0) - y(v))} fill={c} />
+              {i === emphasis && <text className={styles.strong} x={cx} y={y(v) - 6} textAnchor="middle">{yFormat(v)}</text>}
+              {i % xEvery === 0 && <text x={cx} y={height - 6} textAnchor="middle">{labels[i]}</text>}
+              <rect
+                x={m.l + band * i} y={m.t} width={band} height={ih} fill="transparent" aria-label={labels[i]}
+                style={onBarClick ? { cursor: 'pointer' } : undefined}
+                onClick={onBarClick ? () => onBarClick(i) : undefined}
+                {...tip.hit(labels[i], [{ color: c, label: name, value: yFormat(v) }])}
+              />
+            </g>
+          )
+        })}
+        <line x1={m.l} x2={width - m.r} y1={y(0)} y2={y(0)} stroke="var(--axis)" />
+      </svg>
+      {tip.node}
+    </div>
+  )
+}
