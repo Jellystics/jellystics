@@ -74,6 +74,18 @@ it('with the plugin: shows the status, pushes the history and resyncs behind a c
   expect(hit('POST', '/api/plugin/resync')).toHaveLength(0)
   await userEvent.click(within(dialog).getByRole('button', { name: 'app.settings.plugin.resync.confirm' }))
   await waitFor(() => expect(hit('POST', '/api/plugin/resync')).toHaveLength(1))
+  // The status is refreshed after the resync.
+  await waitFor(() => expect(hit('GET', '/api/plugin/status').length).toBeGreaterThan(1))
+})
+
+it('a finished push without counts from the plugin shows a neutral line', async () => {
+  routes = {
+    'GET /api/plugin/status': () => detected,
+    'GET /api/plugin/push-history/status': () => ({ state: 'done', total: 10, sent: 10, imported: 0, skipped: 0, rejected: 0, resumable: false }),
+  }
+  renderCard(<PluginCard />)
+  expect(await screen.findByText('app.settings.plugin.push.doneNoCounts')).toBeInTheDocument()
+  expect(screen.queryByText('app.settings.plugin.push.done')).not.toBeInTheDocument()
 })
 
 it('offers to resume an interrupted push and shows sync errors', async () => {
@@ -83,18 +95,18 @@ it('offers to resume an interrupted push and shows sync errors', async () => {
   }
   renderCard(<PluginCard />)
   expect(await screen.findByText('app.settings.plugin.state.unhealthy')).toBeInTheDocument()
-  expect(screen.getByText(/Plays: status 500/)).toBeInTheDocument()
+  expect(screen.getByText('app.settings.plugin.lastErrorValue')).toBeInTheDocument()
   expect(await screen.findByRole('button', { name: 'app.settings.plugin.push.resume' })).toBeEnabled()
   expect(screen.getByText('app.settings.plugin.push.interrupted')).toBeInTheDocument()
 })
 
 it('data quality: lists the sources of the period, most precise first, with their precision', async () => {
-  const src = (key: string, plays: number, watchSeconds: number, watchShare: number) => ({
-    key, plays, views: plays, watchSeconds, playShare: 0, watchShare, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0,
+  const src = (key: string, views: number, watchSeconds: number, watchShare: number) => ({
+    key, views, clicks: views ? views + 1 : 0, watchSeconds, viewShare: 0, watchShare, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0,
   })
   routes = {
     'GET /api/v2/data-quality': () => ({
-      totals: { plays: 10, views: 10, watchSeconds: 5000, repaired: 2, captured: 4, positions: 8, streams: 4, transcodes: 2, transcodeDetailed: 1 },
+      totals: { clicks: 13, views: 10, watchSeconds: 5000, repaired: 2, captured: 4, positions: 8, streams: 4, transcodes: 2, transcodeDetailed: 1 },
       sources: [src('tracker', 3, 1000, 0.2), src('plugin', 5, 3000, 0.6), src('playbackReporting', 2, 1000, 0.2), src('restore', 0, 0, 0)],
       pluginCollectedSince: '2026-11-01', collectedSince: '2026-10-01', undated: 3,
     }),
@@ -107,8 +119,9 @@ it('data quality: lists the sources of the period, most precise first, with thei
   expect(labels[2]).toContain('app.settings.quality.sources.playbackReporting.label')
   expect(screen.queryByText('app.settings.quality.sources.restore.label')).not.toBeInTheDocument()
   expect(screen.getByText('app.settings.quality.sources.plugin.precision')).toBeInTheDocument()
-  expect(screen.getByText('app.settings.quality.plays:5')).toBeInTheDocument()
-  expect(screen.getByText('app.settings.quality.repaired:2')).toBeInTheDocument()
+  expect(screen.getByText('app.settings.quality.views:5')).toBeInTheDocument()
+  expect(screen.getByText('app.settings.quality.clicks:6')).toBeInTheDocument()
+  expect(screen.getByText('app.settings.quality.repairedAtLeast:2')).toBeInTheDocument()
   expect(screen.getByText('app.settings.quality.undated:3')).toBeInTheDocument()
   expect(screen.getByText('app.settings.quality.pluginSince')).toBeInTheDocument()
   expect(screen.getByRole('progressbar', { name: 'app.settings.quality.details.transcode' })).toHaveAttribute('aria-valuenow', '50')
@@ -116,7 +129,9 @@ it('data quality: lists the sources of the period, most precise first, with thei
 })
 
 it('data quality: empty period', async () => {
-  routes = { 'GET /api/v2/data-quality': () => ({ totals: { plays: 0 }, sources: [], pluginCollectedSince: null, collectedSince: null, undated: 0 }) }
+  routes = { 'GET /api/v2/data-quality': () => ({ totals: { clicks: 0, views: 0 }, sources: [], pluginCollectedSince: null, collectedSince: null, undated: 3 }) }
   renderCard(<DataQualityCard />)
   expect(await screen.findByText('app.settings.quality.empty')).toBeInTheDocument()
+  // The all-time undated note stays visible.
+  expect(screen.getByText('app.settings.quality.undated:3')).toBeInTheDocument()
 })

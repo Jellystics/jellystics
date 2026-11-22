@@ -54,7 +54,7 @@ afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); Object.defineProp
 const pluginRoutes: Record<string, (c: Call) => unknown> = {
   'GET /api/plugin/status': () => ({ detected: false, healthy: false, playsSynced: 0, supportedSchemaVersion: 1, lastError: null }),
   'GET /api/plugin/push-history/status': () => ({ state: 'idle', total: 0, sent: 0, resumable: false }),
-  'GET /api/v2/data-quality': () => ({ totals: { plays: 0 }, sources: [], undated: 0 }),
+  'GET /api/v2/data-quality': () => ({ totals: { clicks: 0, views: 0 }, sources: [], undated: 0 }),
 }
 
 it('config: validates the URL, tests the connection and saves', async () => {

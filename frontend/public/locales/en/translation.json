@@ -659,7 +659,6 @@
         "lastSync": "Last sync",
         "never": "Never",
         "playsSynced": "Plays synced",
-        "lastError": "Last error",
         "unhealthyHint": "The plugin has not synced for more than 2 minutes: the Jellystics tracker records plays in the meantime.",
         "push": {
           "title": "Save the history to the plugin",
@@ -669,17 +668,18 @@
           "started": "History save started",
           "running": "Saving…",
           "progress": "{{sent}} / {{total}} plays sent",
-          "done": "Last save: {{imported}} added, {{skipped}} already present, {{rejected}} rejected.",
+          "done": "Last save: {{sent}} / {{total}} plays sent; {{imported}} added, {{skipped}} already present, {{rejected}} rejected.",
           "doneToast": "History saved to the plugin",
           "failed": "Save stopped: {{error}}. It resumes where it stopped.",
           "interrupted": "Save interrupted by a restart of Jellystics. It resumes where it stopped.",
-          "error": "Could not start the save"
+          "error": "Could not start the save",
+          "doneNoCounts": "Last save: {{sent}} / {{total}} plays sent (the plugin did not report what it added)."
         },
         "resync": {
           "title": "Resync from the plugin",
           "hint": "Re-reads every play and event recorded by the plugin, for instance after restoring a backup.",
           "confirmTitle": "Resync from the plugin?",
-          "confirmText": "Jellystics will re-read everything the plugin recorded. Nothing is deleted: plays already synced are updated.",
+          "confirmText": "Jellystics will re-read everything the plugin recorded. Nothing is lost: plays already synced are updated, and a play recorded twice (by the tracker or an import and by the plugin) is replaced by the plugin version.",
           "confirm": "Resync",
           "started": "Resync started"
         },
@@ -692,15 +692,14 @@
           "manifest": "Plugin repository URL",
           "copy": "Copy the URL",
           "copied": "URL copied"
-        }
+        },
+        "lastErrorValue": "Last error: {{error}}"
       },
       "quality": {
         "title": "Data quality",
         "hint": "Where the plays of the period come from, and how precise each source is.",
         "empty": "No plays in this period",
-        "watchShare": "{{share}} of watch time",
-        "plays_one": "{{count}} play",
-        "plays_other": "{{count}} plays",
+        "watchShare": "{{share}} of watch time · {{time}}",
         "sources": {
           "plugin": {
             "label": "Jellystics plugin",
@@ -736,10 +735,14 @@
         },
         "pluginSince": "Plugin data since {{date}}",
         "noPlugin": "No play recorded by the Jellystics plugin yet.",
-        "repaired_one": "{{count}} imported duration repaired (negative, longer than 1.5× the media or than 12 h).",
-        "repaired_other": "{{count}} imported durations repaired (negative, longer than 1.5× the media or than 12 h).",
         "undated_one": "{{count}} play without a usable date is excluded from every statistic.",
-        "undated_other": "{{count}} plays without a usable date are excluded from every statistic."
+        "undated_other": "{{count}} plays without a usable date are excluded from every statistic.",
+        "views_one": "{{count}} view",
+        "views_other": "{{count}} views",
+        "clicks_one": "{{count}} click",
+        "clicks_other": "{{count}} clicks",
+        "repairedAtLeast_one": "At least {{count}} imported duration repaired (negative, longer than 1.5× the media or than 12 h).",
+        "repairedAtLeast_other": "At least {{count}} imported durations repaired (negative, longer than 1.5× the media or than 12 h)."
       }
     },
     "sidePanel": {

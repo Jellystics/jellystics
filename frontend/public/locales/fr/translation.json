@@ -659,7 +659,6 @@
         "lastSync": "Dernière synchro",
         "never": "Jamais",
         "playsSynced": "Lectures synchronisées",
-        "lastError": "Dernière erreur",
         "unhealthyHint": "Le plugin n'a pas synchronisé depuis plus de 2 minutes : le suivi de Jellystics enregistre les lectures en attendant.",
         "push": {
           "title": "Sauvegarder l'historique dans le plugin",
@@ -669,17 +668,18 @@
           "started": "Sauvegarde de l'historique lancée",
           "running": "Sauvegarde en cours…",
           "progress": "{{sent}} / {{total}} lectures envoyées",
-          "done": "Dernière sauvegarde : {{imported}} ajoutées, {{skipped}} déjà présentes, {{rejected}} rejetées.",
+          "done": "Dernière sauvegarde : {{sent}} / {{total}} lectures envoyées ; {{imported}} ajoutées, {{skipped}} déjà présentes, {{rejected}} rejetées.",
           "doneToast": "Historique sauvegardé dans le plugin",
           "failed": "Sauvegarde arrêtée : {{error}}. Elle reprendra là où elle s'est arrêtée.",
           "interrupted": "Sauvegarde interrompue par un redémarrage de Jellystics. Elle reprendra là où elle s'est arrêtée.",
-          "error": "Impossible de lancer la sauvegarde"
+          "error": "Impossible de lancer la sauvegarde",
+          "doneNoCounts": "Dernière sauvegarde : {{sent}} / {{total}} lectures envoyées (le plugin n’a pas indiqué ce qu’il a ajouté)."
         },
         "resync": {
           "title": "Resynchroniser depuis le plugin",
           "hint": "Relit toutes les lectures et tous les événements enregistrés par le plugin, par exemple après la restauration d'une sauvegarde.",
           "confirmTitle": "Resynchroniser depuis le plugin ?",
-          "confirmText": "Jellystics va relire tout ce que le plugin a enregistré. Rien n’est supprimé : les lectures déjà synchronisées sont mises à jour.",
+          "confirmText": "Jellystics va relire tout ce que le plugin a enregistré. Rien n’est perdu : les lectures déjà synchronisées sont mises à jour, et une lecture enregistrée deux fois (par le suivi ou un import et par le plugin) est remplacée par la version du plugin.",
           "confirm": "Resynchroniser",
           "started": "Resynchronisation lancée"
         },
@@ -692,15 +692,14 @@
           "manifest": "URL du dépôt du plugin",
           "copy": "Copier l'URL",
           "copied": "URL copiée"
-        }
+        },
+        "lastErrorValue": "Dernière erreur : {{error}}"
       },
       "quality": {
         "title": "Qualité des données",
         "hint": "D'où viennent les lectures de la période, et quelle est la précision de chaque source.",
         "empty": "Aucune lecture sur la période",
-        "watchShare": "{{share}} du temps de visionnage",
-        "plays_one": "{{count}} lecture",
-        "plays_other": "{{count}} lectures",
+        "watchShare": "{{share}} du temps de visionnage · {{time}}",
         "sources": {
           "plugin": {
             "label": "Plugin Jellystics",
@@ -736,10 +735,14 @@
         },
         "pluginSince": "Données du plugin depuis le {{date}}",
         "noPlugin": "Aucune lecture enregistrée par le plugin Jellystics pour l’instant.",
-        "repaired_one": "{{count}} durée importée réparée (négative, plus de 1,5× la durée du média ou plus de 12 h).",
-        "repaired_other": "{{count}} durées importées réparées (négatives, plus de 1,5× la durée du média ou plus de 12 h).",
         "undated_one": "{{count}} lecture sans date exploitable est exclue de toutes les statistiques.",
-        "undated_other": "{{count}} lectures sans date exploitable sont exclues de toutes les statistiques."
+        "undated_other": "{{count}} lectures sans date exploitable sont exclues de toutes les statistiques.",
+        "views_one": "{{count}} vue",
+        "views_other": "{{count}} vues",
+        "clicks_one": "{{count}} clic",
+        "clicks_other": "{{count}} clics",
+        "repairedAtLeast_one": "Au moins {{count}} durée importée réparée (négative, plus de 1,5× la durée du média ou plus de 12 h).",
+        "repairedAtLeast_other": "Au moins {{count}} durées importées réparées (négatives, plus de 1,5× la durée du média ou plus de 12 h)."
       }
     },
     "sidePanel": {

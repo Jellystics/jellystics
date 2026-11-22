@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Copy, RefreshCw, Upload } from 'lucide-react'
 import { Badge, Button, Card, CardBody, CardHeader, ConfirmDialog, EmptyState, ErrorState, Meter, PeriodPicker, SegBar, Skeleton, toast } from '@/ui'
 import { useFormat } from '@/lib/format'
 import {
-  DATA_SOURCES, PLUGIN_MANIFEST_URL, useDataQuality, usePluginStatus, usePushStatus, useResync, useStartPush,
-  type DataSource, type PluginStatus, type PushStatus,
+  DATA_SOURCES, PLUGIN_MANIFEST_URL, invalidatePluginData, useDataQuality, usePluginStatus, usePushStatus, useResync, useStartPush,
+  type DataQuality, type DataSource, type PluginStatus, type PushStatus,
 } from '@/api/plugin'
 import { errorMessage } from '../net'
 import styles from './PluginCards.module.css'
 
-/** Darker = more precise (sequential scale, both themes). */
+/**
+ * More precise = stronger contrast with the card surface, in both themes (the
+ * sequential scale is inverted in dark mode); sources of unknown precision use
+ * neutral inks.
+ */
 const SOURCE_COLOR: Record<DataSource, string> = {
-  plugin: 'var(--seq-6)', tracker: 'var(--seq-4)', playbackReporting: 'var(--seq-2)',
-  otherImports: 'var(--seq-1)', restore: 'var(--axis)', other: 'var(--grid)',
+  plugin: 'var(--seq-6)', tracker: 'var(--seq-4)', playbackReporting: 'var(--seq-3)',
+  otherImports: 'var(--seq-2)', restore: 'var(--ink-2)', other: 'var(--ink-3)',
 }
 
 const toLocalDate = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
@@ -30,16 +35,18 @@ function PushBlock() {
   const f = useFormat()
   const q = usePushStatus()
   const start = useStartPush()
+  const qc = useQueryClient()
   const st: PushStatus | undefined = q.data
   const running = st?.state === 'running'
+  const noCounts = !!st && st.imported + st.skipped + st.rejected === 0
 
   // Completion toast when a push this page watched finishes.
   const prev = useRef(st?.state)
   useEffect(() => {
-    if (prev.current === 'running' && st?.state === 'done') toast.success(t('app.settings.plugin.push.doneToast'))
+    if (prev.current === 'running' && st?.state === 'done') { toast.success(t('app.settings.plugin.push.doneToast')); invalidatePluginData(qc) }
     if (prev.current === 'running' && st?.state === 'error') toast.error(t('app.settings.plugin.push.failed', { error: st.error ?? '' }))
     prev.current = st?.state
-  }, [st?.state, st?.error, t])
+  }, [st?.state, st?.error, t, qc])
 
   const run = () => start.mutate(undefined, {
     onSuccess: () => toast.success(t('app.settings.plugin.push.started')),
@@ -61,7 +68,9 @@ function PushBlock() {
       )}
       {st?.state === 'done' && (
         <span className={styles.text} role="status">
-          {t('app.settings.plugin.push.done', { imported: f.number(st.imported), skipped: f.number(st.skipped), rejected: f.number(st.rejected) })}
+          {noCounts
+            ? t('app.settings.plugin.push.doneNoCounts', { sent: f.number(st.sent), total: f.number(st.total) })
+            : t('app.settings.plugin.push.done', { sent: f.number(st.sent), total: f.number(st.total), imported: f.number(st.imported), skipped: f.number(st.skipped), rejected: f.number(st.rejected) })}
         </span>
       )}
       {st?.state === 'error' && <span className={styles.error} role="alert">{t('app.settings.plugin.push.failed', { error: st.error ?? '' })}</span>}
@@ -134,7 +143,7 @@ export function PluginCard() {
       <CardBody>
         {!st ? <Skeleton height={96} radius="md" /> : !st.detected ? (
           <>
-            {st.lastError && <span className={styles.error} role="alert">{t('app.settings.plugin.lastError')} : {st.lastError}</span>}
+            {st.lastError && <span className={styles.error} role="alert">{t('app.settings.plugin.lastErrorValue', { error: st.lastError })}</span>}
             <InstallHelp />
           </>
         ) : (
@@ -149,7 +158,7 @@ export function PluginCard() {
               <div><dt>{t('app.settings.plugin.playsSynced')}</dt><dd>{f.number(st.playsSynced)}</dd></div>
             </dl>
             {!st.healthy && <p className={styles.text}>{t('app.settings.plugin.unhealthyHint')}</p>}
-            {st.lastError && <span className={styles.error} role="alert">{t('app.settings.plugin.lastError')} : {st.lastError}</span>}
+            {st.lastError && <span className={styles.error} role="alert">{t('app.settings.plugin.lastErrorValue', { error: st.lastError })}</span>}
             <PushBlock />
             <ResyncBlock />
           </>
@@ -172,19 +181,37 @@ function DetailMeter({ label, n, total }: { label: string; n: number; total: num
   )
 }
 
+/** Plugin start date, repaired durations (period) and undated plays (all time). */
+function Notes({ d }: { d: DataQuality }) {
+  const { t } = useTranslation()
+  const f = useFormat()
+  return (
+    <ul className={styles.notes}>
+      <li>{d.pluginCollectedSince
+        ? t('app.settings.quality.pluginSince', { date: f.day(toLocalDate(d.pluginCollectedSince)) })
+        : t('app.settings.quality.noPlugin')}</li>
+      {(d.totals.repaired ?? 0) > 0 && <li>{t('app.settings.quality.repairedAtLeast', { count: d.totals.repaired })}</li>}
+      {d.undated > 0 && <li>{t('app.settings.quality.undated', { count: d.undated })}</li>}
+    </ul>
+  )
+}
+
 export function DataQualityCard() {
   const { t } = useTranslation()
   const f = useFormat()
   const q = useDataQuality()
   const d = q.data
   // Most precise first, whatever order the server sends.
-  const visible = d ? DATA_SOURCES.flatMap((k) => d.sources.filter((s) => s.key === k && s.plays > 0)) : []
+  const visible = d ? DATA_SOURCES.flatMap((k) => d.sources.filter((s) => s.key === k && s.clicks > 0)) : []
   return (
     <Card>
       <CardHeader title={t('app.settings.quality.title')} subtitle={t('app.settings.quality.hint')} action={<PeriodPicker />} />
       <CardBody>
-        {q.isError ? <ErrorState title={t('app.error.generic')} onRetry={() => q.refetch()} /> : !d ? <Skeleton height={160} radius="md" /> : d.totals.plays === 0 ? (
-          <EmptyState title={t('app.settings.quality.empty')} description={t('app.analytics.noDataHint')} />
+        {q.isError ? <ErrorState title={t('app.error.generic')} onRetry={() => q.refetch()} /> : !d ? <Skeleton height={160} radius="md" /> : d.totals.clicks === 0 ? (
+          <div className={styles.details}>
+            <EmptyState title={t('app.settings.quality.empty')} description={t('app.analytics.noDataHint')} />
+            <Notes d={d} />
+          </div>
         ) : (
           <div className={styles.details}>
             <SegBar thin parts={visible.map((s) => ({
@@ -198,9 +225,9 @@ export function DataQualityCard() {
                     {t(`app.settings.quality.sources.${s.key}.label`)}
                   </span>
                   <span className={styles.figures}>
-                    <strong>{t('app.settings.quality.watchShare', { share: f.percent(s.watchShare) })}</strong>
-                    <span>{f.duration(s.watchSeconds)}</span>
-                    <span>{t('app.settings.quality.plays', { count: s.plays })}</span>
+                    <strong>{t('app.settings.quality.views', { count: s.views })}</strong>
+                    <span>{t('app.settings.quality.watchShare', { share: f.percent(s.watchShare), time: f.duration(s.watchSeconds) })}</span>
+                    <span>{t('app.settings.quality.clicks', { count: s.clicks })}</span>
                   </span>
                   <span className={styles.precision}>{t(`app.settings.quality.sources.${s.key}.precision`)}</span>
                 </li>
@@ -208,18 +235,12 @@ export function DataQualityCard() {
             </ul>
             <div className={styles.block}>
               <span className={styles.blockTitle}>{t('app.settings.quality.details.title')}</span>
-              <DetailMeter label={t('app.settings.quality.details.positions')} n={d.totals.positions} total={d.totals.plays} />
-              <DetailMeter label={t('app.settings.quality.details.streams')} n={d.totals.streams} total={d.totals.plays} />
-              <DetailMeter label={t('app.settings.quality.details.captured')} n={d.totals.captured} total={d.totals.plays} />
+              <DetailMeter label={t('app.settings.quality.details.positions')} n={d.totals.positions} total={d.totals.clicks} />
+              <DetailMeter label={t('app.settings.quality.details.streams')} n={d.totals.streams} total={d.totals.clicks} />
+              <DetailMeter label={t('app.settings.quality.details.captured')} n={d.totals.captured} total={d.totals.clicks} />
               {d.totals.transcodes > 0 && <DetailMeter label={t('app.settings.quality.details.transcode')} n={d.totals.transcodeDetailed} total={d.totals.transcodes} />}
             </div>
-            <ul className={styles.notes}>
-              <li>{d.pluginCollectedSince
-                ? t('app.settings.quality.pluginSince', { date: f.day(toLocalDate(d.pluginCollectedSince)) })
-                : t('app.settings.quality.noPlugin')}</li>
-              {d.totals.repaired > 0 && <li>{t('app.settings.quality.repaired', { count: d.totals.repaired })}</li>}
-              {d.undated > 0 && <li>{t('app.settings.quality.undated', { count: d.undated })}</li>}
-            </ul>
+            <Notes d={d} />
           </div>
         )}
       </CardBody>

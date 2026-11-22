@@ -1,6 +1,6 @@
 // Jellystics plugin sync (backend/internal/handler/plugin_status.go, admin
 // only) and the data quality breakdown (backend/internal/handler/v2_quality.go).
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import { get, V2 } from './client'
 import { qk, type Filters } from './keys'
@@ -62,15 +62,21 @@ export function useStartPush() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => apiFetch<PushStatus>('/api/plugin/push-history', { method: 'POST' }),
-    onSuccess: (st) => { qc.setQueryData(pluginKeys.push, st) },
+    onSuccess: (st) => { qc.setQueryData(pluginKeys.push, st); qc.invalidateQueries({ queryKey: pluginKeys.status }) },
   })
+}
+
+/** After a resync / finished push: the sync state and the data quality change. */
+export function invalidatePluginData(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: pluginKeys.status })
+  qc.invalidateQueries({ queryKey: ['v2', 'data-quality'] })
 }
 
 export function useResync() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => apiFetch('/api/plugin/resync', { method: 'POST' }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: pluginKeys.status }) },
+    onSuccess: () => { invalidatePluginData(qc) },
   })
 }
 
@@ -79,10 +85,12 @@ export const DATA_SOURCES = ['plugin', 'tracker', 'playbackReporting', 'otherImp
 export type DataSource = (typeof DATA_SOURCES)[number]
 
 export interface DataQualityCounts {
-  plays: number
+  /** Plays of at least 30 s (as every v2 endpoint). */
   views: number
+  /** Every playback attempt; the detail counters below are over clicks. */
+  clicks: number
   watchSeconds: number
-  /** Imported plays whose impossible duration Jellystics replaced. */
+  /** Imported plays whose impossible duration was repaired: a lower bound (see the backend). */
   repaired: number
   /** Plays with playback details (tracks, bitrate, local / remote, pauses). */
   captured: number
@@ -97,7 +105,7 @@ export interface DataQualityCounts {
 export interface DataQualitySource extends DataQualityCounts {
   key: DataSource
   /** 0..1 of the period. */
-  playShare: number
+  viewShare: number
   watchShare: number
 }
 export interface DataQuality {
