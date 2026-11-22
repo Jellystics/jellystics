@@ -52,6 +52,13 @@ func main() {
 	if tz, _ := statsql.Timezone(); tz == "UTC" {
 		log.Printf("TZ is not set: days, hours and plugin import dates are computed in UTC (set TZ, e.g. TZ=Europe/Paris)")
 	}
+	// JF_HOST / JF_API_KEY: initial Jellyfin config when none is stored yet
+	// (a config saved from the UI is never overwritten).
+	if host, key, err := repository.SeedJellyfinConfig(context.Background(), repos.Config, cfg.JFHost, cfg.JFApiKey); err != nil {
+		log.Printf("warning: could not apply JF_HOST / JF_API_KEY: %v", err)
+	} else if host || key {
+		log.Printf("Jellyfin config initialised from the environment (JF_HOST: %t, JF_API_KEY: %t)", host, key)
+	}
 	if err := repos.Playback.BackfillTracking(context.Background()); err != nil {
 		log.Printf("backfill tracking columns: %v", err)
 	}

@@ -101,6 +101,8 @@ docker compose up -d
 | `TZ` | No | UTC | Timezone (e.g. `Europe/Paris`) |
 | `DISABLE_DASHBOARD` | No | `false` | Set to `true` to serve only the API (no frontend) |
 | `METRICS_API_KEY` | No | — | Pre-seeds an API key at startup. Required when `DISABLE_DASHBOARD=true` to authenticate `/metrics`. |
+| `JF_HOST` | No | — | Jellyfin server URL (e.g. `http://jellyfin:8096`). Applied at startup only when no Jellyfin server is configured yet; a server set from the setup wizard or the settings is never overwritten. |
+| `JF_API_KEY` | No | — | Jellyfin API key, used with `JF_HOST` under the same rule (only filled when no key is stored). |
 
 ### Docker Secrets
 
