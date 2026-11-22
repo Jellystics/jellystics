@@ -450,6 +450,17 @@
       "from": "Du",
       "to": "Au",
       "invalid": "La date de début doit précéder la date de fin."
+    },
+    "table": {
+      "range": "{{from}}–{{to}} sur {{total}}",
+      "prev": "Page précédente",
+      "next": "Page suivante",
+      "empty": "Aucune donnée"
+    },
+    "session": {
+      "paused": "En pause",
+      "playing": "En lecture",
+      "progress": "Progression"
     }
   }
 }

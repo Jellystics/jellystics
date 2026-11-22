@@ -1,0 +1,7 @@
+.strip { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); }
+.strip > * + * { border-left: 1px solid var(--border); }
+@media (max-width: 800px) {
+  .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .strip > *:nth-child(odd) { border-left: 0; }
+  .strip > *:nth-child(n+3) { border-top: 1px solid var(--border); }
+}

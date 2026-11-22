@@ -1,0 +1,11 @@
+.session { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.main { min-width: 0; }
+.top { display: flex; justify-content: space-between; gap: var(--s-2); align-items: flex-start; }
+.titles { min-width: 0; }
+.title { display: block; font-weight: 600; font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
+.title:hover { text-decoration: underline; }
+.sub { font-size: var(--fs-sm); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-top: var(--s-2); font-size: var(--fs-sm); color: var(--ink-2); }
+.paused { display: inline-flex; align-items: center; gap: 2px; color: var(--ink-3); }
+.progress { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--s-2); font-size: var(--fs-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.progress > div { flex: 1; }

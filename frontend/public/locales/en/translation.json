@@ -450,6 +450,17 @@
       "from": "From",
       "to": "To",
       "invalid": "The start date must not be after the end date."
+    },
+    "table": {
+      "range": "{{from}}–{{to}} of {{total}}",
+      "prev": "Previous page",
+      "next": "Next page",
+      "empty": "No data"
+    },
+    "session": {
+      "paused": "Paused",
+      "playing": "Playing",
+      "progress": "Progress"
     }
   }
 }

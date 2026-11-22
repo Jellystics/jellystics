@@ -450,6 +450,17 @@
       "from": "Desde",
       "to": "Hasta",
       "invalid": "La fecha de inicio no puede ser posterior a la de fin."
+    },
+    "table": {
+      "range": "{{from}}–{{to}} de {{total}}",
+      "prev": "Página anterior",
+      "next": "Página siguiente",
+      "empty": "Sin datos"
+    },
+    "session": {
+      "paused": "En pausa",
+      "playing": "Reproduciendo",
+      "progress": "Progreso"
     }
   }
 }
