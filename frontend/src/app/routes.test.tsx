@@ -57,6 +57,13 @@ it.each([
   await waitFor(() => expect(router.state.location.pathname + router.state.location.search).toBe(to))
 })
 
+it('timeline redirect keeps query params and adds view=calendar', async () => {
+  const router = renderApp('/activity/timeline?range=7d&userId=u1')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/history'))
+  const sp = new URLSearchParams(router.state.location.search)
+  expect(Object.fromEntries(sp)).toEqual({ range: '7d', userId: 'u1', view: 'calendar' })
+})
+
 it.each([
   [{ type: 'episode', id: 'x1', seriesId: 's1' }, '/series/s1/episodes/x1'],
   [{ type: 'movie', id: 'x1' }, '/movies/x1'],
@@ -101,4 +108,17 @@ it('settings section maps to ?view=', async () => {
 })
 it('coming soon pages render', async () => {
   renderApp('/live'); expect(await screen.findByText('app.comingSoon.title')).toBeInTheDocument()
+})
+
+function crumbTrail() {
+  const nav = screen.getByRole('navigation', { name: 'app.nav.breadcrumbs' })
+  return Array.from(nav.querySelectorAll('a, [aria-current]')).map((e) => [e.textContent, e.getAttribute('href')])
+}
+it('shows the breadcrumb trail for a user page', async () => {
+  renderApp('/users/lea'); await screen.findByText('legacy-user')
+  expect(crumbTrail()).toEqual([['app.nav.users', '/users'], ['app.crumb.user', null]])
+})
+it('shows the breadcrumb trail for a settings section', async () => {
+  renderApp('/settings/backup'); await screen.findByText('legacy-settings:backup')
+  expect(crumbTrail()).toEqual([['app.nav.settings', '/settings'], ['app.crumb.settings.backup', null]])
 })

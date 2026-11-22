@@ -1,6 +1,6 @@
 import { Navigate, useLocation, useParams, useSearchParams, type RouteObject } from 'react-router-dom'
 import { AppShell } from './shell/AppShell'
-import type { RouteHandle } from './shell/crumbs'
+import type { Crumb, RouteHandle } from './shell/crumbs'
 import { RequireAuth } from './RequireAuth'
 import { LegacyAt } from './legacy/LegacyAt'
 import { LegacyPage } from './legacy/LegacyPage'
@@ -25,6 +25,12 @@ import AboutPage from '@/features/about/AboutPage'
 function To({ to, search }: { to: string; search?: string }) {
   const loc = useLocation()
   return <Navigate to={{ pathname: to, search: search ?? loc.search }} replace />
+}
+
+function TimelineRedirect() {
+  const loc = useLocation()
+  const sp = new URLSearchParams(loc.search); sp.set('view', 'calendar')
+  return <Navigate to={{ pathname: '/history', search: `?${sp}` }} replace />
 }
 
 function ParamTo({ build }: { build: (p: Record<string, string | undefined>) => string }) {
@@ -62,7 +68,12 @@ function SettingsSection() {
   return <LegacyAt path="/settings" location={{ pathname: '/settings', search: `?${sp}` }}><SettingsPage /></LegacyAt>
 }
 
-const nav = (n: NonNullable<RouteHandle['nav']>): { handle: RouteHandle } => ({ handle: { nav: n } })
+type Match = Parameters<NonNullable<RouteHandle['crumb']>>[0]
+const nav = (n: NonNullable<RouteHandle['nav']>, crumb?: RouteHandle['crumb']): { handle: RouteHandle } => ({ handle: { nav: n, crumb } })
+const LIBS = { label: 'app.nav.libraries', to: '/libraries' }
+const USERS = { label: 'app.nav.users', to: '/users' }
+const trail = (...items: Crumb[]) => () => items
+const settingsTrail = (m: Match): Crumb[] => [{ label: 'app.nav.settings', to: '/settings' }, { label: `app.crumb.settings.${m.params.section ?? 'config'}` }]
 const legacy = (el: React.ReactElement) => <LegacyPage>{el}</LegacyPage>
 
 export const routes: RouteObject[] = [
@@ -74,27 +85,27 @@ export const routes: RouteObject[] = [
       { path: '/live', ...nav('live'), element: <ComingSoon nav="live" /> },
       { path: '/history', ...nav('history'), element: <History /> },
       { path: '/libraries', ...nav('libraries'), element: legacy(<LibrariesPage />) },
-      { path: '/libraries/:id', ...nav('libraries'), element: legacy(<LibraryDetailPage />) },
-      { path: '/movies/:id', ...nav('libraries'), element: <ItemPage /> },
-      { path: '/series/:id', ...nav('libraries'), element: <ItemPage /> },
-      { path: '/series/:id/episodes/:episodeId', ...nav('libraries'), element: <ItemPage /> },
-      { path: '/artists/:id', ...nav('libraries'), element: <ComingSoon nav="libraries" /> },
-      { path: '/albums/:id', ...nav('libraries'), element: <AlbumPage /> },
+      { path: '/libraries/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.library' })), element: legacy(<LibraryDetailPage />) },
+      { path: '/movies/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.movie' })), element: <ItemPage /> },
+      { path: '/series/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.series' })), element: <ItemPage /> },
+      { path: '/series/:id/episodes/:episodeId', ...nav('libraries', (m) => [LIBS, { label: 'app.crumb.series', to: `/series/${m.params.id}` }, { label: 'app.crumb.episode' }]), element: <ItemPage /> },
+      { path: '/artists/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.artist' })), element: <ComingSoon nav="libraries" /> },
+      { path: '/albums/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.album' })), element: <AlbumPage /> },
       { path: '/users', ...nav('users'), element: legacy(<UsersPage />) },
-      { path: '/users/:id', ...nav('users'), element: legacy(<UserDetailPage />) },
-      { path: '/users/:id/recap/:period', ...nav('users'), element: <ComingSoon nav="users" /> },
+      { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: legacy(<UserDetailPage />) },
+      { path: '/users/:id/recap/:period', ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]), element: <ComingSoon nav="users" /> },
       { path: '/insights', ...nav('insights'), element: legacy(<StatisticsPage />) },
       { path: '/discover', ...nav('discover'), element: <ComingSoon nav="discover" /> },
       { path: '/playback', ...nav('playback'), element: <ComingSoon nav="playback" /> },
       { path: '/settings', ...nav('settings'), element: <SettingsIndex /> },
-      { path: '/settings/about', ...nav('settings'), element: legacy(<AboutPage />) },
-      { path: '/settings/:section', ...nav('settings'), element: <SettingsSection /> },
+      { path: '/settings/about', ...nav('settings', settingsTrail), element: legacy(<AboutPage />) },
+      { path: '/settings/:section', ...nav('settings', settingsTrail), element: <SettingsSection /> },
       { path: '/items/:id', element: <ItemRedirect /> },
       { path: '/libraries/:lib/items/:id', element: <ItemRedirect /> },
       { path: '/libraries/:lib/albums/:id', element: <ParamTo build={(p) => `/albums/${p.id}`} /> },
       { path: '/statistics', element: <To to="/insights" /> },
       { path: '/activity', element: <To to="/history" /> },
-      { path: '/activity/timeline', element: <To to="/history" search="?view=calendar" /> },
+      { path: '/activity/timeline', element: <TimelineRedirect /> },
       { path: '/about', element: <To to="/settings/about" /> },
       { path: '/setup', element: <To to="/login" search="" /> },
       { path: '*', element: <NotFoundPage /> },

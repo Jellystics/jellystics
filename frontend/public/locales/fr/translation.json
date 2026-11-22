@@ -540,7 +540,7 @@
       "connect": "Connecter",
       "configError": "Échec de la connexion à Jellyfin",
       "signIn": "Se connecter",
-      "connectedTo": "Connecté à {{name}}",
+      "connectedTo": "Connecté à <strong>{{name}}</strong>",
       "username": "Nom d'utilisateur",
       "password": "Mot de passe",
       "invalidCredentials": "Nom d'utilisateur ou mot de passe invalide",
@@ -560,6 +560,25 @@
     },
     "error": {
       "generic": "Une erreur est survenue"
+    },
+    "crumb": {
+      "library": "Bibliothèque",
+      "user": "Utilisateur",
+      "movie": "Film",
+      "series": "Série",
+      "episode": "Épisode",
+      "artist": "Artiste",
+      "album": "Album",
+      "recap": "Récap",
+      "settings": {
+        "config": "Configuration",
+        "tasks": "Tâches",
+        "backup": "Sauvegarde",
+        "webhooks": "Webhooks",
+        "logs": "Journaux",
+        "apikeys": "Clés API",
+        "about": "À propos"
+      }
     }
   }
 }

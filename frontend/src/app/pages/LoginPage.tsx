@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { ApiError, apiFetch } from '@/lib/api'
 import { getDeviceId, getDeviceName, setSession } from '@/lib/auth'
 import { useServerConfig } from '@/lib/serverConfig'
@@ -17,7 +17,7 @@ const LANGS = [
 type Step = 'server' | 'credentials'
 
 function safeNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
+  return next && /^\/[^/\\]/.test(next) && !next.includes('\\') ? next : '/'
 }
 
 export default function LoginPage() {
@@ -110,7 +110,7 @@ export default function LoginPage() {
                   <Input id="jf-url" value={jellyfinUrl} onChange={(e) => setJellyfinUrl(e.target.value)} disabled={loading} autoFocus />
                 </Field>
                 <Field label={t('app.login.apiKey')} htmlFor="jf-key" hint={t('app.login.apiKeyHint')}>
-                  <Input id="jf-key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} disabled={loading} />
+                  <Input id="jf-key" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} disabled={loading} />
                 </Field>
                 <Button type="submit" variant="primary" className={styles.full} disabled={loading || !jellyfinUrl.trim() || !apiKey.trim()}>{t('app.login.connect')}</Button>
               </form>
@@ -118,7 +118,7 @@ export default function LoginPage() {
             {step === 'credentials' && (
               <form className={styles.form} onSubmit={signIn}>
                 <h1 className={styles.title}>{t('app.login.signIn')}</h1>
-                <p className={styles.sub}>{t('app.login.connectedTo', { name: '' })}<strong>{serverName}</strong></p>
+                <p className={styles.sub}><Trans i18nKey="app.login.connectedTo" values={{ name: serverName }} components={{ strong: <strong /> }} /></p>
                 {error && <p className={styles.error} role="alert">{error}</p>}
                 <Field label={t('app.login.username')} htmlFor="jf-user">
                   <Input id="jf-user" value={username} onChange={(e) => setUsername(e.target.value)} disabled={loading} autoComplete="username" autoFocus />

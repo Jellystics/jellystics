@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import LoginPage from './LoginPage'
 
-function setup(state: number, loginStatus = 200) {
+function setup(state: number, loginStatus = 200, next = '/x') {
   window.history.replaceState({}, '', '/login')
   const calls: { url: string; body?: unknown }[] = []
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -16,7 +16,7 @@ function setup(state: number, loginStatus = 200) {
     if (url === '/auth/jellyfin-login') return new Response(loginStatus === 200 ? JSON.stringify({ token: 'T' }) : '{}', { status: loginStatus })
     return new Response('', { status: 404 })
   }))
-  const router = createMemoryRouter([{ path: '/login', element: <LoginPage /> }, { path: '/', element: <p>home</p> }, { path: '/x', element: <p>x-page</p> }], { initialEntries: ['/login?next=%2Fx'] })
+  const router = createMemoryRouter([{ path: '/login', element: <LoginPage /> }, { path: '/', element: <p>home</p> }, { path: '/x', element: <p>x-page</p> }], { initialEntries: [`/login?next=${encodeURIComponent(next)}`] })
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><RouterProvider router={router} /></QueryClientProvider>)
   return { calls, router }
 }
@@ -55,4 +55,13 @@ it('runs the setup wizard when unconfigured', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'app.login.connect' }))
   expect(await screen.findByText('MyJelly')).toBeInTheDocument()
   expect(calls.find((c) => c.url === '/auth/configSetup')?.body).toEqual({ JF_HOST: 'http://jf', JF_API_KEY: 'KEY' })
+})
+
+it.each(['//evil.com', '/\\evil.com', 'https://evil.com', '/\\\\x'])('ignores hostile next=%s', async (next) => {
+  const { router } = setup(1, 200, next)
+  await screen.findByText('MyJelly')
+  await userEvent.type(screen.getByLabelText('app.login.username'), 'bob')
+  await userEvent.type(screen.getByLabelText('app.login.password'), 'pw')
+  await userEvent.click(screen.getByRole('button', { name: 'app.login.signIn' }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/'))
 })

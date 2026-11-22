@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { createElement } from 'react'
 
 // jsdom has no matchMedia
 if (!window.matchMedia) {
@@ -13,7 +14,8 @@ Element.prototype.scrollIntoView ??= () => {}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o && 'count' in o ? `${k}:${o.count}` : k), i18n: { resolvedLanguage: 'fr', language: 'fr', changeLanguage: vi.fn() } }),
-  Trans: ({ children }: { children: React.ReactNode }) => children,
+  Trans: ({ i18nKey, values, children }: { i18nKey?: string; values?: Record<string, string>; children?: React.ReactNode }) =>
+    children ?? createElement('span', { 'data-i18n': i18nKey }, ...Object.values(values ?? {}).map((v) => createElement('strong', { key: v }, v))),
   initReactI18next: { type: '3rdParty', init: () => {} },
 }))
 

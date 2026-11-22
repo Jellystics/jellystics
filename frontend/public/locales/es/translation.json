@@ -540,7 +540,7 @@
       "connect": "Conectar",
       "configError": "No se pudo conectar con Jellyfin",
       "signIn": "Iniciar sesión",
-      "connectedTo": "Conectado a {{name}}",
+      "connectedTo": "Conectado a <strong>{{name}}</strong>",
       "username": "Usuario",
       "password": "Contraseña",
       "invalidCredentials": "Usuario o contraseña no válidos",
@@ -560,6 +560,25 @@
     },
     "error": {
       "generic": "Algo salió mal"
+    },
+    "crumb": {
+      "library": "Biblioteca",
+      "user": "Usuario",
+      "movie": "Película",
+      "series": "Serie",
+      "episode": "Episodio",
+      "artist": "Artista",
+      "album": "Álbum",
+      "recap": "Resumen",
+      "settings": {
+        "config": "Configuración",
+        "tasks": "Tareas",
+        "backup": "Copia de seguridad",
+        "webhooks": "Webhooks",
+        "logs": "Registros",
+        "apikeys": "Claves API",
+        "about": "Acerca de"
+      }
     }
   }
 }

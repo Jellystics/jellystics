@@ -1,18 +1,24 @@
 import { createContext, useContext, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMatches, type UIMatch } from 'react-router-dom'
 
 export type Crumb = { label: string; to?: string }
 export type NavKey = 'overview' | 'live' | 'history' | 'libraries' | 'users' | 'insights' | 'discover' | 'playback' | 'settings'
-export type RouteHandle = { crumb?: (match: UIMatch) => Crumb | null; nav?: NavKey }
+export type RouteHandle = { /** Static trail (i18n keys as labels, translated by useCrumbs). */
+  crumb?: (match: UIMatch) => Crumb | Crumb[] | null; nav?: NavKey }
 
 export const CrumbLabelContext = createContext<{ label: string | null; set: (l: string | null) => void }>({ label: null, set: () => {} })
 
 export function useCrumbs(): Crumb[] {
+  const { t } = useTranslation()
   const matches = useMatches()
   const { label } = useContext(CrumbLabelContext)
   const crumbs = matches
-    .map((m) => (m.handle as RouteHandle | undefined)?.crumb?.(m) ?? null)
-    .filter((c): c is Crumb => c !== null)
+    .flatMap((m) => {
+      const c = (m.handle as RouteHandle | undefined)?.crumb?.(m) ?? []
+      return Array.isArray(c) ? c : [c]
+    })
+    .map((c) => ({ ...c, label: t(c.label) }))
   if (label && crumbs.length) crumbs[crumbs.length - 1] = { ...crumbs[crumbs.length - 1], label }
   return crumbs
 }
