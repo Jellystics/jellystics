@@ -1,0 +1,106 @@
+:root {
+  color-scheme: light;
+  /* Neutral scale (warm-neutral grey, low chroma) */
+  --n-0:   #ffffff;
+  --n-25:  #fcfcfb;   /* card / chart surface */
+  --n-50:  #f9f9f7;   /* page plane */
+  --n-100: #f0efec;
+  --n-150: #e8e7e2;
+  --n-200: #e1e0d9;   /* hairline grid */
+  --n-300: #c3c2b7;   /* axis / strong border */
+  --n-500: #898781;   /* muted ink */
+  --n-700: #52514e;   /* secondary ink */
+  --n-900: #0b0b0b;   /* primary ink */
+
+  /* Roles */
+  --bg:            var(--n-50);
+  --surface:       var(--n-25);
+  --surface-2:     var(--n-100);   /* hover, inset, track */
+  --surface-3:     var(--n-150);   /* pressed / selected neutral */
+  --border:        rgba(11,11,11,.10);
+  --border-strong: rgba(11,11,11,.18);
+  --grid:          var(--n-200);
+  --axis:          var(--n-300);
+  --ink:           var(--n-900);
+  --ink-2:         var(--n-700);
+  --ink-3:         var(--n-500);
+  --ink-on-accent: #ffffff;
+
+  /* Accent = data slot 1 (one accent only) */
+  --accent:        #2a78d6;
+  --accent-hover:  #256abf;
+  --accent-wash:   rgba(42,120,214,.10);
+  --accent-ring:   rgba(42,120,214,.35);
+
+  /* Media types (validated categorical slots 1-3, all-pairs) */
+  --t-movie:  #2a78d6;
+  --t-series: #eb6834;
+  --t-music:  #1baf7a;
+
+  /* Status (reserved, always icon + label) */
+  --good:     #0ca30c;  --good-ink: #006300;  --good-wash: rgba(12,163,12,.10);
+  --warning:  #fab219;  --warning-ink: #8a5a00; --warning-wash: rgba(250,178,25,.14);
+  --serious:  #ec835a;  --serious-ink: #a8431b; --serious-wash: rgba(236,131,90,.14);
+  --critical: #d03b3b;  --critical-ink: #b12a2a; --critical-wash: rgba(208,59,59,.10);
+
+  /* Play method: one-hue ordinal ramp (validated --ordinal). Status colors stay on badges only. */
+  --m-direct: #1c5cab; --m-stream: #3987e5; --m-transcode: #86b6ef;
+  --m-direct-ink: #ffffff; --m-stream-ink: #ffffff; --m-transcode-ink: #0b0b0b;
+
+  /* Sequential blue (heatmaps) */
+  --seq-0: #f0efec; --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5; --seq-5: #256abf; --seq-6: #184f95;
+
+  /* Shape — 3 radii, nothing else */
+  --r-sm: 4px;    /* badges, chips, inputs inside dense tables, bar data-ends */
+  --r-md: 6px;    /* buttons, inputs, segmented, menu items, tooltips */
+  --r-lg: 8px;    /* cards, panels, dialogs, posters */
+  --r-full: 999px;/* avatars, dots, toggles */
+
+  /* Spacing — 4px grid */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+
+  /* Type */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-base: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 24px; --fs-hero: 48px;
+  --lh-tight: 1.2; --lh: 1.45;
+
+  /* Elevation — borders, not shadows. Shadow only for floating layers. */
+  --shadow-pop: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.10);
+  --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-ring);
+
+  --dur: 120ms;
+  --sidebar-w: 224px;
+  --topbar-h: 52px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+    --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.18);
+    --grid: #2c2c2a; --axis: #383835;
+    --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #898781;
+    --accent: #3987e5; --accent-hover: #5598e7; --accent-wash: rgba(57,135,229,.16); --accent-ring: rgba(57,135,229,.45);
+    --t-movie: #3987e5; --t-series: #d95926; --t-music: #199e70;
+    --good-ink: #3ccf3c; --warning-ink: #fab219; --serious-ink: #f09a77; --critical-ink: #ec6b6b;
+    --good-wash: rgba(12,163,12,.16); --warning-wash: rgba(250,178,25,.14); --serious-wash: rgba(236,131,90,.16); --critical-wash: rgba(208,59,59,.18);
+    --seq-0: #232321; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
+    --m-direct: #9ec5f4; --m-stream: #5598e7; --m-transcode: #256abf; --m-direct-ink: #0b0b0b; --m-stream-ink: #0b0b0b; --m-transcode-ink: #ffffff;
+    --shadow-pop: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #232321; --surface-3: #2c2c2a;
+  --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.18);
+  --grid: #2c2c2a; --axis: #383835;
+  --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #898781;
+  --accent: #3987e5; --accent-hover: #5598e7; --accent-wash: rgba(57,135,229,.16); --accent-ring: rgba(57,135,229,.45);
+  --t-movie: #3987e5; --t-series: #d95926; --t-music: #199e70;
+  --good-ink: #3ccf3c; --warning-ink: #fab219; --serious-ink: #f09a77; --critical-ink: #ec6b6b;
+  --good-wash: rgba(12,163,12,.16); --warning-wash: rgba(250,178,25,.14); --serious-wash: rgba(236,131,90,.16); --critical-wash: rgba(208,59,59,.18);
+  --seq-0: #232321; --seq-1: #104281; --seq-2: #184f95; --seq-3: #1c5cab; --seq-4: #2a78d6; --seq-5: #5598e7; --seq-6: #9ec5f4;
+    --m-direct: #9ec5f4; --m-stream: #5598e7; --m-transcode: #256abf; --m-direct-ink: #0b0b0b; --m-stream-ink: #0b0b0b; --m-transcode-ink: #ffffff;
+  --shadow-pop: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+}
