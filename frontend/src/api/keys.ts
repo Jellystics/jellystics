@@ -51,4 +51,20 @@ export const qk = {
   track: (id: string, p: QueryParams) => ['v2', 'track', id, p] as const,
   libraries: (p: QueryParams) => ['v2', 'libraries', p] as const,
   library: (id: string, p: QueryParams) => ['v2', 'library', id, p] as const,
+  // Entity sub-resources (entityExtras.ts)
+  movieSittings: (id: string, p: QueryParams) => ['v2', 'movie', id, 'sittings', p] as const,
+  libraryDecades: (id: string, p: QueryParams) => ['v2', 'library', id, 'decades', p] as const,
+  libraryGrowth: (id: string, p: QueryParams) => ['v2', 'library', id, 'growth', p] as const,
+  albumFullListens: (id: string, p: QueryParams) => ['v2', 'album', id, 'full-listens', p] as const,
+  seriesHistory: (id: string, p: QueryParams) => ['v2', 'series', id, 'history', p] as const,
+  // Users extras (usersExtra.ts)
+  retention: (p: QueryParams) => ['v2', 'users-extra', 'retention', p] as const,
+  share: (p: QueryParams) => ['v2', 'users-extra', 'share', p] as const,
+  concurrency: (p: QueryParams) => ['v2', 'concurrency', p] as const,
+  // Analyses (analytics.ts)
+  insights: (name: string, p: QueryParams) => ['v2', 'insights', name, p] as const,
+  discover: (name: string, p: QueryParams) => ['v2', 'discover', name, p] as const,
+  playback: (name: string, p: QueryParams) => ['v2', 'playback', name, p] as const,
+  recap: (userId: string, period: string) => ['v2', 'recap', userId, period] as const,
+  languages: (userId: string, p: QueryParams) => ['v2', 'user', userId, 'languages', p] as const,
 }

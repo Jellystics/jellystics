@@ -2,9 +2,9 @@
 // /discover/*, /playback/*, /recap/:userId/:period and /users/:id/languages
 // (backend/internal/handler/v2_{insights,discover,playback,recap}.go).
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { apiFetch } from '@/lib/api'
+import { get, seg, V2 } from './client'
 import { usePeriodParams } from './hooks'
-import type { Filters, QueryParams } from './keys'
+import { qk, type Filters } from './keys'
 import type { ByType, GroupKind, ISODate, ISOTime, ItemKind, MethodSplit, RefUser } from './types'
 
 // ── /insights ────────────────────────────────────────────────────────────────
@@ -143,21 +143,9 @@ export interface Recap {
 }
 
 // ── hooks ────────────────────────────────────────────────────────────────────
-const V2 = '/api/v2'
-const seg = encodeURIComponent
-const get = <T,>(path: string, params: QueryParams) => ({ signal }: { signal: AbortSignal }) => apiFetch<T>(path, { params, signal })
-
-export const analyticsKeys = {
-  insights: (name: string, p: QueryParams) => ['v2', 'insights', name, p] as const,
-  discover: (name: string, p: QueryParams) => ['v2', 'discover', name, p] as const,
-  playback: (name: string, p: QueryParams) => ['v2', 'playback', name, p] as const,
-  recap: (userId: string, period: string) => ['v2', 'recap', userId, period] as const,
-  languages: (userId: string, p: QueryParams) => ['v2', 'user', userId, 'languages', p] as const,
-}
-
 function useSection<T>(section: 'insights' | 'discover' | 'playback', name: string, filters?: Filters) {
   const p = usePeriodParams(filters)
-  return useQuery({ queryKey: analyticsKeys[section](name, p), queryFn: get<T>(`${V2}/${section}/${name}`, p), placeholderData: keepPreviousData })
+  return useQuery({ queryKey: qk[section](name, p), queryFn: get<T>(`${V2}/${section}/${name}`, p), placeholderData: keepPreviousData })
 }
 
 export const useInsightsCompletion = (f?: Filters) => useSection<CompletionInsight>('insights', 'completion', f)
@@ -187,7 +175,7 @@ export const usePlaybackNetwork = (f?: Filters) => useSection<PlaybackNetwork>('
  */
 export function useRecap(userId: string | undefined, period: string | undefined) {
   return useQuery({
-    queryKey: analyticsKeys.recap(userId ?? '', period ?? ''),
+    queryKey: qk.recap(userId ?? '', period ?? ''),
     queryFn: get<Recap>(`${V2}/recap/${seg(userId ?? '')}/${seg(period ?? '')}`, {}),
     enabled: !!userId && !!period,
     placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2] === (userId ?? '') ? prev : undefined),
@@ -197,7 +185,7 @@ export function useRecap(userId: string | undefined, period: string | undefined)
 export function useUserLanguages(userId: string | undefined, filters?: Filters) {
   const p = usePeriodParams(filters)
   return useQuery({
-    queryKey: analyticsKeys.languages(userId ?? '', p),
+    queryKey: qk.languages(userId ?? '', p),
     queryFn: get<UserLanguages>(`${V2}/users/${seg(userId ?? '')}/languages`, p),
     enabled: !!userId,
     placeholderData: keepPreviousData,

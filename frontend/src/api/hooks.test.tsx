@@ -1,7 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useHistory, useMovie, useOverview, useSearch } from './hooks'
+import { getToken, setSession } from '@/lib/auth'
+import { downloadHistoryCsv, useHistory, useMovie, useOverview, useSearch } from './hooks'
 
 function wrap(initial: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -66,4 +67,19 @@ it('useHistory sends desc=0 for an ascending sort', async () => {
   const params = calledUrl(spy).searchParams
   expect(params.get('sort')).toBe('startedAt')
   expect(params.get('desc')).toBe('0')
+})
+
+it('downloadHistoryCsv bounces to the login page on 401', async () => {
+  const original = Object.getOwnPropertyDescriptor(window, 'location')!
+  setSession('tok', 'lea')
+  const assign = vi.fn()
+  Object.defineProperty(window, 'location', { value: { ...window.location, pathname: '/history', search: '', assign }, writable: true, configurable: true })
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
+  try {
+    await expect(downloadHistoryCsv({ from: '2026-11-01' })).rejects.toThrow('HTTP 401')
+    expect(getToken()).toBeNull()
+    expect(assign).toHaveBeenCalledWith('/login?next=%2Fhistory')
+  } finally {
+    Object.defineProperty(window, 'location', original)
+  }
 })
