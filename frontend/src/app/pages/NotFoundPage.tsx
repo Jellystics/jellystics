@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { SearchX } from 'lucide-react'
-import { AppLink } from '@/app/AppLink'
-import { Button, EmptyState } from '@/ui'
+import { ButtonLink, EmptyState } from '@/ui'
 
 export function NotFoundPage() {
   const { t } = useTranslation()
@@ -10,7 +9,7 @@ export function NotFoundPage() {
       icon={<SearchX size={20} strokeWidth={1.6} />}
       title={t('app.notFound.title')}
       description={t('app.notFound.description')}
-      action={<AppLink to="/"><Button size="sm">{t('app.notFound.home')}</Button></AppLink>}
+      action={<ButtonLink to="/" size="sm">{t('app.notFound.home')}</ButtonLink>}
     />
   )
 }

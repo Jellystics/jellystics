@@ -42,6 +42,7 @@ it('RetentionChart: one hit zone per episode, retention label, click', () => {
   expect(container.querySelector('svg')).toHaveTextContent('40 %')
   fireEvent.click(hits[3])
   expect(onClick).toHaveBeenCalledWith(2, 1)
+  expect(hits[3]).toHaveAttribute('aria-label', 'app.chart.episodeShort')
 })
 
 it('StopHistogram renders one bar zone per bin', () => {

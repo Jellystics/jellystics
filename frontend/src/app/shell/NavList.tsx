@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { AppLink } from '../AppLink'
+import { AppLink } from '@/ui'
 import { useActiveNav } from './crumbs'
 import { NAV_GROUPS } from './nav'
 import styles from './Sidebar.module.css'

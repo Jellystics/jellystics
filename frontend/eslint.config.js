@@ -4,6 +4,8 @@ import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
+const BANNED = ['@mui/*', '@emotion/*', 'recharts', 'recharts/*', '@fluentui/*', '@tabler/*', 'axios', 'notistack']
+
 export default tseslint.config(
   {
     ignores: [
@@ -29,7 +31,26 @@ export default tseslint.config(
   },
   {
     // Primitives deliberately co-export small helpers next to their components.
-    files: ['src/ui/**', 'src/charts/**', 'src/app/routes.tsx', 'src/app/AppLink.tsx', 'src/app/pages/ItemRedirect.tsx', '**/*.test.{ts,tsx}'],
+    files: ['src/ui/**', 'src/charts/**', 'src/app/routes.tsx', 'src/app/pages/ItemRedirect.tsx', '**/*.test.{ts,tsx}'],
     rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
+    // New code must stay free of the legacy UI stack.
+    files: ['src/{styles,lib,ui,charts,app}/**/*.{ts,tsx}'],
+    ignores: ['src/app/legacy/**', 'src/lib/{theme.ts,ThemeModeContext.tsx,PaletteContext.tsx,FaviconContext.tsx,dateRange.tsx,palette.ts,favicon.ts,chartColors.ts,dateLocale.ts,axios.ts,publicApi.ts}'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [{ group: BANNED, message: 'Legacy UI stack is not allowed in new code.' }] }],
+    },
+  },
+  {
+    // Layering: the ui kit, charts and lib never depend on the app layer.
+    files: ['src/{ui,charts,lib}/**/*.{ts,tsx}'],
+    ignores: ['src/lib/{theme.ts,ThemeModeContext.tsx,PaletteContext.tsx,FaviconContext.tsx,dateRange.tsx,palette.ts,favicon.ts,chartColors.ts,dateLocale.ts,axios.ts,publicApi.ts}'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [
+        { group: BANNED, message: 'Legacy UI stack is not allowed in new code.' },
+        { group: ['@/app', '@/app/*'], message: 'ui/charts/lib must not import from the app layer.' },
+      ] }],
+    },
   },
 )

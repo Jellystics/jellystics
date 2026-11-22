@@ -1,6 +1,7 @@
 import { forwardRef } from 'react'
 import { Link, useLocation, type LinkProps, type To } from 'react-router-dom'
 import { PERIOD_PARAMS } from '@/lib/period'
+import { buttonClass, type ButtonVariant, type ButtonSize } from './Button'
 
 export type AppLinkProps = LinkProps & { keepPeriod?: boolean }
 
@@ -28,4 +29,9 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
   const { search } = useLocation()
   const target = keepPeriod && !/^[a-z][a-z0-9+.-]*:/i.test(typeof to === 'string' ? to : '') ? withPeriod(to, new URLSearchParams(search)) : to
   return <Link ref={ref} to={target} {...rest} />
+})
+
+/** AppLink styled as a button (a single <a>, no nested button). */
+export const ButtonLink = forwardRef<HTMLAnchorElement, AppLinkProps & { variant?: ButtonVariant; size?: ButtonSize }>(function ButtonLink({ variant, size, className, ...rest }, ref) {
+  return <AppLink ref={ref} className={buttonClass({ variant, size, className })} {...rest} />
 })

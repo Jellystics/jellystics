@@ -31,3 +31,11 @@ it('today in a timezone', () => {
   expect(todayIn('Europe/Paris', d)).toBe('2026-11-22')
   expect(todayIn('UTC', d)).toBe('2026-11-21')
 })
+it('rejects impossible calendar dates', () => {
+  expect(parsePeriod(P('from=2026-02-31&to=2026-03-05'), today).preset).toBe('30d')
+  expect(parsePeriod(P('from=2026-02-28&to=2026-03-05'), today).preset).toBe('custom')
+})
+it('ignores compare for the "all" preset', () => {
+  expect(parsePeriod(P('range=all&compare=1'), today).compare).toBe(false)
+  expect(serializePeriod({ preset: 'all', from: '2000-01-01', to: '2026-11-23', compare: true })).toEqual({ range: 'all' })
+})

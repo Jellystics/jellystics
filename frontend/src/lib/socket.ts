@@ -1,12 +1,18 @@
 import { useEffect, useRef } from 'react'
 import { io } from 'socket.io-client'
+import { getToken } from './auth'
 
 const socket = io('/', {
   withCredentials: true,
   autoConnect: false,
   auth: (cb) => {
-    cb({ token: localStorage.getItem('jellystics-token') })
+    cb({ token: getToken() })
   },
+})
+
+socket.on('connect_error', (err) => {
+  // Auth failure: stop the auto-reconnect loop (the next API 401 redirects to /login).
+  if (/unauthori[sz]ed|invalid token|jwt|forbidden|auth/i.test(err.message)) socket.disconnect()
 })
 
 export default socket

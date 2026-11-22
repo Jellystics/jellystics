@@ -7,6 +7,7 @@ export function ErrorState({ title, description, onRetry }: { title: string; des
   const { t } = useTranslation()
   return (
     <EmptyState
+      role="alert"
       icon={<AlertTriangle size={20} strokeWidth={1.6} />}
       title={title}
       description={description}

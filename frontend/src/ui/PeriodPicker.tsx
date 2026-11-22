@@ -23,7 +23,7 @@ export function PeriodPicker() {
   const range = (from: string, to: string) => `${fmt(from)} – ${fmt(addDays(to, -1))}`
 
   const label = period.preset === 'custom' ? range(period.from, period.to) : t(`app.period.${period.preset}`)
-  const prev = period.compare ? previousPeriod(period) : null
+  const prev = period.compare && period.preset !== 'all' ? previousPeriod(period) : null
 
   return (
     <RPopover.Root open={customOpen} onOpenChange={setCustomOpen}>
@@ -55,7 +55,7 @@ export function PeriodPicker() {
               {t('app.period.custom')}
             </DropdownMenu.Item>
             <DropdownMenu.Separator className={menu.sep} />
-            <DropdownMenu.CheckboxItem className={menu.item} checked={period.compare} onCheckedChange={(c) => update({ compare: c === true })}>
+            <DropdownMenu.CheckboxItem className={menu.item} checked={period.compare && period.preset !== 'all'} disabled={period.preset === 'all'} onCheckedChange={(c) => update({ compare: c === true })}>
               <span className={menu.check}><DropdownMenu.ItemIndicator><Check size={12} strokeWidth={2.5} aria-hidden /></DropdownMenu.ItemIndicator></span>
               {t('app.period.compare')}
             </DropdownMenu.CheckboxItem>

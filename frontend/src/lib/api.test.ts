@@ -25,9 +25,17 @@ it('throws ApiError with status', async () => {
 it('clears the session on 401', async () => {
   setSession('tok', 'lea')
   const assign = vi.fn()
-  Object.defineProperty(window, 'location', { value: { ...window.location, pathname: '/users', assign }, writable: true, configurable: true })
+  Object.defineProperty(window, 'location', { value: { ...window.location, pathname: '/users', search: '?range=7d', assign }, writable: true, configurable: true })
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
   await expect(apiFetch('/x')).rejects.toMatchObject({ status: 401 })
   expect(getToken()).toBeNull()
-  expect(assign).toHaveBeenCalledWith('/login')
+  expect(assign).toHaveBeenCalledWith('/login?next=%2Fusers%3Frange%3D7d')
+})
+
+it('does not redirect when already on /login', async () => {
+  const assign = vi.fn()
+  Object.defineProperty(window, 'location', { value: { ...window.location, pathname: '/login', search: '', assign }, writable: true, configurable: true })
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }))
+  await expect(apiFetch('/x')).rejects.toMatchObject({ status: 401 })
+  expect(assign).not.toHaveBeenCalled()
 })

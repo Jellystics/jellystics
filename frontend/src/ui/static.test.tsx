@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { Button, MethodBadge, ViewBadge, Avatar, Art, Meter, SegBar, Breadcrumbs, EmptyState } from '@/ui'
+import { ButtonLink, ErrorState, Button, MethodBadge, ViewBadge, Avatar, Art, Meter, SegBar, Breadcrumbs, EmptyState } from '@/ui'
 
 it('Button variants and icon-only accessibility', () => {
   render(<><Button variant="primary">Sync</Button><Button iconOnly aria-label="Filtrer" icon={<svg />} /></>)
@@ -45,4 +45,15 @@ it('Breadcrumbs: last item is current page, others are links', () => {
 it('EmptyState', () => {
   render(<EmptyState title="Aucune lecture" description="Élargis la période" />)
   expect(screen.getByText('Aucune lecture')).toBeInTheDocument()
+})
+
+it('ButtonLink renders a single anchor with button classes', () => {
+  const { container } = render(<MemoryRouter><ButtonLink to="/" variant="primary" size="sm">Home</ButtonLink></MemoryRouter>)
+  expect(container.querySelectorAll('a')).toHaveLength(1)
+  expect(container.querySelector('button')).toBeNull()
+  expect(screen.getByRole('link', { name: 'Home' })).toHaveClass('btn', 'primary', 'sm')
+})
+it('ErrorState is announced as an alert', () => {
+  render(<ErrorState title="Oups" />)
+  expect(screen.getByRole('alert')).toHaveTextContent('Oups')
 })

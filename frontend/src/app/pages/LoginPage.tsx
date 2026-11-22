@@ -17,7 +17,9 @@ const LANGS = [
 type Step = 'server' | 'credentials'
 
 function safeNext(next: string | null): string {
-  return next && /^\/[^/\\]/.test(next) && !next.includes('\\') ? next : '/'
+  if (!next || !/^\/[^/\\]/.test(next) || next.includes('\\')) return '/'
+  const path = next.split(/[?#]/)[0]
+  return path === '/login' || path === '/setup' ? '/' : next
 }
 
 export default function LoginPage() {

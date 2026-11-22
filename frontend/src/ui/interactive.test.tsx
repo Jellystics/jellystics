@@ -56,3 +56,12 @@ it('PeriodPicker custom range stores an exclusive end date', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'app.period.apply' }))
   expect(search).toBe('?from=2025-01-01&to=2025-01-11')
 })
+
+it('PeriodPicker disables compare and shows no "vs" for the all preset', async () => {
+  const qc = new QueryClient(); qc.setQueryData(['server-config'], { configured: true, timezone: 'Europe/Paris' })
+  render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={['/?range=all&compare=1']}><PeriodPicker /></MemoryRouter></QueryClientProvider>)
+  const trigger = screen.getByRole('button', { name: /app.period.all/ })
+  expect(trigger).not.toHaveTextContent('app.period.vs')
+  await userEvent.click(trigger)
+  expect(screen.getByRole('menuitemcheckbox', { name: /app.period.compare/ })).toHaveAttribute('aria-disabled', 'true')
+})

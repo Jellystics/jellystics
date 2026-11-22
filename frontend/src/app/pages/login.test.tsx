@@ -57,7 +57,7 @@ it('runs the setup wizard when unconfigured', async () => {
   expect(calls.find((c) => c.url === '/auth/configSetup')?.body).toEqual({ JF_HOST: 'http://jf', JF_API_KEY: 'KEY' })
 })
 
-it.each(['//evil.com', '/\\evil.com', 'https://evil.com', '/\\\\x'])('ignores hostile next=%s', async (next) => {
+it.each(['//evil.com', '/\\evil.com', 'https://evil.com', '/\\\\x', '/login', '/login?next=%2Fx', '/setup'])('ignores hostile next=%s', async (next) => {
   const { router } = setup(1, 200, next)
   await screen.findByText('MyJelly')
   await userEvent.type(screen.getByLabelText('app.login.username'), 'bob')

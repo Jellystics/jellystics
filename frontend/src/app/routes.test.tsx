@@ -122,3 +122,23 @@ it('shows the breadcrumb trail for a settings section', async () => {
   renderApp('/settings/backup'); await screen.findByText('legacy-settings:backup')
   expect(crumbTrail()).toEqual([['app.nav.settings', '/settings'], ['app.crumb.settings.backup', null]])
 })
+
+it('unknown settings section renders the 404 page', async () => {
+  renderApp('/settings/bogus'); expect(await screen.findByText('app.notFound.title')).toBeInTheDocument()
+})
+it('/setup redirects to /login even when unauthenticated, without next', async () => {
+  const router = renderApp('/setup?x=1', { token: null })
+  await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+  expect(router.state.location.search).toBe('')
+})
+it('track redirect keeps the period params', async () => {
+  mockFetch({ '/api/v2/items/x1/route': { type: 'track', id: 'x1', albumId: 'a1' } })
+  const router = renderApp('/items/x1?range=7d')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/albums/a1'))
+  expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({ track: 'x1', range: '7d' })
+})
+it.each(['/', '/history', '/insights'])('legacy page %s hides the global period picker', async (p) => {
+  renderApp(p)
+  await screen.findByText(/legacy-/)
+  expect(screen.queryByRole('button', { name: /app\.period\./ })).toBeNull()
+})

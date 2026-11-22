@@ -1,4 +1,4 @@
-import { AppLink as Link } from '@/app/AppLink'
+import { AppLink as Link } from './AppLink'
 import { useTranslation } from 'react-i18next'
 import { Pause } from 'lucide-react'
 import { Art } from './Art'

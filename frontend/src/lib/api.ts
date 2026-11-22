@@ -19,7 +19,7 @@ export async function apiFetch<T>(path: string, opts: { method?: string; params?
   try { data = text ? JSON.parse(text) : undefined } catch { data = text }
   if (res.status === 401) {
     clearSession()
-    if (window.location.pathname !== '/login') window.location.assign('/login')
+    if (window.location.pathname !== '/login') window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
   }
   if (!res.ok) throw new ApiError(res.status, data)
   return data as T

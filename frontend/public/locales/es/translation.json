@@ -491,6 +491,7 @@
       "retention": "Retención por episodio",
       "retentionLabel": "de retención",
       "viewers": "Espectadores",
+      "episodeShort": "T{{season}} · E{{episode}}",
       "vsFirstEpisode": "vs T1E1",
       "season": "Temporada",
       "stops": "Paradas",

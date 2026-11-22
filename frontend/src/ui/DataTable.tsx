@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { AppLink as Link } from '@/app/AppLink'
+import { AppLink as Link } from './AppLink'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type SortingState } from '@tanstack/react-table'

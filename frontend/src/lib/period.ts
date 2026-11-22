@@ -9,7 +9,7 @@ const RE = /^\d{4}-\d{2}-\d{2}$/
 const toDate = (s: string) => new Date(`${s}T00:00:00Z`)
 const toStr = (d: Date) => d.toISOString().slice(0, 10)
 export const addDays = (s: string, n: number) => { const d = toDate(s); d.setUTCDate(d.getUTCDate() + n); return toStr(d) }
-const valid = (s: string | null): s is string => !!s && RE.test(s) && !Number.isNaN(toDate(s).getTime())
+const valid = (s: string | null): s is string => !!s && RE.test(s) && !Number.isNaN(toDate(s).getTime()) && toStr(toDate(s)) === s
 
 export function todayIn(tz: string, now = new Date()): string { return formatInTimeZone(now, tz, 'yyyy-MM-dd') }
 
@@ -27,18 +27,18 @@ function presetRange(p: Preset, today: string): { from: string; to: string } {
 }
 
 export function parsePeriod(params: URLSearchParams, today: string): Period {
-  const compare = params.get('compare') === '1'
+  const wantsCompare = params.get('compare') === '1'
   const from = params.get('from'), to = params.get('to')
-  if (valid(from) && valid(to) && from < to) return { preset: 'custom', from, to, compare }
+  if (valid(from) && valid(to) && from < to) return { preset: 'custom', from, to, compare: wantsCompare }
   const r = params.get('range') as Preset | null
   const preset: Preset = r && PRESETS.includes(r) ? r : '30d'
-  return { preset, ...presetRange(preset, today), compare }
+  return { preset, ...presetRange(preset, today), compare: wantsCompare && preset !== 'all' }
 }
 
 export function serializePeriod(p: Period): Record<string, string> {
   const out: Record<string, string> = {}
   if (p.preset === 'custom') { out.from = p.from; out.to = p.to } else if (p.preset !== '30d') out.range = p.preset
-  if (p.compare) out.compare = '1'
+  if (p.compare && p.preset !== 'all') out.compare = '1'
   return out
 }
 

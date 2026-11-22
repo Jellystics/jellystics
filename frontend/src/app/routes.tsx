@@ -65,25 +65,30 @@ function AlbumPage() {
 function SettingsSection() {
   const { section = 'config' } = useParams()
   const sp = new URLSearchParams(useLocation().search); sp.set('view', section)
+  if (!SETTINGS_SECTIONS.includes(section)) return <NotFoundPage />
   return <LegacyAt path="/settings" location={{ pathname: '/settings', search: `?${sp}` }}><SettingsPage /></LegacyAt>
 }
 
 type Match = Parameters<NonNullable<RouteHandle['crumb']>>[0]
 const nav = (n: NonNullable<RouteHandle['nav']>, crumb?: RouteHandle['crumb']): { handle: RouteHandle } => ({ handle: { nav: n, crumb } })
+/** Legacy pages that ship their own date controls: hide the global period picker. */
+const ownPeriod = (n: NonNullable<RouteHandle['nav']>): { handle: RouteHandle } => ({ handle: { nav: n, period: false } })
 const LIBS = { label: 'app.nav.libraries', to: '/libraries' }
 const USERS = { label: 'app.nav.users', to: '/users' }
 const trail = (...items: Crumb[]) => () => items
-const settingsTrail = (m: Match): Crumb[] => [{ label: 'app.nav.settings', to: '/settings' }, { label: `app.crumb.settings.${m.params.section ?? 'config'}` }]
+const SETTINGS_SECTIONS = ['config', 'tasks', 'backup', 'logs', 'webhooks', 'apikeys', 'about']
+const settingsTrail = (m: Match): Crumb[] => [{ label: 'app.nav.settings', to: '/settings' }, ...(SETTINGS_SECTIONS.includes(m.params.section ?? 'config') ? [{ label: `app.crumb.settings.${m.params.section ?? 'config'}` }] : [])]
 const legacy = (el: React.ReactElement) => <LegacyPage>{el}</LegacyPage>
 
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
+  { path: '/setup', element: <To to="/login" search="" /> },
   {
     element: <RequireAuth><AppShell /></RequireAuth>,
     children: [
-      { path: '/', ...nav('overview'), element: legacy(<DashboardPage />) },
+      { path: '/', ...ownPeriod('overview'), element: legacy(<DashboardPage />) },
       { path: '/live', ...nav('live'), element: <ComingSoon nav="live" /> },
-      { path: '/history', ...nav('history'), element: <History /> },
+      { path: '/history', ...ownPeriod('history'), element: <History /> },
       { path: '/libraries', ...nav('libraries'), element: legacy(<LibrariesPage />) },
       { path: '/libraries/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.library' })), element: legacy(<LibraryDetailPage />) },
       { path: '/movies/:id', ...nav('libraries', trail(LIBS, { label: 'app.crumb.movie' })), element: <ItemPage /> },
@@ -94,7 +99,7 @@ export const routes: RouteObject[] = [
       { path: '/users', ...nav('users'), element: legacy(<UsersPage />) },
       { path: '/users/:id', ...nav('users', trail(USERS, { label: 'app.crumb.user' })), element: legacy(<UserDetailPage />) },
       { path: '/users/:id/recap/:period', ...nav('users', (m) => [USERS, { label: 'app.crumb.user', to: `/users/${m.params.id}` }, { label: 'app.crumb.recap' }]), element: <ComingSoon nav="users" /> },
-      { path: '/insights', ...nav('insights'), element: legacy(<StatisticsPage />) },
+      { path: '/insights', ...ownPeriod('insights'), element: legacy(<StatisticsPage />) },
       { path: '/discover', ...nav('discover'), element: <ComingSoon nav="discover" /> },
       { path: '/playback', ...nav('playback'), element: <ComingSoon nav="playback" /> },
       { path: '/settings', ...nav('settings'), element: <SettingsIndex /> },
@@ -107,7 +112,6 @@ export const routes: RouteObject[] = [
       { path: '/activity', element: <To to="/history" /> },
       { path: '/activity/timeline', element: <TimelineRedirect /> },
       { path: '/about', element: <To to="/settings/about" /> },
-      { path: '/setup', element: <To to="/login" search="" /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

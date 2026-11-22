@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppShell } from './AppShell'
-import { AppLink } from '../AppLink'
+import { AppLink } from '@/ui'
 
 function renderAt(path: string) {
   const qc = new QueryClient(); qc.setQueryData(['server-config'], { configured: true, timezone: 'Europe/Paris' })
@@ -43,4 +43,17 @@ it('resets the palette query when reopened', async () => {
   await userEvent.keyboard('{Control>}k{/Control}')
   await userEvent.keyboard('{Control>}k{/Control}')
   expect(screen.getByRole('searchbox')).toHaveValue('')
+})
+it('hides the period picker on routes flagged period:false', () => {
+  const qc = new QueryClient(); qc.setQueryData(['server-config'], { configured: true, timezone: 'Europe/Paris' })
+  const router = createMemoryRouter([{ element: <AppShell />, children: [
+    { path: '/', handle: { nav: 'overview', period: false }, element: <p>own</p> },
+    { path: '/b', handle: { nav: 'users' }, element: <p>b</p> },
+  ] }], { initialEntries: ['/'] })
+  const { unmount } = render(<QueryClientProvider client={qc}><RouterProvider router={router} /></QueryClientProvider>)
+  expect(screen.queryByRole('button', { name: /app\.period\./ })).toBeNull()
+  unmount()
+  const r2 = createMemoryRouter([{ element: <AppShell />, children: [{ path: '/b', handle: { nav: 'users' }, element: <p>b</p> }] }], { initialEntries: ['/b'] })
+  render(<QueryClientProvider client={qc}><RouterProvider router={r2} /></QueryClientProvider>)
+  expect(screen.getByRole('button', { name: /app\.period\./ })).toBeInTheDocument()
 })

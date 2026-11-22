@@ -5,7 +5,9 @@ import { useMatches, type UIMatch } from 'react-router-dom'
 export type Crumb = { label: string; to?: string }
 export type NavKey = 'overview' | 'live' | 'history' | 'libraries' | 'users' | 'insights' | 'discover' | 'playback' | 'settings'
 export type RouteHandle = { /** Static trail (i18n keys as labels, translated by useCrumbs). */
-  crumb?: (match: UIMatch) => Crumb | Crumb[] | null; nav?: NavKey }
+  crumb?: (match: UIMatch) => Crumb | Crumb[] | null; nav?: NavKey
+  /** false hides the global period picker (legacy pages with their own date controls). */
+  period?: boolean }
 
 export const CrumbLabelContext = createContext<{ label: string | null; set: (l: string | null) => void }>({ label: null, set: () => {} })
 
@@ -30,6 +32,11 @@ export function useSetCrumbLabel(label: string | undefined | null) {
     set(label || null)
     return () => set(null)
   }, [label, set])
+}
+
+export function useShowPeriod(): boolean {
+  const matches = useMatches()
+  return (matches[matches.length - 1]?.handle as RouteHandle | undefined)?.period !== false
 }
 
 export function useActiveNav(): NavKey | undefined {

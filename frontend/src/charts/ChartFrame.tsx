@@ -15,7 +15,7 @@ function download(name: string, table: TableData) {
   a.href = url
   a.download = `${name}.csv`
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export function ChartFrame({ title, subtitle, legend, table, csvName, action, children }: {

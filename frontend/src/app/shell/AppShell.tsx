@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Toaster, toast } from '@/ui'
+import { toast } from '@/ui'
 import socket, { useSocketEvent } from '@/lib/socket'
 import { CrumbLabelContext } from './crumbs'
 import { Sidebar } from './Sidebar'
@@ -58,7 +58,6 @@ export function AppShell() {
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       {TASK_EVENTS.map((e) => <TaskToast key={e} event={e} />)}
-      <Toaster />
     </CrumbLabelContext.Provider>
   )
 }

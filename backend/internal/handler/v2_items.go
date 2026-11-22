@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
@@ -46,18 +47,18 @@ func (h *ItemRouteHandler) Route(c *gin.Context) {
 		return
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		internalError(c, err)
 		return
 	}
 
 	var ep models.JFLibraryEpisode
-	err = h.db.WithContext(ctx).Select("Id", "SeriesId").Where(`"Id" = ?`, id).Take(&ep).Error
+	err = h.db.WithContext(ctx).Select("Id", "SeriesId").Where(`"Id" = ? OR "EpisodeId" = ?`, id, id).Take(&ep).Error
 	if err == nil {
 		c.JSON(http.StatusOK, itemRoute{Type: "episode", Id: id, SeriesId: ep.SeriesId})
 		return
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		internalError(c, err)
 		return
 	}
 
@@ -71,5 +72,10 @@ func (h *ItemRouteHandler) Route(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	internalError(c, err)
+}
+
+func internalError(c *gin.Context, err error) {
+	log.Printf("item route %s: %v", c.Param("id"), err)
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 }

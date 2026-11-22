@@ -28,6 +28,7 @@ func TestItemRoute(t *testing.T) {
 		{Id: "x1", Type: sp("BoxSet")},
 	}).Error)
 	must(db.Create(&models.JFLibraryEpisode{Id: "e1", SeriesId: sp("s1")}).Error)
+	must(db.Create(&models.JFLibraryEpisode{Id: "e2", EpisodeId: sp("jf-e2"), SeriesId: sp("s1")}).Error)
 	must(db.Create(&models.JFMusicTrack{Id: "t1", AlbumId: sp("a1"), Genres: datatypes.JSON([]byte("[]"))}).Error)
 
 	gin.SetMode(gin.TestMode)
@@ -44,6 +45,7 @@ func TestItemRoute(t *testing.T) {
 		{"a1", "album", "", "", 200},
 		{"x1", "other", "", "", 200},
 		{"e1", "episode", "s1", "", 200},
+		{"jf-e2", "episode", "s1", "", 200},
 		{"t1", "track", "", "a1", 200},
 		{"nope", "", "", "", 404},
 	}

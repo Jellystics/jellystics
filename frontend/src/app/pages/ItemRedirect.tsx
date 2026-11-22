@@ -2,7 +2,7 @@ import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, apiFetch } from '@/lib/api'
-import { ErrorState, Skeleton } from '@/ui'
+import { ErrorState, Skeleton, withPeriod } from '@/ui'
 import { NotFoundPage } from './NotFoundPage'
 
 export type ItemRoute = { type: 'movie' | 'series' | 'episode' | 'album' | 'track' | 'other'; id: string; seriesId?: string; albumId?: string }
@@ -33,6 +33,6 @@ export function ItemRedirect() {
     return <ErrorState title={t('app.error.generic')} onRetry={() => void q.refetch()} />
   }
   const target = itemPath(q.data)
-  const extra = search && !target.includes('?') ? search : ''
-  return <Navigate to={target + extra} replace />
+  if (target.includes('?')) return <Navigate to={withPeriod(target, new URLSearchParams(search))} replace />
+  return <Navigate to={target + search} replace />
 }

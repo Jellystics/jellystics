@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { AppLink } from '../AppLink'
+import { AppLink } from '@/ui'
 import { NavList } from './NavList'
 import { UserMenu } from './UserMenu'
 import { Brand } from './Brand'
