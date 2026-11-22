@@ -430,13 +430,15 @@
     "action": {
       "remove": "Retirer",
       "retry": "Réessayer",
-      "cancel": "Annuler"
+      "cancel": "Annuler",
+      "removeNamed": "Retirer {{name}}"
     },
     "nav": {
       "breadcrumbs": "Fil d’Ariane",
       "main": "Navigation principale",
       "openMenu": "Ouvrir le menu",
       "closeMenu": "Fermer le menu",
+      "skipToContent": "Aller au contenu",
       "liveCount_one": "{{count}} lecture en cours",
       "liveCount_other": "{{count}} lectures en cours",
       "overview": "Vue d'ensemble",

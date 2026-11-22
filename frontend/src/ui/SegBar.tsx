@@ -10,21 +10,21 @@ export function SegBar({ parts, thin }: { parts: SegPart[]; thin?: boolean }) {
   const total = parts.reduce((a, p) => a + p.value, 0) || 1
   if (thin) {
     return (
-      <div className={styles.thin}>
+      <div className={styles.thin} role="list">
         {parts.map((p) => (
-          <span key={p.label} tabIndex={0} aria-label={`${p.label} : ${p.display ?? formatPercent(p.value / total, locale)}`} style={{ flex: p.value, background: p.color }} />
+          <span key={p.label} role="listitem" tabIndex={0} aria-label={`${p.label} : ${p.display ?? formatPercent(p.value / total, locale)}`} style={{ flex: p.value, background: p.color }} />
         ))}
       </div>
     )
   }
   return (
     <>
-      <div className={styles.tall}>
+      <div className={styles.tall} role="list">
         {parts.map((p) => {
           const share = p.value / total
           const pct = formatPercent(share, locale)
           return (
-            <span key={p.label} tabIndex={0} aria-label={`${p.label} : ${p.display ?? pct}`} style={{ flex: p.value, background: p.color, color: p.ink ?? '#fff' }}>
+            <span key={p.label} role="listitem" tabIndex={0} aria-label={`${p.label} : ${p.display ?? pct}`} style={{ flex: p.value, background: p.color, color: p.ink ?? 'var(--ink-on-accent)' }}>
               {share > 0.09 ? pct : ''}
             </span>
           )

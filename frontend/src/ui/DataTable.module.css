@@ -1,4 +1,5 @@
-.wrap { overflow-x: auto; }
+/* Scroll container for both axes so the sticky header has something to stick to. */
+.wrap { overflow: auto; max-height: 70vh; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 .table th { text-align: left; font-weight: 550; font-size: var(--fs-sm); color: var(--ink-3); padding: 8px var(--s-4); border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface); position: sticky; top: 0; }
 .sortBtn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }

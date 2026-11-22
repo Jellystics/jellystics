@@ -14,3 +14,4 @@
 .btn:disabled { opacity: .45; pointer-events: none; }
 .iconOnly { width: 32px; padding: 0; }
 .iconOnly.sm { width: 26px; }
+.iconOnly.lg { width: 38px; }

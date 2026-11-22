@@ -34,7 +34,7 @@ export function StatTile({ label, value, unit, delta, comparedTo, foot, trend, s
             const Icon = ICON[delta.direction]
             const tone = delta.direction === 'flat' ? styles.flat : delta.good ? styles.good : styles.bad
             return (
-              <span className={`${styles.delta} delta ${tone} ${delta.direction === 'flat' ? 'flat' : delta.good ? 'good' : 'bad'}`}>
+              <span className={`${styles.delta} ${tone}`}>
                 <Icon size={12} aria-hidden="true" data-icon={delta.direction} />
                 {delta.text}
               </span>

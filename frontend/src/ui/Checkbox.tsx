@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import * as RCheckbox from '@radix-ui/react-checkbox'
 import { Check } from 'lucide-react'
-import styles from './Switch.module.css'
+import styles from './Checkbox.module.css'
 
 export function Checkbox({ checked, onCheckedChange, label }: { checked: boolean; onCheckedChange: (c: boolean) => void; label: string }) {
   const id = useId()

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import * as RPopover from '@radix-ui/react-popover'
 import { CalendarDays, Check, ChevronDown } from 'lucide-react'
@@ -18,6 +18,7 @@ export function PeriodPicker() {
   const { t, i18n } = useTranslation()
   const [period, update] = usePeriod()
   const [customOpen, setCustomOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const locale = i18n.resolvedLanguage || 'fr'
   const fmt = (s: string) => formatDay(toLocalDate(s), locale)
   const range = (from: string, to: string) => `${fmt(from)} – ${fmt(addDays(to, -1))}`
@@ -31,7 +32,7 @@ export function PeriodPicker() {
         <RPopover.Anchor asChild>
           <span>
             <DropdownMenu.Trigger asChild>
-              <Button variant="secondary" icon={<CalendarDays size={14} strokeWidth={1.6} aria-hidden />}>
+              <Button ref={triggerRef} variant="secondary" icon={<CalendarDays size={14} strokeWidth={1.6} aria-hidden />}>
                 {label}
                 {prev && <span className={styles.vs}>{t('app.period.vs', { range: range(prev.from, prev.to) })}</span>}
                 <ChevronDown size={14} strokeWidth={1.6} aria-hidden />
@@ -63,7 +64,7 @@ export function PeriodPicker() {
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
       <RPopover.Portal>
-        <RPopover.Content className={menu.pop} align="end" sideOffset={4}>
+        <RPopover.Content className={menu.pop} align="end" sideOffset={4} onCloseAutoFocus={(e) => { e.preventDefault(); triggerRef.current?.focus() }}>
           <CustomRange
             from={period.from}
             to={addDays(period.to, -1)}

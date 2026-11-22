@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { Check, CircleAlert, Info } from 'lucide-react'
 import styles from './Toast.module.css'
 
@@ -28,12 +28,12 @@ export const toast = {
 
 function ToastView({ item }: { item: ToastItem }) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const start = () => { clearTimeout(timer.current); timer.current = setTimeout(() => dismiss(item.id), DURATION) }
-  const stop = () => clearTimeout(timer.current)
-  useEffect(() => { start(); return stop }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const start = useCallback(() => { clearTimeout(timer.current); timer.current = setTimeout(() => dismiss(item.id), DURATION) }, [item.id])
+  const stop = useCallback(() => clearTimeout(timer.current), [])
+  useEffect(() => { start(); return stop }, [start, stop])
   const Icon = item.kind === 'success' ? Check : item.kind === 'error' ? CircleAlert : Info
   return (
-    <div className={styles.toast} onMouseEnter={stop} onMouseLeave={start}>
+    <div className={styles.toast} role={item.kind === 'error' ? 'alert' : undefined} onMouseEnter={stop} onMouseLeave={start} onFocus={stop} onBlur={start}>
       <span className={item.kind === 'success' ? styles.ok : item.kind === 'error' ? styles.err : undefined}><Icon size={16} strokeWidth={1.6} aria-hidden /></span>
       <span>{item.message}</span>
       {item.action && <button type="button" className={styles.action} onClick={() => { item.action!.onClick(); dismiss(item.id) }}>{item.action.label}</button>}

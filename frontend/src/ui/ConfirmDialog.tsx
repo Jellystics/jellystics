@@ -16,7 +16,7 @@ export function ConfirmDialog({ open, onOpenChange, title, description, confirmL
   const [busy, setBusy] = useState(false)
   const confirm = async () => {
     setBusy(true)
-    try { await onConfirm(); onOpenChange(false) } finally { setBusy(false) }
+    try { await onConfirm(); onOpenChange(false) } catch { /* the caller reports the failure; keep the dialog open for a retry */ } finally { setBusy(false) }
   }
   return (
     <Dialog

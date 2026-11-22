@@ -1,0 +1,4 @@
+.row { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--fs-md); color: var(--ink); cursor: pointer; }
+.checkbox { width: 16px; height: 16px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); display: inline-grid; place-items: center; background: var(--surface); padding: 0; color: var(--ink-on-accent); flex: none; cursor: pointer; }
+.checkbox[data-state="checked"] { background: var(--accent); border-color: var(--accent); }
+.checkbox:focus-visible { outline: none; box-shadow: var(--focus); }

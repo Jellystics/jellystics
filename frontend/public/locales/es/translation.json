@@ -430,13 +430,15 @@
     "action": {
       "remove": "Quitar",
       "retry": "Reintentar",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "removeNamed": "Quitar {{name}}"
     },
     "nav": {
       "breadcrumbs": "Ruta de navegación",
       "main": "Navegación principal",
       "openMenu": "Abrir menú",
       "closeMenu": "Cerrar menú",
+      "skipToContent": "Saltar al contenido",
       "liveCount_one": "{{count}} reproducción en curso",
       "liveCount_other": "{{count}} reproducciones en curso",
       "overview": "Resumen",

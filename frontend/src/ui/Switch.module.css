@@ -3,6 +3,4 @@
 .thumb { display: block; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: var(--r-full); background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: left var(--dur); }
 .switch[data-state="checked"] { background: var(--accent); border-color: var(--accent); }
 .switch[data-state="checked"] .thumb { left: 16px; }
-.switch:focus-visible, .checkbox:focus-visible { outline: none; box-shadow: var(--focus); }
-.checkbox { width: 16px; height: 16px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); display: inline-grid; place-items: center; background: var(--surface); padding: 0; color: #fff; flex: none; cursor: pointer; }
-.checkbox[data-state="checked"] { background: var(--accent); border-color: var(--accent); }
+.switch:focus-visible { outline: none; box-shadow: var(--focus); }

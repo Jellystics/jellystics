@@ -430,13 +430,15 @@
     "action": {
       "remove": "Remove",
       "retry": "Retry",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "removeNamed": "Remove {{name}}"
     },
     "nav": {
       "breadcrumbs": "Breadcrumbs",
       "main": "Main navigation",
       "openMenu": "Open menu",
       "closeMenu": "Close menu",
+      "skipToContent": "Skip to content",
       "liveCount_one": "{{count}} active playback",
       "liveCount_other": "{{count}} active playbacks",
       "overview": "Overview",

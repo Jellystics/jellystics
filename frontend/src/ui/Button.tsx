@@ -8,14 +8,14 @@ export function buttonClass({ variant = 'secondary', size = 'md', iconOnly, clas
   return [styles.btn, styles[variant], size !== 'md' && styles[size], iconOnly && styles.iconOnly, className].filter(Boolean).join(' ')
 }
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonBase = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> & {
   variant?: ButtonVariant
   size?: ButtonSize
   icon?: ReactNode
-  /** Requires aria-label. */
-  iconOnly?: boolean
   asChild?: false
 }
+/** An icon-only button has no visible text, so an accessible name is mandatory. */
+export type ButtonProps = ButtonBase & ({ iconOnly: true; 'aria-label': string } | { iconOnly?: false; 'aria-label'?: string })
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 'md', icon, iconOnly, asChild: _asChild, className, children, type = 'button', ...rest },
