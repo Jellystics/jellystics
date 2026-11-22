@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
 )
@@ -77,6 +78,8 @@ type PlaybackRepository interface {
 	Upsert(ctx context.Context, activities []models.JFPlaybackActivity) error
 	List(ctx context.Context, limit int) ([]models.JFPlaybackActivity, error)
 	ListByUser(ctx context.Context, userId string) ([]models.JFPlaybackActivity, error)
+	// BackfillTracking fills accurate-tracking columns of legacy / restored rows.
+	BackfillTracking(ctx context.Context) error
 }
 
 // WatchdogRepository manages jf_activity_watchdog.
@@ -203,4 +206,14 @@ type ActivityEntry struct {
 	Client               *string `json:"client"`
 	DeviceName           *string `json:"deviceName"`
 	ActivityDateInserted *string `json:"activityDateInserted"`
+}
+
+// AuthSessionRepository manages auth_sessions.
+type AuthSessionRepository interface {
+	Create(ctx context.Context, s *models.AuthSession) error
+	Get(ctx context.Context, id string) (*models.AuthSession, error)
+	Touch(ctx context.Context, id string, validated bool) error
+	Delete(ctx context.Context, id string) error
+	// ListIdle returns sessions not seen since before.
+	ListIdle(ctx context.Context, before time.Time) ([]models.AuthSession, error)
 }

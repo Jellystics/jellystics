@@ -145,14 +145,23 @@ export default function BackupTab() {
             anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
           >
-            <MenuItem onClick={() => {
-              const a = document.createElement('a')
-              a.href = `/backup/files/${encodeURIComponent(menuAnchor?.name ?? '')}`
-              a.download = menuAnchor?.name ?? ''
-              document.body.appendChild(a)
-              a.click()
-              document.body.removeChild(a)
+            <MenuItem onClick={async () => {
+              const name = menuAnchor?.name ?? ''
               setMenuAnchor(null)
+              try {
+                // Authenticated download: backups contain the Jellyfin API key.
+                const res = await api.get(`/backup/files/${encodeURIComponent(name)}`, { responseType: 'blob' })
+                const url = URL.createObjectURL(res.data as Blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = name
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+              } catch {
+                enqueueSnackbar(t('common.error'), { variant: 'error' })
+              }
             }}>
               <ListItemIcon><ArrowDownload24Regular style={{ fontSize: 18 }} /></ListItemIcon>
               <ListItemText>{t('common.download')}</ListItemText>

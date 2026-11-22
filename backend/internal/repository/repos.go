@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -335,6 +338,8 @@ func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActiv
 				"EpisodeId", "SeasonId", "SeriesName", "PlaybackDuration", "PlayMethod",
 				"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
 				"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
+				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
+				"PausedSeconds", "StartedAt", "EndedAt", "IsView",
 			}),
 		}).
 		CreateInBatches(acts, 500).Error
@@ -375,6 +380,8 @@ func (r *watchdogRepo) Upsert(ctx context.Context, entries []models.JFActivityWa
 				"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
 				"OriginalContainer", "RemoteEndPoint", "ServerId",
 				"WatchedSeconds", "LastTickAt",
+				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "WatchedMs", "PausedMs",
+				"StartedAt", "LastCheckIn", "PeriodicReporter", "LastServerActivity",
 			}),
 		}).
 		CreateInBatches(entries, 500).Error
@@ -422,40 +429,154 @@ func (r *pluginDataRepo) GetMaxRowId(ctx context.Context) (int64, error) {
 	return res.MaxRowId, err
 }
 
+func displayTZ() string {
+	name, _ := statsql.Timezone()
+	return name
+}
+
+// MergeIntoPlaybackActivity imports staged PlaybackReporting rows as plays.
+//
+//   - Only movies, episodes and music tracks are imported.
+//   - The plugin writes its row ~20 s after playback start (DateCreated, in
+//     the Jellyfin server's local time, no offset) and keeps updating its
+//     duration while the play goes on. Rows younger than a day are therefore
+//     not imported yet (their duration may still grow); they are imported by a
+//     later run once final.
+//   - A plugin row is skipped when the same play is already recorded by the
+//     Jellystics tracker (or is being tracked right now): same user and item,
+//     and either overlapping in time (TZ-interpreted), or — robust to a
+//     missing/wrong TZ setting — starting within ±14 h with a similar duration.
 func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`
+		WITH src AS (
+			SELECT
+				p.*,
+				(p."DateCreated"::timestamp AT TIME ZONE CAST(@tz AS text)) - interval '20 seconds' AS started_at,
+				COALESCE(p."PlayDuration", 0) AS dur,
+				e."Id"        AS ep_id,
+				e."SeriesId"  AS series_id,
+				e."SeasonId"  AS season_id,
+				e."RunTimeTicks" AS ep_rt,
+				s."Name"      AS series_name,
+				mt."Id"       AS track_id,
+				mt."AlbumId"  AS album_id,
+				mt."AlbumName" AS album_name,
+				mt."RunTimeTicks" AS track_rt,
+				i."RunTimeTicks" AS item_rt,
+				CASE
+					WHEN e."Id" IS NOT NULL THEN 'Episode'
+					WHEN mt."Id" IS NOT NULL THEN 'Audio'
+					WHEN i."Type" = 'Movie' THEN 'Movie'
+					WHEN p."ItemType" IN ('Movie', 'Episode', 'Audio') THEN p."ItemType"
+					ELSE 'Other'
+				END AS media_type
+			FROM jf_playback_reporting_plugin_data p
+			LEFT JOIN jf_library_episodes e ON e."Id" = p."ItemId"
+			LEFT JOIN jf_library_items s ON s."Id" = e."SeriesId"
+			LEFT JOIN jf_music_tracks mt ON mt."Id" = p."ItemId"
+			LEFT JOIN jf_library_items i ON i."Id" = p."ItemId"
+			WHERE p."DateCreated" ~ '^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}'
+		)
 		INSERT INTO jf_playback_activity (
-			"Id", "IsPaused", "UserId", "UserName", "Client", "DeviceName", "DeviceId",
-			"ApplicationVersion", "NowPlayingItemId", "NowPlayingItemName",
-			"SeasonId", "SeriesName", "EpisodeId",
+			"Id", "IsPaused", "UserId", "UserName", "Client", "DeviceName",
+			"NowPlayingItemId", "NowPlayingItemName", "SeasonId", "SeriesName", "EpisodeId",
 			"PlaybackDuration", "ActivityDateInserted", "PlayMethod",
-			"MediaStreams", "TranscodingInfo", "PlayState", "OriginalContainer", "RemoteEndPoint", "ServerId",
-			"imported"
+			"ItemId", "MediaType", "RunTimeTicks", "StartedAt", "EndedAt", "IsView",
+			source, imported
 		)
 		SELECT
-			p."rowid",
-			false,
-			p."UserId",
-			COALESCE(u."Name", p."UserId"),
-			p."ClientName",
-			p."DeviceName",
-			NULL, NULL,
-			COALESCE(e."SeriesId", mt."AlbumId", p."ItemId"),
-			p."ItemName",
-			e."SeasonId",
-			COALESCE(s."Name", mt."AlbumName"),
-			CASE WHEN e."Id" IS NOT NULL OR mt."Id" IS NOT NULL THEN p."ItemId" ELSE NULL END,
-			p."PlayDuration",
-			p."DateCreated",
-			p."PlaybackMethod",
-			NULL, NULL, NULL, NULL, NULL, NULL,
-			true
-		FROM jf_playback_reporting_plugin_data p
-		LEFT JOIN jf_users u ON u."Id" = p."UserId"
-		LEFT JOIN jf_library_episodes e ON e."Id" = p."ItemId" OR e."EpisodeId" = p."ItemId"
-		LEFT JOIN jf_library_items s ON s."Id" = e."SeriesId"
-		LEFT JOIN jf_music_tracks mt ON mt."Id" = p."ItemId"
+			src."rowid", false, src."UserId", COALESCE(u."Name", src."UserId"),
+			src."ClientName", src."DeviceName",
+			COALESCE(src.series_id, src.album_id, src."ItemId"),
+			src."ItemName",
+			src.season_id,
+			COALESCE(src.series_name, src.album_name),
+			CASE WHEN src.ep_id IS NOT NULL OR src.track_id IS NOT NULL THEN src."ItemId" END,
+			src.dur,
+			src."DateCreated",
+			src."PlaybackMethod",
+			src."ItemId",
+			src.media_type,
+			COALESCE(src.ep_rt, src.track_rt, src.item_rt),
+			src.started_at,
+			src.started_at + make_interval(secs => src.dur),
+			src.dur >= 30,
+			'plugin', true
+		FROM src
+		LEFT JOIN jf_users u ON u."Id" = src."UserId"
+		WHERE src.media_type IN ('Movie', 'Episode', 'Audio')
+		  AND src.started_at < now() - interval '1 day'
+		  AND NOT EXISTS (
+			SELECT 1 FROM jf_activity_watchdog w
+			WHERE w."UserId" = src."UserId" AND w."ItemId" = src."ItemId"
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM jf_playback_activity a
+			WHERE COALESCE(a.imported, false) = false
+			  AND a."UserId" = src."UserId"
+			  AND a."ItemId" = src."ItemId"
+			  AND (
+				(a."StartedAt" <= src.started_at + make_interval(secs => src.dur) + interval '2 minutes'
+				 AND COALESCE(a."EndedAt", a."StartedAt") >= src.started_at - interval '2 minutes')
+				OR
+				(a."StartedAt" BETWEEN src.started_at - interval '14 hours' AND src.started_at + interval '14 hours'
+				 AND abs(COALESCE(a."PlaybackDuration", 0) - src.dur) <= GREATEST(60, 0.15 * GREATEST(COALESCE(a."PlaybackDuration", 0), src.dur)))
+			  )
+		  )
 		ON CONFLICT ("Id") DO NOTHING
+	`, sql.Named("tz", displayTZ())).Error
+}
+
+// BackfillTracking fills the accurate-tracking columns (migration 008) of
+// rows that lack them: rows recorded before the upgrade, imported plugin
+// rows, and rows coming from a restored backup. Safe to run repeatedly; it
+// only touches rows whose ItemId or StartedAt is NULL.
+//
+// Dates with an offset are parsed as-is; dates without one are server-local
+// time in TZ (imported plugin rows are also shifted by the plugin's 20 s
+// delay). Items no longer in the catalog keep a best-effort media type from
+// the legacy columns (episode/track rows had EpisodeId set).
+func (r *playbackRepo) BackfillTracking(ctx context.Context) error {
+	err := r.db.WithContext(ctx).Exec(`
+		UPDATE jf_playback_activity a SET
+			"ItemId" = COALESCE(a."ItemId", a."EpisodeId", a."NowPlayingItemId"),
+			"MediaType" = COALESCE(a."MediaType", CASE
+				WHEN x.ep_id IS NOT NULL THEN 'Episode'
+				WHEN x.track_id IS NOT NULL THEN 'Audio'
+				WHEN x.item_type = 'Movie' THEN 'Movie'
+				WHEN x.item_type IS NOT NULL THEN 'Other'
+				WHEN a."EpisodeId" IS NOT NULL AND a."SeasonId" IS NOT NULL THEN 'Episode'
+				WHEN a."EpisodeId" IS NOT NULL THEN 'Audio'
+				ELSE 'Movie'
+			END),
+			"RunTimeTicks" = COALESCE(a."RunTimeTicks", x.rt),
+			"StartedAt" = COALESCE(a."StartedAt", CASE
+				WHEN a."ActivityDateInserted" ~ '\d{2}:\d{2}(:\d{2}(\.\d+){0,1}){0,1}\s*(Z|[+-]\d{2}(:{0,1}\d{2}){0,1})$'
+					THEN a."ActivityDateInserted"::timestamptz
+				WHEN a."ActivityDateInserted" ~ '^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}'
+					THEN (a."ActivityDateInserted"::timestamp AT TIME ZONE CAST(@tz AS text))
+					     - CASE WHEN COALESCE(a.imported, false) THEN interval '20 seconds' ELSE interval '0' END
+			END),
+			"IsView" = CASE WHEN a."ItemId" IS NULL THEN COALESCE(a."PlaybackDuration", 0) >= 30 ELSE a."IsView" END
+		FROM (
+			SELECT b."Id",
+				e."Id" AS ep_id, t."Id" AS track_id, i."Type" AS item_type,
+				COALESCE(e."RunTimeTicks", t."RunTimeTicks", i."RunTimeTicks") AS rt
+			FROM jf_playback_activity b
+			LEFT JOIN jf_library_episodes e ON e."Id" = COALESCE(b."ItemId", b."EpisodeId", b."NowPlayingItemId")
+			LEFT JOIN jf_music_tracks t ON t."Id" = COALESCE(b."ItemId", b."EpisodeId", b."NowPlayingItemId")
+			LEFT JOIN jf_library_items i ON i."Id" = COALESCE(b."ItemId", b."EpisodeId", b."NowPlayingItemId")
+			WHERE b."ItemId" IS NULL OR b."StartedAt" IS NULL
+		) x
+		WHERE x."Id" = a."Id"
+	`, sql.Named("tz", displayTZ())).Error
+	if err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Exec(`
+		UPDATE jf_playback_activity
+		SET "EndedAt" = "StartedAt" + make_interval(secs => COALESCE("PlaybackDuration", 0))
+		WHERE "EndedAt" IS NULL AND "StartedAt" IS NOT NULL
 	`).Error
 }
 
@@ -513,6 +634,10 @@ func (r *webhookRepo) Delete(ctx context.Context, id int) error {
 }
 
 // ---- stats ----
+//
+// All aggregates follow package statsql: Movie / Episode / Audio rows only,
+// plays = IsView rows, watch time = SUM(PlaybackDuration), local days in the
+// display time zone.
 
 type statsRepo struct{ db *gorm.DB }
 
@@ -524,11 +649,10 @@ func (r *statsRepo) GetGlobalStats(ctx context.Context) (*GlobalStats, error) {
 	var stats GlobalStats
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
-			COUNT(*)                           AS total_plays,
-			COALESCE(SUM("PlaybackDuration"),0) AS total_duration,
-			(SELECT COUNT(*) FROM jf_users)    AS total_users,
+			(SELECT COUNT(*) FILTER (WHERE a."IsView") FROM jf_playback_activity a WHERE `+statsql.MediaFilter("a")+`) AS total_plays,
+			(SELECT COALESCE(SUM(a."PlaybackDuration"), 0) FROM jf_playback_activity a WHERE `+statsql.MediaFilter("a")+`) AS total_duration,
+			(SELECT COUNT(*) FROM jf_users) AS total_users,
 			(SELECT COUNT(*) FROM jf_libraries WHERE archived = false) AS total_libraries
-		FROM jf_playback_activity
 	`).Scan(&stats).Error
 	return &stats, err
 }
@@ -536,24 +660,18 @@ func (r *statsRepo) GetGlobalStats(ctx context.Context) (*GlobalStats, error) {
 func (r *statsRepo) GetMostViewedLibraries(ctx context.Context, limit int) ([]LibraryPlayStat, error) {
 	var out []LibraryPlayStat
 	err := r.db.WithContext(ctx).Raw(`
-		WITH library_activity AS (
-			SELECT DISTINCT l."Id" AS library_id, a."Id" AS activity_id
-			FROM jf_libraries l
-			LEFT JOIN jf_library_items i  ON i."ParentId" = l."Id" AND i.archived = false
-			LEFT JOIN jf_library_episodes ep ON ep."SeriesId" = i."Id"
-			LEFT JOIN jf_music_tracks mt ON mt."LibraryId" = l."Id" AND mt.archived = false
-			LEFT JOIN jf_playback_activity a ON
-				a."NowPlayingItemId" = i."Id" OR
-				a."EpisodeId" = ep."Id" OR
-				a."NowPlayingItemId" = mt."Id"
-			WHERE l.archived = false
+		WITH plays AS (
+			SELECT `+statsql.LibraryID+` AS library_id, COUNT(*) AS total_plays
+			FROM jf_playback_activity a`+statsql.CatalogJoins+`
+			WHERE a."IsView" AND `+statsql.MediaFilter("a")+`
+			GROUP BY 1
 		)
-		SELECT la.library_id AS id, l."Name" AS name, l."CollectionType" AS collection_type,
-		       COUNT(la.activity_id)::bigint AS total_plays
-		FROM library_activity la
-		JOIN jf_libraries l ON l."Id" = la.library_id
-		GROUP BY la.library_id, l."Name", l."CollectionType"
-		ORDER BY total_plays DESC
+		SELECT l."Id" AS id, l."Name" AS name, l."CollectionType" AS collection_type,
+		       COALESCE(p.total_plays, 0)::bigint AS total_plays
+		FROM jf_libraries l
+		LEFT JOIN plays p ON p.library_id = l."Id"
+		WHERE l.archived = false
+		ORDER BY total_plays DESC, l."Name"
 		LIMIT ?
 	`, limit).Scan(&out).Error
 	return out, err
@@ -562,92 +680,97 @@ func (r *statsRepo) GetMostViewedLibraries(ctx context.Context, limit int) ([]Li
 func (r *statsRepo) GetLibraryStats(ctx context.Context, libraryId string) (*LibraryStats, error) {
 	var stats LibraryStats
 	err := r.db.WithContext(ctx).Raw(`
-		WITH library_plays AS (
-			SELECT DISTINCT a."Id" AS activity_id, a."ActivityDateInserted"
-			FROM jf_libraries l
-			LEFT JOIN jf_library_items i  ON i."ParentId" = l."Id" AND i.archived = false
-			LEFT JOIN jf_library_episodes ep ON ep."SeriesId" = i."Id"
-			LEFT JOIN jf_music_tracks mt ON mt."LibraryId" = l."Id" AND mt.archived = false
-			LEFT JOIN jf_playback_activity a ON
-				a."NowPlayingItemId" = i."Id" OR
-				a."EpisodeId" = ep."Id" OR
-				a."NowPlayingItemId" = mt."Id"
-			WHERE l."Id" = ?
+		WITH plays AS (
+			SELECT COUNT(*) FILTER (WHERE a."IsView")::int AS total_plays,
+			       MAX(`+statsql.StartedAt("a")+`) AS last_activity
+			FROM jf_playback_activity a`+statsql.CatalogJoins+`
+			WHERE `+statsql.MediaFilter("a")+` AND `+statsql.LibraryID+` = ?
 		)
 		SELECT
 			l."Id" AS id,
-			(COUNT(DISTINCT i."Id") FILTER (WHERE i."Type" NOT IN ('Season','Folder'))
-			 + COUNT(DISTINCT mt."Id"))::int AS total_items,
-			COUNT(DISTINCT ep."Id")::int AS total_episodes,
-			(SELECT COUNT(activity_id) FROM library_plays)::int AS total_plays,
-			(SELECT MAX("ActivityDateInserted") FROM library_plays) AS last_activity
+			((SELECT COUNT(*) FROM jf_library_items WHERE "ParentId" = l."Id" AND archived = false AND "Type" = 'Movie')
+			 + (SELECT COUNT(*) FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId" AND s.archived = false
+			    WHERE s."ParentId" = l."Id" AND e.archived = false)
+			 + (SELECT COUNT(*) FROM jf_music_tracks WHERE "LibraryId" = l."Id" AND archived = false))::int AS total_items,
+			(SELECT COUNT(*) FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId" AND s.archived = false
+			 WHERE s."ParentId" = l."Id" AND e.archived = false)::int AS total_episodes,
+			(SELECT total_plays FROM plays) AS total_plays,
+			(SELECT `+statsql.ISO("last_activity")+` FROM plays) AS last_activity
 		FROM jf_libraries l
-		LEFT JOIN jf_library_items    i  ON i."ParentId"  = l."Id" AND i.archived  = false
-		LEFT JOIN jf_library_episodes ep ON ep."SeriesId" = i."Id"
-		LEFT JOIN jf_music_tracks     mt ON mt."LibraryId" = l."Id" AND mt.archived = false
 		WHERE l."Id" = ?
-		GROUP BY l."Id"
 	`, libraryId, libraryId).Scan(&stats).Error
 	return &stats, err
 }
 
 func (r *statsRepo) GetActivityOverTime(ctx context.Context, days int) ([]DailyActivity, error) {
 	var out []DailyActivity
+	loc := statsql.Location()
+	since := statsql.StartOfDay(time.Now(), loc).AddDate(0, 0, -days)
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT
-			DATE("ActivityDateInserted"::timestamptz) AS date,
-			COUNT(*) AS count
-		FROM jf_playback_activity
-		WHERE "ActivityDateInserted"::timestamptz >= NOW() - ? * INTERVAL '1 day'
-		GROUP BY date
-		ORDER BY date ASC
-	`, days).Scan(&out).Error
+		SELECT TO_CHAR(`+statsql.LocalTS("a")+`::date, 'YYYY-MM-DD') AS date, COUNT(*) AS count
+		FROM jf_playback_activity a
+		WHERE a."IsView" AND `+statsql.MediaFilter("a")+` AND `+statsql.StartedAt("a")+` >= ?
+		GROUP BY 1
+		ORDER BY 1 ASC
+	`, since).Scan(&out).Error
 	return out, err
 }
 
+// GetTopUsers returns one row per user id, labelled with the user's current
+// name (a rename must not split a user into two rows / label sets).
 func (r *statsRepo) GetTopUsers(ctx context.Context, limit int) ([]UserStat, error) {
 	var out []UserStat
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
-			a."UserId"  AS user_id,
-			COALESCE(u."Name", a."UserName", a."UserId") AS user_name,
-			COUNT(*)    AS total_plays,
+			a."UserId" AS user_id,
+			COALESCE(MAX(u."Name"), MAX(a."UserName"), a."UserId") AS user_name,
+			COUNT(*) FILTER (WHERE a."IsView") AS total_plays,
 			COALESCE(SUM(a."PlaybackDuration"), 0)::float8 / 3600.0 AS total_hours
 		FROM jf_playback_activity a
 		LEFT JOIN jf_users u ON u."Id" = a."UserId"
-		GROUP BY a."UserId", u."Name", a."UserName"
-		ORDER BY total_plays DESC
+		WHERE a."UserId" IS NOT NULL AND `+statsql.MediaFilter("a")+`
+		GROUP BY a."UserId"
+		ORDER BY total_plays DESC, total_hours DESC
 		LIMIT ?
 	`, limit).Scan(&out).Error
 	return out, err
 }
 
+// GetMostPlayedItems lists the library's movies / series / albums by views
+// (series and albums aggregate their episodes / tracks).
 func (r *statsRepo) GetMostPlayedItems(ctx context.Context, libraryId string, limit int) ([]ItemPlayStat, error) {
 	var out []ItemPlayStat
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
 			i."Id" AS id, i."Name" AS name, i."Type" AS type,
-			COUNT(a."Id")::bigint AS times_played,
-			COALESCE(SUM(a."PlaybackDuration"),0) AS total_duration
-		FROM jf_library_items i
-		JOIN jf_playback_activity a ON a."NowPlayingItemId" = i."Id"
-		WHERE i."ParentId" = ? AND i.archived = false
+			COUNT(*) FILTER (WHERE a."IsView")::bigint AS times_played,
+			COALESCE(SUM(a."PlaybackDuration"), 0) AS total_duration
+		FROM jf_playback_activity a`+statsql.CatalogJoins+`
+		JOIN jf_library_items i ON i."Id" = COALESCE(cm."Id", cs."Id", cal."Id")
+		WHERE `+statsql.MediaFilter("a")+` AND i."ParentId" = ? AND i.archived = false
 		GROUP BY i."Id", i."Name", i."Type"
+		HAVING COUNT(*) FILTER (WHERE a."IsView") > 0
 		ORDER BY times_played DESC
 		LIMIT ?
 	`, libraryId, limit).Scan(&out).Error
 	return out, err
 }
 
+// trackViews counts views per track id.
+const trackViews = `(
+	SELECT "ItemId" AS track_id, COUNT(*) AS plays
+	FROM jf_playback_activity
+	WHERE "MediaType" = 'Audio' AND "IsView"
+	GROUP BY "ItemId"
+)`
+
 func (r *statsRepo) GetMostPlayedArtists(ctx context.Context, libraryId string, limit int) ([]ArtistPlayStat, error) {
 	var out []ArtistPlayStat
 	err := r.db.WithContext(ctx).Raw(`
-		SELECT
-			ar."Id" AS artist_id, ar."Name" AS artist_name,
-			COUNT(a."Id")::bigint AS times_played
+		SELECT ar."Id" AS artist_id, ar."Name" AS artist_name, SUM(v.plays)::bigint AS times_played
 		FROM jf_music_artists ar
 		JOIN jf_music_tracks t ON t."ArtistId" = ar."Id"
-		JOIN jf_playback_activity a ON a."EpisodeId" = t."Id"
+		JOIN `+trackViews+` v ON v.track_id = t."Id"
 		WHERE ar."LibraryId" = ? AND ar.archived = false
 		GROUP BY ar."Id", ar."Name"
 		ORDER BY times_played DESC
@@ -658,16 +781,11 @@ func (r *statsRepo) GetMostPlayedArtists(ctx context.Context, libraryId string, 
 
 func (r *statsRepo) GetMostPlayedAlbums(ctx context.Context, libraryId, artistId string, limit int) ([]AlbumPlayStat, error) {
 	var out []AlbumPlayStat
-	q := r.db.WithContext(ctx)
-	// Album plays are recorded as playback rows whose NowPlayingItemId is the
-	// album id (each track play maps parent=AlbumId, child=trackId). Count them
-	// directly on the album to avoid multiplying by the track count.
 	sql := `
-		SELECT
-			i."Id" AS album_id, i."Name" AS album_name,
-			COUNT(a."Id")::bigint AS times_played
+		SELECT i."Id" AS album_id, i."Name" AS album_name, SUM(v.plays)::bigint AS times_played
 		FROM jf_library_items i
-		JOIN jf_playback_activity a ON a."NowPlayingItemId" = i."Id"
+		JOIN jf_music_tracks t ON t."AlbumId" = i."Id"
+		JOIN ` + trackViews + ` v ON v.track_id = t."Id"
 		WHERE i."Type" = 'MusicAlbum' AND i.archived = false
 	`
 	args := []any{}
@@ -677,23 +795,22 @@ func (r *statsRepo) GetMostPlayedAlbums(ctx context.Context, libraryId, artistId
 	}
 	if artistId != "" {
 		sql += ` AND EXISTS (
-			SELECT 1 FROM jf_music_tracks t
-			WHERE t."AlbumId" = i."Id" AND t."ArtistId" = ?
+			SELECT 1 FROM jf_music_tracks t2
+			WHERE t2."AlbumId" = i."Id" AND t2."ArtistId" = ?
 		)`
 		args = append(args, artistId)
 	}
 	sql += ` GROUP BY i."Id", i."Name" ORDER BY times_played DESC LIMIT ?`
 	args = append(args, limit)
-	return out, q.Raw(sql, args...).Scan(&out).Error
+	return out, r.db.WithContext(ctx).Raw(sql, args...).Scan(&out).Error
 }
 
 func (r *statsRepo) GetMostPlayedTracks(ctx context.Context, libraryId, albumId string, limit int) ([]TrackPlayStat, error) {
 	sql := `
-		SELECT
-			t."Id" AS track_id, t."Name" AS track_name, t."AlbumName" AS album_name,
-			COUNT(a."Id")::bigint AS times_played
+		SELECT t."Id" AS track_id, t."Name" AS track_name, t."AlbumName" AS album_name,
+		       v.plays::bigint AS times_played
 		FROM jf_music_tracks t
-		JOIN jf_playback_activity a ON a."EpisodeId" = t."Id"
+		JOIN ` + trackViews + ` v ON v.track_id = t."Id"
 		WHERE t.archived = false
 	`
 	args := []any{}
@@ -705,7 +822,7 @@ func (r *statsRepo) GetMostPlayedTracks(ctx context.Context, libraryId, albumId 
 		sql += ` AND t."AlbumId" = ?`
 		args = append(args, albumId)
 	}
-	sql += ` GROUP BY t."Id", t."Name", t."AlbumName" ORDER BY times_played DESC LIMIT ?`
+	sql += ` ORDER BY times_played DESC, t."Name" LIMIT ?`
 	args = append(args, limit)
 	var result []TrackPlayStat
 	return result, r.db.WithContext(ctx).Raw(sql, args...).Scan(&result).Error
@@ -713,8 +830,7 @@ func (r *statsRepo) GetMostPlayedTracks(ctx context.Context, libraryId, albumId 
 
 func (r *statsRepo) GetUserHistory(ctx context.Context, userId string, page, pageSize int) ([]ActivityEntry, int64, error) {
 	var total int64
-	r.db.WithContext(ctx).Model(&models.JFPlaybackActivity{}).
-		Where(`"UserId" = ?`, userId).Count(&total)
+	r.db.WithContext(ctx).Raw(`SELECT COUNT(*) FROM jf_playback_activity a WHERE a."UserId" = ? AND `+statsql.MediaFilter("a"), userId).Scan(&total)
 
 	var rows []ActivityEntry
 	err := r.db.WithContext(ctx).Raw(`
@@ -733,8 +849,8 @@ func (r *statsRepo) GetUserHistory(ctx context.Context, userId string, page, pag
 			a."ActivityDateInserted" AS activity_date_inserted
 		FROM jf_playback_activity a
 		LEFT JOIN jf_users u ON u."Id" = a."UserId"
-		WHERE a."UserId" = ?
-		ORDER BY a."ActivityDateInserted" DESC
+		WHERE a."UserId" = ? AND `+statsql.MediaFilter("a")+`
+		ORDER BY `+statsql.StartedAt("a")+` DESC
 		LIMIT ? OFFSET ?
 	`, userId, pageSize, (page-1)*pageSize).Scan(&rows).Error
 	return rows, total, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -25,19 +26,33 @@ type Hub struct {
 
 	sessionMu sync.Mutex
 	sessions  map[string]*pollSession
+
+	// authorize validates the token sent in the Socket.IO namespace connect
+	// packet. nil means every client is accepted (tests).
+	authorize func(token string) bool
 }
 
 type wsClient struct {
 	conn   *websocket.Conn
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// token is re-validated every reauthEvery so a logged-out or revoked
+	// session stops receiving live data.
+	token    string
+	authMu   sync.Mutex
+	authedAt time.Time
 }
+
+const reauthEvery = 5 * time.Minute
 
 // pollSession holds state for a client during the polling phase.
 type pollSession struct {
 	createdAt time.Time
 	mu        sync.Mutex
 	pending   []string
+	authed    bool
+	token     string
 }
 
 func NewHub() *Hub {
@@ -68,6 +83,11 @@ func (h *Hub) Emit(event string, data any) {
 
 	log.Printf("[ws] Emit %s → %d client(s)", event, len(clients))
 	for _, c := range clients {
+		if !h.stillAuthorized(c) {
+			_ = c.conn.Write(c.ctx, websocket.MessageText, []byte(`44{"message":"unauthorized"}`))
+			h.removeClient(c)
+			continue
+		}
 		if err := c.conn.Write(c.ctx, websocket.MessageText, raw); err != nil {
 			log.Printf("[ws] Emit %s write error (removing client): %v", event, err)
 			h.removeClient(c)
@@ -118,10 +138,18 @@ func (h *Hub) handlePolling(w http.ResponseWriter, r *http.Request, sid string) 
 	switch r.Method {
 	case http.MethodPost:
 		// Client sends namespace connect packet (e.g. "40" or "40{"token":"..."}").
+		// Queue the namespace connect ack back, or a connect error if the
+		// token is rejected.
 		// Queue the namespace connect ack back.
 		if sess != nil {
 			sess.mu.Lock()
-			sess.pending = append(sess.pending, "40")
+			if ok, tok := h.checkConnectPacket(r); ok {
+				sess.authed = true
+				sess.token = tok
+				sess.pending = append(sess.pending, "40")
+			} else {
+				sess.pending = append(sess.pending, `44{"message":"unauthorized"}`)
+			}
 			sess.mu.Unlock()
 		}
 		fmt.Fprint(w, "ok")
@@ -182,6 +210,23 @@ func (h *Hub) handleWebSocket(w http.ResponseWriter, r *http.Request, sid string
 		return
 	}
 
+	// The token was presented during the polling phase (namespace connect).
+	var token string
+	if h.authorize != nil {
+		ps := h.getSession(sid)
+		if ps != nil {
+			ps.mu.Lock()
+			token = ps.token
+			ps.mu.Unlock()
+		}
+		if ps == nil || !ps.isAuthed() {
+			_ = conn.Write(ctx, websocket.MessageText, []byte(`44{"message":"unauthorized"}`))
+			cancel()
+			conn.Close(websocket.StatusPolicyViolation, "unauthorized")
+			return
+		}
+	}
+
 	// Remove the polling session now that WS took over
 	if sid != "" {
 		h.sessionMu.Lock()
@@ -199,7 +244,7 @@ func (h *Hub) handleWebSocket(w http.ResponseWriter, r *http.Request, sid string
 		return
 	}
 
-	c := &wsClient{conn: conn, ctx: ctx, cancel: cancel}
+	c := &wsClient{conn: conn, ctx: ctx, cancel: cancel, token: token, authedAt: time.Now()}
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
 	total := len(h.clients)
@@ -269,4 +314,56 @@ func (h *Hub) cleanupLoop() {
 		}
 		h.sessionMu.Unlock()
 	}
+}
+
+// SetAuthorizer installs the token validator used for Socket.IO connections.
+func (h *Hub) SetAuthorizer(fn func(token string) bool) { h.authorize = fn }
+
+func (s *pollSession) isAuthed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.authed
+}
+
+// checkConnectPacket parses a Socket.IO namespace connect packet
+// (`40{"token":"..."}`, possibly batched with \x1e) from a polling POST body
+// and validates its token.
+func (h *Hub) checkConnectPacket(r *http.Request) (bool, string) {
+	if h.authorize == nil {
+		return true, ""
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	if err != nil {
+		return false, ""
+	}
+	for _, pkt := range strings.Split(string(body), "\x1e") {
+		if !strings.HasPrefix(pkt, "40") {
+			continue
+		}
+		var payload struct {
+			Token string `json:"token"`
+		}
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(pkt, "40")), &payload); err != nil || payload.Token == "" {
+			return false, ""
+		}
+		return h.authorize(payload.Token), payload.Token
+	}
+	return false, ""
+}
+
+// stillAuthorized re-validates a client's token every reauthEvery.
+func (h *Hub) stillAuthorized(c *wsClient) bool {
+	if h.authorize == nil {
+		return true
+	}
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+	if time.Since(c.authedAt) < reauthEvery {
+		return true
+	}
+	if !h.authorize(c.token) {
+		return false
+	}
+	c.authedAt = time.Now()
+	return true
 }

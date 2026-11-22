@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -11,13 +10,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Jellystics/Jellystics/internal/jellyfin"
 	"github.com/Jellystics/Jellystics/internal/repository"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 // StatsFrontendHandler serves all stats endpoints expected by the frontend.
+//
+// Every endpoint reads jf_playback_activity only (finished playbacks), counts
+// Movie / Episode / Audio rows only, and uses the shared definitions from
+// package statsql: plays = IsView rows, clicks = all rows, watch time =
+// SUM(PlaybackDuration), day/hour buckets in the display time zone (TZ).
+// Live sessions are never mixed into historical numbers.
 type StatsFrontendHandler struct {
 	db    *gorm.DB
 	repos *repository.Container
@@ -32,44 +37,31 @@ func NewStatsFrontendHandler(db *gorm.DB, repos *repository.Container) *StatsFro
 // Helpers
 // ---------------------------------------------------------------------------
 
-// TimeRange holds parsed from/to for SQL queries.
-type TimeRange struct {
-	From    time.Time
-	To      time.Time
-	AllTime bool
+// libraryIdExpr resolves the library of a playback row inside the acts CTE
+// WHERE clause (catalog join aliases are in scope there).
+const libraryIdExpr = statsql.LibraryID
+
+// genreLateral expands acts.genres into one `genre` row per genre; catalog
+// items without genres yield "No Genre". Rows whose item is not in the
+// catalog (genres IS NULL) must be filtered out by the caller.
+const genreLateral = `
+	CROSS JOIN LATERAL jsonb_array_elements_text(
+	  CASE WHEN jsonb_typeof(acts.genres) <> 'array' OR jsonb_array_length(acts.genres) = 0
+	       THEN '["No Genre"]'::jsonb ELSE acts.genres END
+	) AS genre`
+
+// parseTimeRange parses ?from=YYYY-MM-DD&to=YYYY-MM-DD (display time zone,
+// `to` inclusive as a day, end-exclusive as a bound). Defaults to the last 30
+// days; from=all or from=0 means all time.
+func parseTimeRange(c *gin.Context) TimeRange {
+	return parseRange(c.Query("from"), c.Query("to"))
 }
 
-// parseTimeRange parses ?from=YYYY-MM-DD&to=YYYY-MM-DD query params.
-// Defaults to last 30 days if neither is provided.
-// from=all or from=0 means all time.
-func parseTimeRange(c *gin.Context) TimeRange {
-	fromStr := c.Query("from")
-	toStr := c.Query("to")
-
-	if fromStr == "all" || fromStr == "0" {
-		return TimeRange{AllTime: true}
+func strOrEmpty(p *string) string {
+	if p == nil {
+		return ""
 	}
-
-	to := time.Now()
-	from := to.AddDate(0, 0, -30)
-
-	if fromStr != "" {
-		if t, err := time.Parse("2006-01-02", fromStr); err == nil {
-			from = t
-		} else if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
-			from = t
-		}
-	}
-	if toStr != "" {
-		if t, err := time.Parse("2006-01-02", toStr); err == nil {
-			// end of day
-			to = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, time.UTC)
-		} else if t, err := time.Parse(time.RFC3339, toStr); err == nil {
-			to = t
-		}
-	}
-
-	return TimeRange{From: from, To: to}
+	return *p
 }
 
 // Keep parseDays for pagination only (size, page, limit params — NOT time filtering)
@@ -96,202 +88,50 @@ func paginate(total int, pageSize int, page int, results interface{}) pageResult
 	return pageResult{CurrentPage: page, Pages: pages, Size: pageSize, Results: results}
 }
 
-// ---------------------------------------------------------------------------
-// Live session merging
-// ---------------------------------------------------------------------------
-
-type liveSession struct {
-	UserId              string
-	UserName            string
-	Client              string
-	PlayMethod          string
-	NowPlayingItemId    string
-	EpisodeId           string
-	NowPlayingItemName  string
-	Type                string
-	Genres              []string
-	LibraryId           string
-	PlaybackDuration    int // minutes
-	date                string
-	hour                int
-	day                 int
-}
-
-func (h *StatsFrontendHandler) getLiveActivity(ctx context.Context) []liveSession {
-	cfg, err := h.repos.Config.Get(ctx)
-	if err != nil || cfg.JFHost == nil || *cfg.JFHost == "" {
-		return nil
-	}
-	apiKey := ""
-	if cfg.JFApiKey != nil {
-		apiKey = *cfg.JFApiKey
-	}
-	jf := jellyfin.NewClient(*cfg.JFHost, apiKey)
-	sessions, err := jf.GetSessions(ctx)
+func dbError(c *gin.Context, err error) bool {
 	if err != nil {
-		return nil
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return true
 	}
-
-	var active []jellyfin.SessionInfo
-	for _, s := range sessions {
-		if s.NowPlayingItem != nil {
-			active = append(active, s)
-		}
-	}
-	if len(active) == 0 {
-		return nil
-	}
-
-	itemIds := make(map[string]struct{})
-	for _, s := range active {
-		itemIds[s.NowPlayingItem.Id] = struct{}{}
-		if s.NowPlayingItem.SeriesId != nil && *s.NowPlayingItem.SeriesId != "" {
-			itemIds[*s.NowPlayingItem.SeriesId] = struct{}{}
-		}
-		if s.NowPlayingItem.AlbumId != nil && *s.NowPlayingItem.AlbumId != "" {
-			itemIds[*s.NowPlayingItem.AlbumId] = struct{}{}
-		}
-	}
-	ids := make([]string, 0, len(itemIds))
-	for id := range itemIds {
-		ids = append(ids, id)
-	}
-
-	type LibRow struct {
-		Id       string
-		ParentId string
-		Type     string
-		Genres   json.RawMessage
-	}
-	var libRows []LibRow
-	if len(ids) > 0 {
-		h.db.Raw(`
-			SELECT "Id", "ParentId", "Type", "Genres" FROM jf_library_items WHERE "Id" IN ?
-			UNION ALL
-			SELECT "Id", "LibraryId" AS "ParentId", 'Audio' AS "Type", "Genres" FROM jf_music_tracks WHERE "Id" IN ?
-		`, ids, ids).Scan(&libRows)
-	}
-
-	now := time.Now()
-	var result []liveSession
-	for _, s := range active {
-		item := s.NowPlayingItem
-		lookupId := item.Id
-		if item.SeriesId != nil && *item.SeriesId != "" {
-			lookupId = *item.SeriesId
-		} else if item.AlbumId != nil && *item.AlbumId != "" {
-			lookupId = *item.AlbumId
-		}
-
-		var libItem *LibRow
-		for i := range libRows {
-			if libRows[i].Id == lookupId || libRows[i].Id == item.Id {
-				libItem = &libRows[i]
-				break
-			}
-		}
-
-		var genres []string
-		if libItem != nil && libItem.Genres != nil {
-			_ = json.Unmarshal(libItem.Genres, &genres)
-		}
-
-		itemType := "Unknown"
-		if item.SeriesId != nil && *item.SeriesId != "" {
-			itemType = "Series"
-		} else if item.AlbumId != nil && *item.AlbumId != "" {
-			itemType = "Audio"
-		} else if libItem != nil {
-			itemType = libItem.Type
-		}
-
-		libraryId := ""
-		if libItem != nil {
-			libraryId = libItem.ParentId
-		}
-
-		positionTicks := int64(0)
-		if s.PlayState != nil && s.PlayState.PositionTicks != nil {
-			positionTicks = *s.PlayState.PositionTicks
-		}
-		playbackMinutes := int(positionTicks / 600_000_000)
-
-		playMethod := "Unknown"
-		if s.PlayState != nil && s.PlayState.PlayMethod != nil {
-			playMethod = *s.PlayState.PlayMethod
-		}
-
-		episodeId := ""
-		if item.SeriesId != nil && *item.SeriesId != "" {
-			episodeId = item.Id
-		} else if item.AlbumId != nil && *item.AlbumId != "" {
-			episodeId = item.Id
-		}
-
-		itemName := item.Name
-		if item.SeriesName != nil && *item.SeriesName != "" {
-			itemName = *item.SeriesName
-		} else if item.Album != nil && *item.Album != "" {
-			itemName = *item.Album
-		}
-
-		ls := liveSession{
-			UserId:             s.UserId,
-			UserName:           s.UserName,
-			Client:             s.Client,
-			PlayMethod:         playMethod,
-			NowPlayingItemId:   lookupId,
-			EpisodeId:          episodeId,
-			NowPlayingItemName: itemName,
-			Type:               itemType,
-			Genres:             genres,
-			LibraryId:          libraryId,
-			PlaybackDuration:   playbackMinutes,
-			date:               now.Format("2006-01-02"),
-			hour:               now.Hour(),
-			day:                int(now.Weekday()),
-		}
-		result = append(result, ls)
-	}
-	return result
+	return false
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getGlobalStats
+// GET /stats/getGlobalStats (all time)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetGlobalStats(c *gin.Context) {
 	var stats struct {
 		TotalPlays     int `json:"TotalPlays"`
-		TotalWatchTime int `json:"TotalWatchTime"`
+		TotalClicks    int `json:"TotalClicks"`
+		TotalWatchTime int `json:"TotalWatchTime"` // minutes
 		ActiveUsers    int `json:"ActiveUsers"`
 		TotalUsers     int `json:"TotalUsers"`
 		TotalLibraries int `json:"TotalLibraries"`
-		TotalItems     int `json:"TotalItems"`
+		TotalItems     int `json:"TotalItems"` // playable leaves: movies + episodes + tracks
 	}
-	h.db.Raw(`
+	activeSince := statsql.StartOfDay(time.Now(), statsql.Location()).AddDate(0, 0, -30)
+	q, args := acts().sql(`
 		SELECT
-		  (SELECT COUNT(*)::int FROM jf_playback_activity) AS "TotalPlays",
-		  (SELECT FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int FROM jf_playback_activity) AS "TotalWatchTime",
-		  (SELECT COUNT(DISTINCT "UserId")::int FROM jf_playback_activity
-		    WHERE "ActivityDateInserted"::timestamptz >= CURRENT_DATE - INTERVAL '30 days') AS "ActiveUsers",
+		  (SELECT `+aggPlays+` FROM acts) AS "TotalPlays",
+		  (SELECT `+aggClicks+` FROM acts) AS "TotalClicks",
+		  (SELECT `+aggMinutes+` FROM acts) AS "TotalWatchTime",
+		  (SELECT COUNT(DISTINCT user_id)::int FROM acts WHERE is_view AND started_at >= ?) AS "ActiveUsers",
 		  (SELECT COUNT(*)::int FROM jf_users) AS "TotalUsers",
 		  (SELECT COUNT(*)::int FROM jf_libraries WHERE archived = false) AS "TotalLibraries",
-		  ((SELECT COUNT(*)::int FROM jf_library_items WHERE archived = false AND "Type" NOT IN ('Season', 'Folder'))
+		  ((SELECT COUNT(*)::int FROM jf_library_items WHERE archived = false AND "Type" = 'Movie')
+		   + (SELECT COUNT(*)::int FROM jf_library_episodes WHERE archived = false)
 		   + (SELECT COUNT(*)::int FROM jf_music_tracks WHERE archived = false)) AS "TotalItems"
-	`).Scan(&stats)
-
-	live := h.getLiveActivity(c.Request.Context())
-	stats.TotalPlays += len(live)
-	for _, ls := range live {
-		stats.TotalWatchTime += ls.PlaybackDuration
+	`, activeSince)
+	if dbError(c, h.db.Raw(q, args...).Scan(&stats).Error) {
+		return
 	}
-
 	c.JSON(http.StatusOK, stats)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getMostPlayedItems?type=all&limit=5&days=30
+// GET /stats/getMostPlayedItems?type=all|Movie|Series|Audio&limit=5&from=&to=
+// Movies are listed per movie, episodes per series, tracks per album.
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetMostPlayedItems(c *gin.Context) {
@@ -300,114 +140,42 @@ func (h *StatsFrontendHandler) GetMostPlayedItems(c *gin.Context) {
 	tr := parseTimeRange(c)
 
 	type Item struct {
-		Id        string `json:"Id"`
-		Name      string `json:"Name"`
-		PlayCount int    `json:"PlayCount"`
-		Type      string `json:"Type"`
+		Id             string `json:"Id"`
+		Name           string `json:"Name"`
+		PlayCount      int    `json:"PlayCount"`
+		ClickCount     int    `json:"ClickCount"`
+		TotalWatchTime int    `json:"TotalWatchTime"` // minutes
+		Type           string `json:"Type"`
 	}
-	var dbItems []Item
+	items := []Item{}
 
-	baseSQLAllTime := `
-		SELECT
-		  a."NowPlayingItemId" AS "Id",
-		  COALESCE(NULLIF(a."SeriesName", ''), a."NowPlayingItemName") AS "Name",
-		  COUNT(*)::int AS "PlayCount",
-		  CASE
-		    WHEN mt."Id" IS NOT NULL THEN 'Audio'
-		    WHEN a."SeriesName" IS NOT NULL AND a."SeriesName" <> '' THEN 'Series'
-		    ELSE COALESCE(i."Type", 'Unknown')
-		  END AS "Type"
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		LEFT JOIN jf_music_tracks mt ON mt."Id" = a."EpisodeId"
-		WHERE 1=1
-	`
-	baseSQLRange := `
-		SELECT
-		  a."NowPlayingItemId" AS "Id",
-		  COALESCE(NULLIF(a."SeriesName", ''), a."NowPlayingItemName") AS "Name",
-		  COUNT(*)::int AS "PlayCount",
-		  CASE
-		    WHEN mt."Id" IS NOT NULL THEN 'Audio'
-		    WHEN a."SeriesName" IS NOT NULL AND a."SeriesName" <> '' THEN 'Series'
-		    ELSE COALESCE(i."Type", 'Unknown')
-		  END AS "Type"
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		LEFT JOIN jf_music_tracks mt ON mt."Id" = a."EpisodeId"
-		WHERE "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-	`
-	suffix := ` GROUP BY a."NowPlayingItemId", 2, 4 ORDER BY "PlayCount" DESC LIMIT ?`
-
-	if tr.AllTime {
-		baseSQL := baseSQLAllTime
-		switch itemType {
-		case "Series":
-			h.db.Raw(baseSQL+` AND a."SeriesName" IS NOT NULL AND a."SeriesName" <> ''`+suffix, limit).Scan(&dbItems)
-		case "Audio":
-			h.db.Raw(baseSQL+` AND mt."Id" IS NOT NULL`+suffix, limit).Scan(&dbItems)
-		case "Movie":
-			h.db.Raw(baseSQL+` AND COALESCE(i."Type", '') IN ('Movie', 'Video')`+suffix, limit).Scan(&dbItems)
-		case "all":
-			h.db.Raw(baseSQL+suffix, limit).Scan(&dbItems)
-		default:
-			h.db.Raw(baseSQL+` AND i."Type" = ?`+suffix, itemType, limit).Scan(&dbItems)
+	f := acts().inRange(tr)
+	if itemType != "" && itemType != "all" {
+		mt := mediaTypeParam(itemType)
+		if mt == "" {
+			c.JSON(http.StatusOK, items)
+			return
 		}
-	} else {
-		baseSQL := baseSQLRange
-		switch itemType {
-		case "Series":
-			h.db.Raw(baseSQL+` AND a."SeriesName" IS NOT NULL AND a."SeriesName" <> ''`+suffix, tr.From, tr.To, limit).Scan(&dbItems)
-		case "Audio":
-			h.db.Raw(baseSQL+` AND mt."Id" IS NOT NULL`+suffix, tr.From, tr.To, limit).Scan(&dbItems)
-		case "Movie":
-			h.db.Raw(baseSQL+` AND COALESCE(i."Type", '') IN ('Movie', 'Video')`+suffix, tr.From, tr.To, limit).Scan(&dbItems)
-		case "all":
-			h.db.Raw(baseSQL+suffix, tr.From, tr.To, limit).Scan(&dbItems)
-		default:
-			h.db.Raw(baseSQL+` AND i."Type" = ?`+suffix, tr.From, tr.To, itemType, limit).Scan(&dbItems)
-		}
+		f.where(`a."MediaType" = ?`, mt)
 	}
-
-	if dbItems == nil {
-		dbItems = []Item{}
+	q, args := f.sql(`
+		SELECT group_id AS "Id", COALESCE(MAX(group_name), '') AS "Name",
+		       `+aggPlays+` AS "PlayCount", `+aggClicks+` AS "ClickCount",
+		       `+aggMinutes+` AS "TotalWatchTime", display_type AS "Type"
+		FROM acts
+		WHERE group_id IS NOT NULL
+		GROUP BY group_id, display_type
+		HAVING COUNT(*) FILTER (WHERE is_view) > 0
+		ORDER BY "PlayCount" DESC, "TotalWatchTime" DESC, "Name"
+		LIMIT ?`, limit)
+	if dbError(c, h.db.Raw(q, args...).Scan(&items).Error) {
+		return
 	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	liveMap := map[string]*Item{}
-	for _, ls := range live {
-		key := ls.NowPlayingItemId
-		if _, ok := liveMap[key]; !ok {
-			liveMap[key] = &Item{Id: ls.NowPlayingItemId, Name: ls.NowPlayingItemName, PlayCount: 0, Type: ls.Type}
-		}
-		liveMap[key].PlayCount++
-	}
-
-	merged := make([]Item, len(dbItems))
-	copy(merged, dbItems)
-	for _, liveItem := range liveMap {
-		found := false
-		for i := range merged {
-			if merged[i].Id == liveItem.Id {
-				merged[i].PlayCount += liveItem.PlayCount
-				found = true
-				break
-			}
-		}
-		if !found {
-			merged = append(merged, *liveItem)
-		}
-	}
-	sort.Slice(merged, func(i, j int) bool { return merged[i].PlayCount > merged[j].PlayCount })
-	if len(merged) > limit {
-		merged = merged[:limit]
-	}
-
-	c.JSON(http.StatusOK, merged)
+	c.JSON(http.StatusOK, items)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getMostActiveUsers?limit=5&days=30
+// GET /stats/getMostActiveUsers?limit=5&from=&to=
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetMostActiveUsers(c *gin.Context) {
@@ -418,545 +186,227 @@ func (h *StatsFrontendHandler) GetMostActiveUsers(c *gin.Context) {
 		UserId         string `json:"UserId"`
 		UserName       string `json:"UserName"`
 		TotalPlays     int    `json:"TotalPlays"`
+		TotalClicks    int    `json:"TotalClicks"`
 		TotalWatchTime int    `json:"TotalWatchTime"`
 	}
-	var dbRows []UserRow
-	if tr.AllTime {
-		h.db.Raw(`
-			SELECT
-			  a."UserId",
-			  COALESCE(u."Name", MAX(a."UserName"), a."UserId") AS "UserName",
-			  COUNT(*)::int AS "TotalPlays",
-			  FLOOR(COALESCE(SUM(a."PlaybackDuration"), 0) / 60.0)::int AS "TotalWatchTime"
-			FROM jf_playback_activity a
-			LEFT JOIN jf_users u ON u."Id" = a."UserId"
-			GROUP BY a."UserId", u."Name" ORDER BY "TotalPlays" DESC LIMIT ?
-		`, limit).Scan(&dbRows)
-	} else {
-		h.db.Raw(`
-			SELECT
-			  a."UserId",
-			  COALESCE(u."Name", MAX(a."UserName"), a."UserId") AS "UserName",
-			  COUNT(*)::int AS "TotalPlays",
-			  FLOOR(COALESCE(SUM(a."PlaybackDuration"), 0) / 60.0)::int AS "TotalWatchTime"
-			FROM jf_playback_activity a
-			LEFT JOIN jf_users u ON u."Id" = a."UserId"
-			WHERE a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			GROUP BY a."UserId", u."Name"
-			ORDER BY "TotalPlays" DESC
-			LIMIT ?
-		`, tr.From, tr.To, limit).Scan(&dbRows)
+	rows := []UserRow{}
+	q, args := acts().inRange(tr).sql(`
+		SELECT user_id AS "UserId", MAX(user_name) AS "UserName",
+		       `+aggPlays+` AS "TotalPlays", `+aggClicks+` AS "TotalClicks",
+		       `+aggMinutes+` AS "TotalWatchTime"
+		FROM acts
+		WHERE user_id IS NOT NULL
+		GROUP BY user_id
+		ORDER BY "TotalPlays" DESC, "TotalWatchTime" DESC
+		LIMIT ?`, limit)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	if dbRows == nil {
-		dbRows = []UserRow{}
-	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	for _, ls := range live {
-		found := false
-		for i := range dbRows {
-			if dbRows[i].UserId == ls.UserId {
-				dbRows[i].TotalPlays++
-				dbRows[i].TotalWatchTime += ls.PlaybackDuration
-				found = true
-				break
-			}
-		}
-		if !found {
-			dbRows = append(dbRows, UserRow{
-				UserId:         ls.UserId,
-				UserName:       ls.UserName,
-				TotalPlays:     1,
-				TotalWatchTime: ls.PlaybackDuration,
-			})
-		}
-	}
-
-	sort.Slice(dbRows, func(i, j int) bool { return dbRows[i].TotalPlays > dbRows[j].TotalPlays })
-	if len(dbRows) > limit {
-		dbRows = dbRows[:limit]
-	}
-
-	c.JSON(http.StatusOK, dbRows)
+	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getWatchStatisticsOverTime?days=30&userId=
+// GET /stats/getWatchStatisticsOverTime?from=&to=&userId=
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetWatchStatisticsOverTime(c *gin.Context) {
 	tr := parseTimeRange(c)
-	userId := c.Query("userId")
-
 	type Row struct {
 		Date     string `json:"date"`
 		Plays    int    `json:"plays"`
-		Duration int    `json:"duration"`
+		Clicks   int    `json:"clicks"`
+		Duration int    `json:"duration"` // minutes
 	}
-	var rows []Row
-
-	if userId != "" {
-		if tr.AllTime {
-			h.db.Raw(`
-				SELECT
-				  TO_CHAR(("ActivityDateInserted"::timestamptz)::date, 'YYYY-MM-DD') AS date,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				WHERE "UserId" = ?
-				GROUP BY ("ActivityDateInserted"::timestamptz)::date
-				ORDER BY date
-			`, userId).Scan(&rows)
-		} else {
-			h.db.Raw(`
-				SELECT
-				  TO_CHAR(("ActivityDateInserted"::timestamptz)::date, 'YYYY-MM-DD') AS date,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				WHERE "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-				  AND "UserId" = ?
-				GROUP BY ("ActivityDateInserted"::timestamptz)::date
-				ORDER BY date
-			`, tr.From, tr.To, userId).Scan(&rows)
-		}
-	} else {
-		if tr.AllTime {
-			h.db.Raw(`
-				SELECT
-				  TO_CHAR(("ActivityDateInserted"::timestamptz)::date, 'YYYY-MM-DD') AS date,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				GROUP BY ("ActivityDateInserted"::timestamptz)::date
-				ORDER BY date
-			`).Scan(&rows)
-		} else {
-			h.db.Raw(`
-				SELECT
-				  TO_CHAR(("ActivityDateInserted"::timestamptz)::date, 'YYYY-MM-DD') AS date,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				WHERE "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-				GROUP BY ("ActivityDateInserted"::timestamptz)::date
-				ORDER BY date
-			`, tr.From, tr.To).Scan(&rows)
-		}
+	rows := []Row{}
+	q, args := acts().inRange(tr).forUser(c.Query("userId")).sql(`
+		SELECT TO_CHAR(local_ts::date, 'YYYY-MM-DD') AS date,
+		       ` + aggPlays + ` AS plays, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS duration
+		FROM acts
+		GROUP BY local_ts::date
+		ORDER BY local_ts::date`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	if rows == nil {
-		rows = []Row{}
-	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	for _, ls := range live {
-		if userId != "" && ls.UserId != userId {
-			continue
-		}
-		found := false
-		for i := range rows {
-			if rows[i].Date == ls.date {
-				rows[i].Plays++
-				rows[i].Duration += ls.PlaybackDuration
-				found = true
-				break
-			}
-		}
-		if !found {
-			rows = append(rows, Row{Date: ls.date, Plays: 1, Duration: ls.PlaybackDuration})
-		}
-	}
-
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Date < rows[j].Date })
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getPopularHourOfDay?days=30
+// GET /stats/getPopularHourOfDay / getPopularDayOfWeek
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetPopularHourOfDay(c *gin.Context) {
 	tr := parseTimeRange(c)
-	userId := c.Query("userId")
-
 	type Row struct {
 		Hour     int `json:"hour"`
 		Plays    int `json:"plays"`
+		Clicks   int `json:"clicks"`
 		Duration int `json:"duration"`
 	}
-	var rows []Row
-	if userId != "" {
-		if tr.AllTime {
-			h.db.Raw(`
-				SELECT
-				  EXTRACT(HOUR FROM "ActivityDateInserted"::timestamptz)::int AS hour,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				WHERE "UserId" = ?
-				GROUP BY hour ORDER BY hour
-			`, userId).Scan(&rows)
-		} else {
-			h.db.Raw(`
-				SELECT
-				  EXTRACT(HOUR FROM "ActivityDateInserted"::timestamptz)::int AS hour,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				WHERE "UserId" = ?
-				  AND "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-				GROUP BY hour ORDER BY hour
-			`, userId, tr.From, tr.To).Scan(&rows)
-		}
-	} else if tr.AllTime {
-		h.db.Raw(`
-			SELECT
-			  EXTRACT(HOUR FROM "ActivityDateInserted"::timestamptz)::int AS hour,
-			  COUNT(*)::int AS plays,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			GROUP BY hour ORDER BY hour
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(`
-			SELECT
-			  EXTRACT(HOUR FROM "ActivityDateInserted"::timestamptz)::int AS hour,
-			  COUNT(*)::int AS plays,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			WHERE "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			GROUP BY hour ORDER BY hour
-		`, tr.From, tr.To).Scan(&rows)
+	rows := []Row{}
+	q, args := acts().inRange(tr).forUser(c.Query("userId")).sql(`
+		SELECT EXTRACT(HOUR FROM local_ts)::int AS hour,
+		       ` + aggPlays + ` AS plays, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS duration
+		FROM acts GROUP BY 1 ORDER BY 1`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	if rows == nil {
-		rows = []Row{}
-	}
-
-	if userId == "" {
-		live := h.getLiveActivity(c.Request.Context())
-		for _, ls := range live {
-			found := false
-			for i := range rows {
-				if rows[i].Hour == ls.hour {
-					rows[i].Plays++
-					rows[i].Duration += ls.PlaybackDuration
-					found = true
-					break
-				}
-			}
-			if !found {
-				rows = append(rows, Row{Hour: ls.hour, Plays: 1, Duration: ls.PlaybackDuration})
-			}
-		}
-	}
-
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Hour < rows[j].Hour })
 	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getPopularDayOfWeek?days=30
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetPopularDayOfWeek(c *gin.Context) {
 	tr := parseTimeRange(c)
-	userId := c.Query("userId")
-
 	type Row struct {
 		Day      int `json:"day"`
 		Plays    int `json:"plays"`
+		Clicks   int `json:"clicks"`
 		Duration int `json:"duration"`
 	}
-	var rows []Row
-	if userId != "" {
-		if tr.AllTime {
-			h.db.Raw(`
-				SELECT
-				  EXTRACT(DOW FROM "ActivityDateInserted"::timestamptz)::int AS day,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				WHERE "UserId" = ?
-				GROUP BY day ORDER BY day
-			`, userId).Scan(&rows)
-		} else {
-			h.db.Raw(`
-				SELECT
-				  EXTRACT(DOW FROM "ActivityDateInserted"::timestamptz)::int AS day,
-				  COUNT(*)::int AS plays,
-				  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-				FROM jf_playback_activity
-				WHERE "UserId" = ?
-				  AND "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-				GROUP BY day ORDER BY day
-			`, userId, tr.From, tr.To).Scan(&rows)
-		}
-	} else if tr.AllTime {
-		h.db.Raw(`
-			SELECT
-			  EXTRACT(DOW FROM "ActivityDateInserted"::timestamptz)::int AS day,
-			  COUNT(*)::int AS plays,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			GROUP BY day ORDER BY day
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(`
-			SELECT
-			  EXTRACT(DOW FROM "ActivityDateInserted"::timestamptz)::int AS day,
-			  COUNT(*)::int AS plays,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			WHERE "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			GROUP BY day ORDER BY day
-		`, tr.From, tr.To).Scan(&rows)
+	rows := []Row{}
+	q, args := acts().inRange(tr).forUser(c.Query("userId")).sql(`
+		SELECT EXTRACT(DOW FROM local_ts)::int AS day,
+		       ` + aggPlays + ` AS plays, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS duration
+		FROM acts GROUP BY 1 ORDER BY 1`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	if rows == nil {
-		rows = []Row{}
-	}
-
-	if userId == "" {
-		live := h.getLiveActivity(c.Request.Context())
-		for _, ls := range live {
-			found := false
-			for i := range rows {
-				if rows[i].Day == ls.day {
-					rows[i].Plays++
-					rows[i].Duration += ls.PlaybackDuration
-					found = true
-					break
-				}
-			}
-			if !found {
-				rows = append(rows, Row{Day: ls.day, Plays: 1, Duration: ls.PlaybackDuration})
-			}
-		}
-	}
-
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Day < rows[j].Day })
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getMostUsedPlaybackMethod?days=30
+// GET /stats/getMostUsedPlaybackMethod / getMostUsedClients
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetMostUsedPlaybackMethod(c *gin.Context) {
 	tr := parseTimeRange(c)
-
 	type Row struct {
 		Method   string `json:"method"`
-		Count    int    `json:"count"`
+		Count    int    `json:"count"` // plays
+		Clicks   int    `json:"clicks"`
 		Duration int    `json:"duration"`
 	}
-	var rows []Row
-	if tr.AllTime {
-		h.db.Raw(`
-			SELECT
-			  COALESCE(NULLIF("PlayMethod", ''), 'Unknown') AS method,
-			  COUNT(*)::int AS count,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			GROUP BY method ORDER BY count DESC
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(`
-			SELECT
-			  COALESCE(NULLIF("PlayMethod", ''), 'Unknown') AS method,
-			  COUNT(*)::int AS count,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			WHERE "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			GROUP BY method ORDER BY count DESC
-		`, tr.From, tr.To).Scan(&rows)
+	rows := []Row{}
+	q, args := acts().inRange(tr).sql(`
+		SELECT play_method AS method, ` + aggPlays + ` AS count, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS duration
+		FROM acts GROUP BY play_method ORDER BY count DESC, clicks DESC`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	if rows == nil {
-		rows = []Row{}
-	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	for _, ls := range live {
-		method := ls.PlayMethod
-		if method == "" {
-			method = "Unknown"
-		}
-		found := false
-		for i := range rows {
-			if rows[i].Method == method {
-				rows[i].Count++
-				rows[i].Duration += ls.PlaybackDuration
-				found = true
-				break
-			}
-		}
-		if !found {
-			rows = append(rows, Row{Method: method, Count: 1, Duration: ls.PlaybackDuration})
-		}
-	}
-
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Count > rows[j].Count })
 	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getMostUsedClients?days=30
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetMostUsedClients(c *gin.Context) {
 	tr := parseTimeRange(c)
-
 	type Row struct {
 		Client   string `json:"client"`
-		Count    int    `json:"count"`
+		Count    int    `json:"count"` // plays
+		Clicks   int    `json:"clicks"`
 		Duration int    `json:"duration"`
 	}
-	var rows []Row
-	if tr.AllTime {
-		h.db.Raw(`
-			SELECT
-			  "Client" AS client,
-			  COUNT(*)::int AS count,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			WHERE "Client" IS NOT NULL AND "Client" <> ''
-			GROUP BY "Client" ORDER BY count DESC LIMIT 10
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(`
-			SELECT
-			  "Client" AS client,
-			  COUNT(*)::int AS count,
-			  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-			FROM jf_playback_activity
-			WHERE "ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			  AND "Client" IS NOT NULL AND "Client" <> ''
-			GROUP BY "Client" ORDER BY count DESC LIMIT 10
-		`, tr.From, tr.To).Scan(&rows)
+	rows := []Row{}
+	q, args := acts().inRange(tr).where(`a."Client" IS NOT NULL AND a."Client" <> ''`).sql(`
+		SELECT client, ` + aggPlays + ` AS count, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS duration
+		FROM acts GROUP BY client ORDER BY count DESC, clicks DESC LIMIT 10`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	if rows == nil {
-		rows = []Row{}
-	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	for _, ls := range live {
-		if ls.Client == "" {
-			continue
-		}
-		found := false
-		for i := range rows {
-			if rows[i].Client == ls.Client {
-				rows[i].Count++
-				rows[i].Duration += ls.PlaybackDuration
-				found = true
-				break
-			}
-		}
-		if !found {
-			rows = append(rows, Row{Client: ls.Client, Count: 1, Duration: ls.PlaybackDuration})
-		}
-	}
-
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Count > rows[j].Count })
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getUserStats?userId=
+// GET /stats/getUserStats?userId=   (all time)
 // ---------------------------------------------------------------------------
+
+type userStatRow struct {
+	UserId         string  `json:"UserId"`
+	UserName       string  `json:"UserName"`
+	TotalPlays     int     `json:"TotalPlays"`
+	TotalClicks    int     `json:"TotalClicks"`
+	TotalWatchTime int     `json:"TotalWatchTime"`
+	UniqueItems    int     `json:"UniqueItems"`
+	LastSeen       *string `json:"LastSeen"`
+	FirstSeen      *string `json:"FirstSeen"`
+	MostUsedClient *string `json:"MostUsedClient"`
+	MostUsedDevice *string `json:"MostUsedDevice"`
+	FavoriteGenre  *string `json:"FavoriteGenre"` // genre with the most watch time
+}
+
+func (h *StatsFrontendHandler) queryUserStats(userId string) ([]userStatRow, error) {
+	outer := `,
+		agg AS (
+		  SELECT user_id, ` + aggPlays + ` AS plays, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS minutes,
+		         COUNT(DISTINCT item_id) FILTER (WHERE is_view)::int AS unique_items,
+		         MAX(started_at) AS last_seen, MIN(started_at) AS first_seen
+		  FROM acts GROUP BY user_id
+		),
+		cl AS (
+		  SELECT DISTINCT ON (user_id) user_id, client FROM acts
+		  WHERE client IS NOT NULL AND client <> ''
+		  GROUP BY user_id, client
+		  ORDER BY user_id, COUNT(*) FILTER (WHERE is_view) DESC, COUNT(*) DESC, client
+		),
+		dv AS (
+		  SELECT DISTINCT ON (user_id) user_id, device_name FROM acts
+		  WHERE device_name IS NOT NULL AND device_name <> ''
+		  GROUP BY user_id, device_name
+		  ORDER BY user_id, COUNT(*) FILTER (WHERE is_view) DESC, COUNT(*) DESC, device_name
+		),
+		gn AS (
+		  SELECT DISTINCT ON (user_id) user_id, genre FROM acts ` + genreLateral + `
+		  WHERE acts.genres IS NOT NULL AND genre <> 'No Genre'
+		  GROUP BY user_id, genre
+		  ORDER BY user_id, SUM(duration) DESC, genre
+		)
+		SELECT
+		  u."Id" AS "UserId",
+		  COALESCE(u."Name", u."Id") AS "UserName",
+		  COALESCE(agg.plays, 0) AS "TotalPlays",
+		  COALESCE(agg.clicks, 0) AS "TotalClicks",
+		  COALESCE(agg.minutes, 0) AS "TotalWatchTime",
+		  COALESCE(agg.unique_items, 0) AS "UniqueItems",
+		  COALESCE(` + statsql.ISO("agg.last_seen") + `, u."LastActivityDate", u."LastLoginDate") AS "LastSeen",
+		  ` + statsql.ISO("agg.first_seen") + ` AS "FirstSeen",
+		  cl.client AS "MostUsedClient",
+		  dv.device_name AS "MostUsedDevice",
+		  gn.genre AS "FavoriteGenre"
+		FROM jf_users u
+		LEFT JOIN agg ON agg.user_id = u."Id"
+		LEFT JOIN cl  ON cl.user_id  = u."Id"
+		LEFT JOIN dv  ON dv.user_id  = u."Id"
+		LEFT JOIN gn  ON gn.user_id  = u."Id"`
+	f := acts()
+	var outerArgs []interface{}
+	if userId != "" {
+		f.forUser(userId)
+		outer += ` WHERE u."Id" = ?`
+		outerArgs = append(outerArgs, userId)
+	}
+	outer += ` ORDER BY "TotalPlays" DESC, "TotalWatchTime" DESC, "UserName"`
+	q, args := f.sql(outer, outerArgs...)
+	rows := []userStatRow{}
+	err := h.db.Raw(q, args...).Scan(&rows).Error
+	return rows, err
+}
 
 func (h *StatsFrontendHandler) GetUserStats(c *gin.Context) {
 	userId := c.Query("userId")
-
-	type UserStat struct {
-		UserId          string  `json:"UserId"`
-		UserName        string  `json:"UserName"`
-		TotalPlays      int     `json:"TotalPlays"`
-		TotalWatchTime  int     `json:"TotalWatchTime"`
-		UniqueItems     int     `json:"UniqueItems"`
-		LastSeen        *string `json:"LastSeen"`
-		FirstSeen       *string `json:"FirstSeen"`
-		MostUsedClient  *string `json:"MostUsedClient"`
-		MostUsedDevice  *string `json:"MostUsedDevice"`
-	}
-
-	const userStatSQL = `
-		SELECT
-		  u."Id" AS "UserId",
-		  u."Name" AS "UserName",
-		  COUNT(a."Id")::int AS "TotalPlays",
-		  FLOOR(COALESCE(SUM(a."PlaybackDuration"), 0) / 60.0)::int AS "TotalWatchTime",
-		  COUNT(DISTINCT a."NowPlayingItemId")::int AS "UniqueItems",
-		  COALESCE(MAX(a."ActivityDateInserted"), u."LastActivityDate", u."LastLoginDate") AS "LastSeen",
-		  MIN(a."ActivityDateInserted") AS "FirstSeen",
-		  (
-		    SELECT a2."Client" FROM jf_playback_activity a2
-		    WHERE a2."UserId" = u."Id" AND a2."Client" IS NOT NULL AND a2."Client" <> ''
-		    GROUP BY a2."Client" ORDER BY COUNT(*) DESC LIMIT 1
-		  ) AS "MostUsedClient",
-		  (
-		    SELECT a2."DeviceName" FROM jf_playback_activity a2
-		    WHERE a2."UserId" = u."Id" AND a2."DeviceName" IS NOT NULL AND a2."DeviceName" <> ''
-		    GROUP BY a2."DeviceName" ORDER BY COUNT(*) DESC LIMIT 1
-		  ) AS "MostUsedDevice"
-		FROM jf_users u
-		LEFT JOIN jf_playback_activity a ON a."UserId" = u."Id"
-	`
-
-	live := h.getLiveActivity(c.Request.Context())
-
-	if userId != "" {
-		var row UserStat
-		h.db.Raw(userStatSQL+`WHERE u."Id" = ? GROUP BY u."Id", u."Name", u."LastActivityDate", u."LastLoginDate"`, userId).Scan(&row)
-
-		for _, ls := range live {
-			if ls.UserId == userId {
-				row.TotalPlays++
-				row.TotalWatchTime += ls.PlaybackDuration
-			}
-		}
-		c.JSON(http.StatusOK, row)
+	rows, err := h.queryUserStats(userId)
+	if dbError(c, err) {
 		return
 	}
-
-	var rows []UserStat
-	h.db.Raw(userStatSQL + `GROUP BY u."Id", u."Name", u."LastActivityDate", u."LastLoginDate" ORDER BY "TotalPlays" DESC`).Scan(&rows)
-
-	if rows == nil {
-		rows = []UserStat{}
-	}
-
-	for _, ls := range live {
-		found := false
-		for i := range rows {
-			if rows[i].UserId == ls.UserId {
-				rows[i].TotalPlays++
-				rows[i].TotalWatchTime += ls.PlaybackDuration
-				found = true
-				break
-			}
+	if userId != "" {
+		if len(rows) == 0 {
+			c.JSON(http.StatusOK, userStatRow{UserId: userId})
+			return
 		}
-		if !found {
-			rows = append(rows, UserStat{
-				UserId:     ls.UserId,
-				UserName:   ls.UserName,
-				TotalPlays: 1,
-				TotalWatchTime: ls.PlaybackDuration,
-			})
-		}
+		c.JSON(http.StatusOK, rows[0])
+		return
 	}
-
-	sort.Slice(rows, func(i, j int) bool { return rows[i].TotalPlays > rows[j].TotalPlays })
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getAllUserActivity
+// GET /stats/getAllUserActivity / getUserActivity  (history lists: all clicks,
+// flagged with IsView)
 // ---------------------------------------------------------------------------
 
 type activityRow struct {
@@ -965,11 +415,11 @@ type activityRow struct {
 	UserName             *string `json:"UserName"`
 	ItemId               *string `json:"ItemId"`
 	NowPlayingItemName   *string `json:"NowPlayingItemName"`
-	NowPlayingItemType   *string `json:"NowPlayingItemType"`
+	NowPlayingItemType   *string `json:"NowPlayingItemType"` // Movie | Episode | Audio
 	SeriesName           *string `json:"SeriesName"`
 	SeasonId             *string `json:"SeasonId"`
 	EpisodeId            *string `json:"EpisodeId"`
-	ParentId             *string `json:"ParentId"`
+	ParentId             *string `json:"ParentId"` // library id
 	Client               *string `json:"Client"`
 	DeviceName           *string `json:"DeviceName"`
 	DeviceId             *string `json:"DeviceId"`
@@ -977,9 +427,38 @@ type activityRow struct {
 	PlayMethod           *string `json:"PlayMethod"`
 	IsPaused             *bool   `json:"IsPaused"`
 	IsActive             bool    `json:"IsActive"`
-	PlayDuration         *int64  `json:"PlayDuration"`
+	IsView               bool    `json:"IsView"`
+	PlayDuration         *int64  `json:"PlayDuration"` // ticks
 	ActivityDateInserted *string `json:"ActivityDateInserted"`
+	StartedAt            *string `json:"StartedAt"`
+	EndedAt              *string `json:"EndedAt"`
 	RemoteEndPoint       *string `json:"RemoteEndPoint"`
+}
+
+func (h *StatsFrontendHandler) queryActivity(f *actFilter) ([]activityRow, error) {
+	q, args := f.sql(`
+		SELECT
+		  acts.id AS "Id", acts.user_id AS "UserId", acts.user_name AS "UserName",
+		  acts.item_id AS "ItemId",
+		  p."NowPlayingItemName",
+		  acts.media_type AS "NowPlayingItemType",
+		  p."SeriesName", p."SeasonId", p."EpisodeId",
+		  acts.library_id AS "ParentId",
+		  p."Client", p."DeviceName", p."DeviceId", p."ApplicationVersion",
+		  p."PlayMethod", p."IsPaused",
+		  false AS "IsActive",
+		  acts.is_view AS "IsView",
+		  (acts.duration * 10000000)::bigint AS "PlayDuration",
+		  p."ActivityDateInserted",
+		  ` + statsql.ISO("acts.started_at") + ` AS "StartedAt",
+		  ` + statsql.ISO("acts.ended_at") + ` AS "EndedAt",
+		  p."RemoteEndPoint"
+		FROM acts
+		JOIN jf_playback_activity p ON p."Id" = acts.id
+		ORDER BY acts.started_at DESC`)
+	rows := []activityRow{}
+	err := h.db.Raw(q, args...).Scan(&rows).Error
+	return rows, err
 }
 
 func splitCSV(s string) []string {
@@ -996,152 +475,65 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func inClause(col string, n int) string {
-	ph := make([]string, n)
-	for i := range ph {
-		ph[i] = "?"
+func toArgs(vals []string) []interface{} {
+	out := make([]interface{}, len(vals))
+	for i, v := range vals {
+		out[i] = v
 	}
-	return col + " IN (" + strings.Join(ph, ",") + ")"
+	return out
 }
 
 func (h *StatsFrontendHandler) GetAllUserActivity(c *gin.Context) {
-	dateFrom   := c.Query("dateFrom")
-	dateTo     := c.Query("dateTo")
-	clients    := splitCSV(c.Query("client"))
-	methods    := splitCSV(c.Query("playMethod"))
-	mediaTypes := splitCSV(c.Query("mediaType"))
-	devices    := splitCSV(c.Query("deviceName"))
-	users      := splitCSV(c.Query("userName"))
-	durMinStr  := c.Query("durMin")
-	durMaxStr  := c.Query("durMax")
-
-	const baseSelect = `
-		SELECT
-		  a."Id", a."UserId", a."UserName",
-		  a."NowPlayingItemId" AS "ItemId",
-		  a."NowPlayingItemName",
-		  CASE
-		    WHEN mt."Id" IS NOT NULL THEN 'Audio'
-		    WHEN a."SeriesName" IS NOT NULL AND a."SeriesName" <> '' THEN 'Episode'
-		    ELSE COALESCE(i."Type", 'Unknown')
-		  END AS "NowPlayingItemType",
-		  a."SeriesName", a."SeasonId", a."EpisodeId",
-		  i."ParentId",
-		  a."Client", a."DeviceName", a."DeviceId", a."ApplicationVersion",
-		  a."PlayMethod",
-		  a."IsPaused",
-		  false AS "IsActive",
-		  (a."PlaybackDuration" * 10000000)::bigint AS "PlayDuration",
-		  a."ActivityDateInserted",
-		  a."RemoteEndPoint"
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		LEFT JOIN jf_music_tracks mt ON mt."Id" = a."EpisodeId"`
-
-	var wheres []string
-	var args   []interface{}
-
-	if dateFrom != "" {
-		wheres = append(wheres, `a."ActivityDateInserted"::date >= ?::date`)
-		args = append(args, dateFrom)
-	}
-	if dateTo != "" {
-		wheres = append(wheres, `a."ActivityDateInserted"::date <= ?::date`)
-		args = append(args, dateTo)
-	}
-	if len(clients) > 0 {
-		wheres = append(wheres, inClause(`a."Client"`, len(clients)))
-		for _, v := range clients { args = append(args, v) }
-	}
-	if len(methods) > 0 {
-		wheres = append(wheres, inClause(`a."PlayMethod"`, len(methods)))
-		for _, v := range methods { args = append(args, v) }
-	}
-	if len(mediaTypes) > 0 {
-		expr := `CASE WHEN mt."Id" IS NOT NULL THEN 'Audio' WHEN a."SeriesName" IS NOT NULL AND a."SeriesName" <> '' THEN 'Episode' ELSE COALESCE(i."Type", 'Unknown') END`
-		wheres = append(wheres, inClause(expr, len(mediaTypes)))
-		for _, v := range mediaTypes { args = append(args, v) }
-	}
-	if len(devices) > 0 {
-		wheres = append(wheres, inClause(`a."DeviceName"`, len(devices)))
-		for _, v := range devices { args = append(args, v) }
-	}
-	if len(users) > 0 {
-		wheres = append(wheres, inClause(`a."UserName"`, len(users)))
-		for _, v := range users { args = append(args, v) }
-	}
-	if durMinStr != "" {
-		if durMin, err := strconv.Atoi(durMinStr); err == nil {
-			wheres = append(wheres, `a."PlaybackDuration" >= ?`)
-			args = append(args, durMin*60)
+	f := acts()
+	loc := statsql.Location()
+	s := statsql.StartedAt("a")
+	if v := c.Query("dateFrom"); v != "" {
+		if t, err := time.ParseInLocation("2006-01-02", v, loc); err == nil {
+			f.where(s+` >= ?`, t)
 		}
 	}
-	if durMaxStr != "" {
-		if durMax, err := strconv.Atoi(durMaxStr); err == nil {
-			wheres = append(wheres, `a."PlaybackDuration" <= ?`)
-			args = append(args, durMax*60)
+	if v := c.Query("dateTo"); v != "" {
+		if t, err := time.ParseInLocation("2006-01-02", v, loc); err == nil {
+			f.where(s+` < ?`, t.AddDate(0, 0, 1))
 		}
 	}
-
-	query := baseSelect
-	if len(wheres) > 0 {
-		query += "\n\t\tWHERE " + strings.Join(wheres, "\n\t\t  AND ")
+	if vals := splitCSV(c.Query("client")); len(vals) > 0 {
+		f.where(`a."Client" IN (`+inPlaceholders(len(vals))+`)`, toArgs(vals)...)
 	}
-	query += `
-		ORDER BY a."ActivityDateInserted"::timestamptz DESC`
-
-	var rows []activityRow
-	h.db.Raw(query, args...).Scan(&rows)
-
-	if rows == nil {
-		rows = []activityRow{}
+	if vals := splitCSV(c.Query("playMethod")); len(vals) > 0 {
+		f.where(`a."PlayMethod" IN (`+inPlaceholders(len(vals))+`)`, toArgs(vals)...)
 	}
-
-	if len(wheres) > 0 {
-		c.JSON(http.StatusOK, rows)
+	if vals := splitCSV(c.Query("mediaType")); len(vals) > 0 {
+		var mts []string
+		for _, v := range vals {
+			if mt := mediaTypeParam(v); mt != "" {
+				mts = append(mts, mt)
+			}
+		}
+		if len(mts) == 0 {
+			c.JSON(http.StatusOK, []activityRow{})
+			return
+		}
+		f.where(`a."MediaType" IN (`+inPlaceholders(len(mts))+`)`, toArgs(mts)...)
+	}
+	if vals := splitCSV(c.Query("deviceName")); len(vals) > 0 {
+		f.where(`a."DeviceName" IN (`+inPlaceholders(len(vals))+`)`, toArgs(vals)...)
+	}
+	if vals := splitCSV(c.Query("userName")); len(vals) > 0 {
+		f.where(`COALESCE(u."Name", a."UserName") IN (`+inPlaceholders(len(vals))+`)`, toArgs(vals)...)
+	}
+	if v, err := strconv.Atoi(c.Query("durMin")); err == nil {
+		f.where(`COALESCE(a."PlaybackDuration", 0) >= ?`, v*60)
+	}
+	if v, err := strconv.Atoi(c.Query("durMax")); err == nil {
+		f.where(`COALESCE(a."PlaybackDuration", 0) <= ?`, v*60)
+	}
+	rows, err := h.queryActivity(f)
+	if dbError(c, err) {
 		return
 	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	var liveRows []activityRow
-	now := time.Now().Format(time.RFC3339)
-	for i := range live {
-		ls := live[i]
-		userId := ls.UserId
-		userName := ls.UserName
-		client := ls.Client
-		pm := ls.PlayMethod
-		itemId := ls.NowPlayingItemId
-		itemName := ls.NowPlayingItemName
-		itemType := ls.Type
-		if itemType == "" {
-			itemType = "Unknown"
-		}
-		dur := int64(ls.PlaybackDuration) * 600_000_000
-		isActive := true
-		isPaused := false
-		liveRows = append(liveRows, activityRow{
-			UserId:               &userId,
-			UserName:             &userName,
-			ItemId:               &itemId,
-			NowPlayingItemName:   &itemName,
-			NowPlayingItemType:   &itemType,
-			Client:               &client,
-			PlayMethod:           &pm,
-			IsPaused:             &isPaused,
-			IsActive:             isActive,
-			PlayDuration:         &dur,
-			ActivityDateInserted: &now,
-		})
-	}
-
-	result := append(liveRows, rows...)
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getUserActivity?userId=
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetUserActivity(c *gin.Context) {
 	userId := c.Query("userId")
@@ -1149,66 +541,15 @@ func (h *StatsFrontendHandler) GetUserActivity(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
 		return
 	}
-
-	var rows []activityRow
-	h.db.Raw(`
-		SELECT
-		  "Id", "UserId", "UserName",
-		  "NowPlayingItemId" AS "ItemId",
-		  "NowPlayingItemName",
-		  "SeriesName", "SeasonId", "EpisodeId",
-		  "Client", "DeviceName", "DeviceId", "ApplicationVersion",
-		  "PlayMethod",
-		  "IsPaused",
-		  false AS "IsActive",
-		  ("PlaybackDuration" * 10000000)::bigint AS "PlayDuration",
-		  "ActivityDateInserted",
-		  "RemoteEndPoint"
-		FROM jf_playback_activity
-		WHERE "UserId" = ?
-		ORDER BY "ActivityDateInserted"::timestamptz DESC
-	`, userId).Scan(&rows)
-
-	if rows == nil {
-		rows = []activityRow{}
+	rows, err := h.queryActivity(acts().forUser(userId))
+	if dbError(c, err) {
+		return
 	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	var liveRows []activityRow
-	now := time.Now().Format(time.RFC3339)
-	for i := range live {
-		ls := live[i]
-		if ls.UserId != userId {
-			continue
-		}
-		uid := ls.UserId
-		uname := ls.UserName
-		client := ls.Client
-		pm := ls.PlayMethod
-		itemId := ls.NowPlayingItemId
-		itemName := ls.NowPlayingItemName
-		dur := int64(ls.PlaybackDuration) * 600_000_000
-		isPaused := false
-		liveRows = append(liveRows, activityRow{
-			UserId:               &uid,
-			UserName:             &uname,
-			ItemId:               &itemId,
-			NowPlayingItemName:   &itemName,
-			Client:               &client,
-			PlayMethod:           &pm,
-			IsPaused:             &isPaused,
-			IsActive:             true,
-			PlayDuration:         &dur,
-			ActivityDateInserted: &now,
-		})
-	}
-
-	result := append(liveRows, rows...)
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getUserActivityByDate?userId=
+// GET /stats/getUserActivityByDate?userId=   (all time, local days)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetUserActivityByDate(c *gin.Context) {
@@ -1217,48 +558,20 @@ func (h *StatsFrontendHandler) GetUserActivityByDate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
 		return
 	}
-
 	type Row struct {
 		Date     string `json:"date"`
-		Count    int    `json:"count"`
+		Count    int    `json:"count"` // plays
+		Clicks   int    `json:"clicks"`
 		Duration int    `json:"duration"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  TO_CHAR(("ActivityDateInserted"::timestamptz)::date, 'YYYY-MM-DD') AS date,
-		  COUNT(*)::int AS count,
-		  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-		FROM jf_playback_activity
-		WHERE "UserId" = ?
-		GROUP BY ("ActivityDateInserted"::timestamptz)::date
-		ORDER BY date
-	`, userId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	q, args := acts().forUser(userId).sql(`
+		SELECT TO_CHAR(local_ts::date, 'YYYY-MM-DD') AS date,
+		       ` + aggPlays + ` AS count, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS duration
+		FROM acts GROUP BY local_ts::date ORDER BY local_ts::date`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	for _, ls := range live {
-		if ls.UserId != userId {
-			continue
-		}
-		found := false
-		for i := range rows {
-			if rows[i].Date == ls.date {
-				rows[i].Count++
-				rows[i].Duration += ls.PlaybackDuration
-				found = true
-				break
-			}
-		}
-		if !found {
-			rows = append(rows, Row{Date: ls.date, Count: 1, Duration: ls.PlaybackDuration})
-		}
-	}
-
-	sort.Slice(rows, func(i, j int) bool { return rows[i].Date < rows[j].Date })
 	c.JSON(http.StatusOK, rows)
 }
 
@@ -1274,17 +587,17 @@ func (h *StatsFrontendHandler) GetLibraries(c *gin.Context) {
 		ItemCount      int     `json:"ItemCount"`
 		EpisodeCount   int     `json:"EpisodeCount"`
 		SeasonCount    int     `json:"SeasonCount"`
+		TrackCount     int     `json:"TrackCount"`
 		TotalSize      int64   `json:"TotalSize"`
 		TotalPlayCount int     `json:"TotalPlayCount"`
+		TotalClicks    int     `json:"TotalClicks"`
 		TotalWatchTime int     `json:"TotalWatchTime"`
 		LastActivity   *string `json:"LastActivity"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		WITH item_stats AS (
-		  -- Top-level items: Movies, Series, MusicAlbums — direct children of library
-		  SELECT
-		    i."ParentId" AS "LibraryId",
+	rows := []Row{}
+	q, args := acts().sql(`,
+		item_stats AS (
+		  SELECT i."ParentId" AS "LibraryId",
 		    COUNT(*) FILTER (WHERE i."Type" NOT IN ('Season', 'Folder'))::int AS "ItemCount",
 		    COALESCE(SUM(ii."Size") FILTER (WHERE i."Type" NOT IN ('Season', 'Folder')), 0)::bigint AS "DirectSize"
 		  FROM jf_library_items i
@@ -1293,81 +606,62 @@ func (h *StatsFrontendHandler) GetLibraries(c *gin.Context) {
 		  GROUP BY i."ParentId"
 		),
 		episode_stats AS (
-		  -- Episodes live in jf_library_episodes; their sizes are in jf_item_info
-		  SELECT
-		    series."ParentId" AS "LibraryId",
+		  SELECT series."ParentId" AS "LibraryId",
 		    COUNT(DISTINCT e."Id")::int AS "EpisodeCount",
 		    COALESCE(SUM(ii."Size"), 0)::bigint AS "EpisodeSize"
 		  FROM jf_library_episodes e
-		  JOIN jf_library_items series
-		    ON series."Id" = e."SeriesId" AND series.archived = false
+		  JOIN jf_library_items series ON series."Id" = e."SeriesId" AND series.archived = false
 		  LEFT JOIN jf_item_info ii ON ii."Id" = e."Id"
 		  WHERE e.archived = false
 		  GROUP BY series."ParentId"
 		),
 		season_stats AS (
-		  -- Seasons live in jf_library_seasons
-		  SELECT
-		    series."ParentId" AS "LibraryId",
-		    COUNT(DISTINCT s."Id")::int AS "SeasonCount"
+		  SELECT series."ParentId" AS "LibraryId", COUNT(DISTINCT s."Id")::int AS "SeasonCount"
 		  FROM jf_library_seasons s
-		  JOIN jf_library_items series
-		    ON series."Id" = s."SeriesId" AND series.archived = false
+		  JOIN jf_library_items series ON series."Id" = s."SeriesId" AND series.archived = false
 		  WHERE s.archived = false
 		  GROUP BY series."ParentId"
 		),
-		track_size_stats AS (
-		  -- Music tracks live in jf_music_tracks with a direct LibraryId
-		  SELECT
-		    t."LibraryId",
-		    COALESCE(SUM(ii."Size"), 0)::bigint AS "TrackSize"
+		track_stats AS (
+		  SELECT t."LibraryId", COUNT(*)::int AS "TrackCount", COALESCE(SUM(ii."Size"), 0)::bigint AS "TrackSize"
 		  FROM jf_music_tracks t
 		  LEFT JOIN jf_item_info ii ON ii."Id" = t."Id"
 		  WHERE t.archived = false AND t."LibraryId" IS NOT NULL
 		  GROUP BY t."LibraryId"
 		),
 		play_stats AS (
-		  SELECT
-		    COALESCE(i."ParentId", mt."LibraryId") AS "LibraryId",
-		    COUNT(a."Id")::int AS "TotalPlayCount",
-		    FLOOR(COALESCE(SUM(a."PlaybackDuration"), 0) / 60.0)::int AS "TotalWatchTime",
-		    MAX(a."ActivityDateInserted") AS "LastActivity"
-		  FROM jf_playback_activity a
-		  LEFT JOIN jf_library_items i
-		    ON (a."NowPlayingItemId" = i."Id" OR a."EpisodeId" = i."Id") AND i.archived = false
-		  LEFT JOIN jf_music_tracks mt
-		    ON a."NowPlayingItemId" = mt."Id" AND mt.archived = false
-		  GROUP BY COALESCE(i."ParentId", mt."LibraryId")
+		  SELECT library_id, ` + aggPlays + ` AS plays, ` + aggClicks + ` AS clicks, ` + aggMinutes + ` AS minutes,
+		         MAX(started_at) AS last_activity
+		  FROM acts WHERE library_id IS NOT NULL GROUP BY library_id
 		)
 		SELECT
-		  l."Id",
-		  l."Name",
+		  l."Id", l."Name",
 		  COALESCE(l."CollectionType", l."Type", 'unknown') AS "CollectionType",
-		  COALESCE(ist."ItemCount", 0)                                          AS "ItemCount",
-		  COALESCE(epst."EpisodeCount", 0)                                      AS "EpisodeCount",
-		  COALESCE(ssst."SeasonCount", 0)                                       AS "SeasonCount",
-		  COALESCE(ist."DirectSize", 0) + COALESCE(epst."EpisodeSize", 0) + COALESCE(tsst."TrackSize", 0) AS "TotalSize",
-		  COALESCE(pst."TotalPlayCount", 0)                                     AS "TotalPlayCount",
-		  COALESCE(pst."TotalWatchTime", 0)                                     AS "TotalWatchTime",
-		  pst."LastActivity"
+		  COALESCE(ist."ItemCount", 0) AS "ItemCount",
+		  COALESCE(epst."EpisodeCount", 0) AS "EpisodeCount",
+		  COALESCE(ssst."SeasonCount", 0) AS "SeasonCount",
+		  COALESCE(tst."TrackCount", 0) AS "TrackCount",
+		  COALESCE(ist."DirectSize", 0) + COALESCE(epst."EpisodeSize", 0) + COALESCE(tst."TrackSize", 0) AS "TotalSize",
+		  COALESCE(pst.plays, 0) AS "TotalPlayCount",
+		  COALESCE(pst.clicks, 0) AS "TotalClicks",
+		  COALESCE(pst.minutes, 0) AS "TotalWatchTime",
+		  ` + statsql.ISO("pst.last_activity") + ` AS "LastActivity"
 		FROM jf_libraries l
-		LEFT JOIN item_stats   ist  ON ist."LibraryId"  = l."Id"
+		LEFT JOIN item_stats    ist  ON ist."LibraryId"  = l."Id"
 		LEFT JOIN episode_stats epst ON epst."LibraryId" = l."Id"
-		LEFT JOIN season_stats      ssst ON ssst."LibraryId" = l."Id"
-		LEFT JOIN track_size_stats  tsst ON tsst."LibraryId" = l."Id"
-		LEFT JOIN play_stats        pst  ON pst."LibraryId"  = l."Id"
+		LEFT JOIN season_stats  ssst ON ssst."LibraryId" = l."Id"
+		LEFT JOIN track_stats   tst  ON tst."LibraryId"  = l."Id"
+		LEFT JOIN play_stats    pst  ON pst.library_id   = l."Id"
 		WHERE l.archived = false
-		ORDER BY l."Name"
-	`).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+		ORDER BY l."Name"`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getLibraryStats?libraryId=
+// GET /stats/getLibraryStats?libraryId=   (all time)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetLibraryStats(c *gin.Context) {
@@ -1377,82 +671,79 @@ func (h *StatsFrontendHandler) GetLibraryStats(c *gin.Context) {
 		return
 	}
 
-	type LibStat struct {
-		Name           string `json:"Name"`
-		TotalItems     int    `json:"TotalItems"`
-		TotalPlayCount int    `json:"TotalPlayCount"`
-		TotalWatchTime int    `json:"TotalWatchTime"`
+	var stat struct {
+		Name           string
+		TotalItems     int
+		TotalPlayCount int
+		TotalClicks    int
+		TotalWatchTime int
 	}
-	var stat LibStat
-	h.db.Raw(`
+	q, args := acts().where(libraryIdExpr+` = ?`, libraryId).sql(`
 		SELECT
-		  l."Name",
-		  COUNT(DISTINCT all_items."Id") FILTER (WHERE all_items."type" NOT IN ('Season', 'Folder'))::int AS "TotalItems",
-		  COUNT(a."Id")::int AS "TotalPlayCount",
-		  FLOOR(COALESCE(SUM(a."PlaybackDuration"), 0) / 60.0)::int AS "TotalWatchTime"
-		FROM jf_libraries l
-		LEFT JOIN (
-		  SELECT "Id", "ParentId" AS "LibraryId", "Type" AS "type" FROM jf_library_items WHERE archived = false
-		  UNION ALL
-		  SELECT "Id", "LibraryId", 'Audio' AS "type" FROM jf_music_tracks WHERE archived = false
-		) all_items ON all_items."LibraryId" = l."Id"
-		LEFT JOIN jf_playback_activity a
-		  ON a."NowPlayingItemId" = all_items."Id" OR a."EpisodeId" = all_items."Id"
-		WHERE l."Id" = ?
-		GROUP BY l."Id", l."Name"
-	`, libraryId).Scan(&stat)
+		  (SELECT "Name" FROM jf_libraries WHERE "Id" = ?) AS "Name",
+		  ((SELECT COUNT(*) FROM jf_library_items WHERE "ParentId" = ? AND archived = false AND "Type" = 'Movie')
+		   + (SELECT COUNT(*) FROM jf_library_episodes e JOIN jf_library_items s ON s."Id" = e."SeriesId" AND s.archived = false
+		      WHERE s."ParentId" = ? AND e.archived = false)
+		   + (SELECT COUNT(*) FROM jf_music_tracks WHERE "LibraryId" = ? AND archived = false))::int AS "TotalItems",
+		  (SELECT `+aggPlays+` FROM acts) AS "TotalPlayCount",
+		  (SELECT `+aggClicks+` FROM acts) AS "TotalClicks",
+		  (SELECT `+aggMinutes+` FROM acts) AS "TotalWatchTime"
+	`, libraryId, libraryId, libraryId, libraryId)
+	if dbError(c, h.db.Raw(q, args...).Scan(&stat).Error) {
+		return
+	}
 
 	type TopItem struct {
-		Id        string `json:"Id"`
-		Name      string `json:"Name"`
-		Type      string `json:"Type"`
-		PlayCount int    `json:"PlayCount"`
+		Id         string `json:"Id"`
+		Name       string `json:"Name"`
+		Type       string `json:"Type"`
+		PlayCount  int    `json:"PlayCount"`
+		ClickCount int    `json:"ClickCount"`
 	}
 	var topItems []TopItem
-	h.db.Raw(`
-		SELECT
-		  all_items."Id",
-		  all_items."Name",
-		  all_items."type" AS "Type",
-		  COUNT(a."Id")::int AS "PlayCount"
-		FROM (
-		  SELECT "Id", "ParentId" AS "LibraryId", "Name", "Type" AS "type"
-		  FROM jf_library_items WHERE "ParentId" = ? AND archived = false AND "Type" NOT IN ('Season', 'Folder')
-		  UNION ALL
-		  SELECT "Id", "LibraryId", "Name", 'Audio' AS "type"
-		  FROM jf_music_tracks WHERE "LibraryId" = ? AND archived = false
-		) all_items
-		LEFT JOIN jf_playback_activity a
-		  ON a."NowPlayingItemId" = all_items."Id" OR a."EpisodeId" = all_items."Id"
-		GROUP BY all_items."Id", all_items."Name", all_items."type"
-		ORDER BY "PlayCount" DESC, all_items."Name" ASC
-		LIMIT 1
-	`, libraryId, libraryId).Scan(&topItems)
-
-	live := h.getLiveActivity(c.Request.Context())
-	for _, ls := range live {
-		if ls.LibraryId == libraryId {
-			stat.TotalPlayCount++
-			stat.TotalWatchTime += ls.PlaybackDuration
-		}
+	q, args = acts().where(libraryIdExpr+` = ?`, libraryId).sql(`
+		SELECT group_id AS "Id", COALESCE(MAX(group_name), '') AS "Name", display_type AS "Type",
+		       ` + aggPlays + ` AS "PlayCount", ` + aggClicks + ` AS "ClickCount"
+		FROM acts WHERE group_id IS NOT NULL
+		GROUP BY group_id, display_type
+		HAVING COUNT(*) FILTER (WHERE is_view) > 0
+		ORDER BY "PlayCount" DESC, "Name" ASC
+		LIMIT 1`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&topItems).Error) {
+		return
 	}
 
 	var mostPlayed *TopItem
 	if len(topItems) > 0 {
 		mostPlayed = &topItems[0]
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"Name":           stat.Name,
 		"TotalItems":     stat.TotalItems,
 		"TotalPlayCount": stat.TotalPlayCount,
+		"TotalClicks":    stat.TotalClicks,
 		"TotalWatchTime": stat.TotalWatchTime,
 		"MostPlayedItem": mostPlayed,
 	})
 }
 
+// groupStatsCTE aggregates acts per group_id (movie / series / album) for one
+// library. Appended after the acts CTE; takes no args (library filter is on
+// the acts CTE).
+const groupStatsCTE = `,
+	pc AS (
+	  SELECT group_id,
+	         ` + aggPlays + ` AS play_count,
+	         ` + aggClicks + ` AS click_count,
+	         ` + aggSeconds + ` AS play_seconds,
+	         MAX(started_at) AS last_played
+	  FROM acts WHERE group_id IS NOT NULL
+	  GROUP BY group_id
+	)`
+
 // ---------------------------------------------------------------------------
 // GET /stats/getLibraryItems?libraryId=
+// Series and albums aggregate the plays of their episodes / tracks.
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetLibraryItems(c *gin.Context) {
@@ -1463,70 +754,47 @@ func (h *StatsFrontendHandler) GetLibraryItems(c *gin.Context) {
 	}
 
 	type Row struct {
-		Id               string   `json:"Id"`
-		Name             string   `json:"Name"`
-		Type             string   `json:"Type"`
-		ProductionYear   *int     `json:"ProductionYear"`
-		CommunityRating  *float64 `json:"CommunityRating"`
-		Size             *int64   `json:"Size"`
-		PlayCount        int      `json:"PlayCount"`
-		LastPlayed       *string  `json:"LastPlayed"`
-		SeriesName       *string  `json:"SeriesName"`
-		IndexNumber      *int     `json:"IndexNumber"`
-		ParentIndexNumber *int    `json:"ParentIndexNumber"`
+		Id                string   `json:"Id"`
+		Name              string   `json:"Name"`
+		Type              string   `json:"Type"`
+		ProductionYear    *int     `json:"ProductionYear"`
+		CommunityRating   *float64 `json:"CommunityRating"`
+		Size              *int64   `json:"Size"`
+		PlayCount         int      `json:"PlayCount"`
+		ClickCount        int      `json:"ClickCount"`
+		TotalWatchTime    int      `json:"TotalWatchTime"` // minutes
+		LastPlayed        *string  `json:"LastPlayed"`
+		SeriesName        *string  `json:"SeriesName"`
+		IndexNumber       *int     `json:"IndexNumber"`
+		ParentIndexNumber *int     `json:"ParentIndexNumber"`
 	}
-	var rows []Row
-	h.db.Raw(`
+	rows := []Row{}
+	q, args := acts().where(libraryIdExpr+` = ?`, libraryId).sql(groupStatsCTE+`
 		SELECT
-		  i."Id",
-		  i."Name",
-		  i."Type",
-		  i."ProductionYear",
-		  i."CommunityRating",
+		  i."Id", i."Name", i."Type", i."ProductionYear", i."CommunityRating",
 		  info."Size",
-		  COALESCE(pc.play_count, 0)::int AS "PlayCount",
-		  pc.last_played AS "LastPlayed",
+		  COALESCE(pc.play_count, 0) AS "PlayCount",
+		  COALESCE(pc.click_count, 0) AS "ClickCount",
+		  FLOOR(COALESCE(pc.play_seconds, 0) / 60.0)::int AS "TotalWatchTime",
+		  `+statsql.ISO("pc.last_played")+` AS "LastPlayed",
 		  NULL::text AS "SeriesName",
 		  NULL::int AS "IndexNumber",
 		  NULL::int AS "ParentIndexNumber"
 		FROM jf_library_items i
-		LEFT JOIN (
-		  SELECT
-		    COALESCE("EpisodeId", "NowPlayingItemId") AS item_id,
-		    COUNT(*)::int AS play_count,
-		    MAX("ActivityDateInserted") AS last_played
-		  FROM jf_playback_activity
-		  GROUP BY item_id
-		) pc ON pc.item_id = i."Id"
+		LEFT JOIN pc ON pc.group_id = i."Id"
 		LEFT JOIN jf_item_info info ON info."Id" = i."Id"
 		WHERE i."ParentId" = ?
 		  AND i.archived = false
 		  AND i."Type" NOT IN ('Season', 'Folder')
-		ORDER BY "PlayCount" DESC NULLS LAST
-	`, libraryId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+		ORDER BY "PlayCount" DESC, i."Name"`, libraryId)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	for _, ls := range live {
-		if ls.LibraryId != libraryId {
-			continue
-		}
-		for i := range rows {
-			if rows[i].Id == ls.NowPlayingItemId {
-				rows[i].PlayCount++
-				break
-			}
-		}
-	}
-
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getItemDetails?itemId=
+// GET /stats/getItemDetails?itemId=   (movie, episode, track, series or album)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetItemDetails(c *gin.Context) {
@@ -1555,179 +823,126 @@ func (h *StatsFrontendHandler) GetItemDetails(c *gin.Context) {
 		Artist          *string         `json:"Artist"`
 	}
 	var item ItemInfo
-	h.db.Raw(`
+	if dbError(c, h.db.Raw(`
 		SELECT * FROM (
-		  SELECT
-		    i."Id",
-		    i."Name",
-		    i."Type",
-		    i."ProductionYear",
-		    i."CommunityRating",
-		    i."PremiereDate",
-		    i."DateCreated",
-		    i."RunTimeTicks",
-		    i."Genres",
-		    i."ParentId",
-		    info."Size",
-		    info."Path",
-		    info."Bitrate",
-		    NULL AS "AlbumId",
-		    NULL AS "AlbumName",
-		    NULL AS "Artist"
+		  SELECT i."Id", i."Name", i."Type", i."ProductionYear", i."CommunityRating"::float8 AS "CommunityRating",
+		         i."PremiereDate", i."DateCreated", i."RunTimeTicks", i."Genres", i."ParentId",
+		         info."Size", info."Path", info."Bitrate",
+		         NULL::text AS "AlbumId", NULL::text AS "AlbumName", NULL::text AS "Artist"
 		  FROM jf_library_items i
 		  LEFT JOIN jf_item_info info ON info."Id" = i."Id"
 		  WHERE i."Id" = ?
-
 		  UNION ALL
-
-		  SELECT
-		    t."Id",
-		    t."Name",
-		    'Audio' AS "Type",
-		    t."ProductionYear",
-		    NULL::float8 AS "CommunityRating",
-		    NULL AS "PremiereDate",
-		    t."DateCreated",
-		    t."RunTimeTicks",
-		    t."Genres",
-		    t."LibraryId" AS "ParentId",
-		    NULL::bigint AS "Size",
-		    NULL AS "Path",
-		    NULL::bigint AS "Bitrate",
-		    t."AlbumId",
-		    t."AlbumName",
-		    COALESCE(t."AlbumArtist", a."Name") AS "Artist"
+		  SELECT e."Id", e."Name", 'Episode', e."ProductionYear", e."CommunityRating"::float8,
+		         e."PremiereDate", e."DateCreated", e."RunTimeTicks", s."Genres", s."ParentId",
+		         info."Size", info."Path", info."Bitrate",
+		         NULL::text, NULL::text, NULL::text
+		  FROM jf_library_episodes e
+		  LEFT JOIN jf_library_items s ON s."Id" = e."SeriesId"
+		  LEFT JOIN jf_item_info info ON info."Id" = e."Id"
+		  WHERE e."Id" = ?
+		  UNION ALL
+		  SELECT t."Id", t."Name", 'Audio', t."ProductionYear", NULL::float8,
+		         NULL::text, t."DateCreated", t."RunTimeTicks", t."Genres", t."LibraryId",
+		         NULL::bigint, NULL::text, NULL::bigint,
+		         t."AlbumId", t."AlbumName", COALESCE(t."AlbumArtist", a."Name")
 		  FROM jf_music_tracks t
 		  LEFT JOIN jf_music_artists a ON a."Id" = t."ArtistId"
 		  WHERE t."Id" = ?
 		) sub LIMIT 1
-	`, itemId, itemId).Scan(&item)
+	`, itemId, itemId, itemId).Scan(&item).Error) {
+		return
+	}
+
+	// Rows for the item itself, or for the episodes/tracks of a series/album.
+	match := func() *actFilter {
+		return acts().where(`(a."ItemId" = ? OR CASE a."MediaType"
+		    WHEN 'Episode' THEN COALESCE(cs."Id", ce."SeriesId", a."NowPlayingItemId")
+		    WHEN 'Audio'   THEN COALESCE(cal."Id", ct."AlbumId", a."NowPlayingItemId")
+		  END = ?)`, itemId, itemId)
+	}
+
+	var totals struct {
+		TotalPlays     int
+		TotalClicks    int
+		TotalWatchTime int
+		UniqueUsers    int
+		LastWatched    *string
+	}
+	q, args := match().sql(`
+		SELECT ` + aggPlays + ` AS "TotalPlays", ` + aggClicks + ` AS "TotalClicks",
+		       ` + aggMinutes + ` AS "TotalWatchTime",
+		       COUNT(DISTINCT user_id) FILTER (WHERE is_view)::int AS "UniqueUsers",
+		       ` + statsql.ISO("MAX(started_at)") + ` AS "LastWatched"
+		FROM acts`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&totals).Error) {
+		return
+	}
+
+	type UserAgg struct {
+		UserId         string  `json:"UserId"`
+		UserName       string  `json:"UserName"`
+		PlayCount      int     `json:"PlayCount"`
+		ClickCount     int     `json:"ClickCount"`
+		TotalWatchTime int     `json:"TotalWatchTime"`
+		LastWatched    *string `json:"LastWatched"`
+	}
+	users := []UserAgg{}
+	q, args = match().sql(`
+		SELECT user_id AS "UserId", MAX(user_name) AS "UserName",
+		       ` + aggPlays + ` AS "PlayCount", ` + aggClicks + ` AS "ClickCount",
+		       ` + aggMinutes + ` AS "TotalWatchTime",
+		       ` + statsql.ISO("MAX(started_at)") + ` AS "LastWatched"
+		FROM acts WHERE user_id IS NOT NULL
+		GROUP BY user_id
+		ORDER BY "PlayCount" DESC, "TotalWatchTime" DESC`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&users).Error) {
+		return
+	}
 
 	type HistEntry struct {
 		Id                   *string `json:"Id"`
 		UserId               *string `json:"UserId"`
 		UserName             *string `json:"UserName"`
+		ItemId               *string `json:"ItemId"`
+		ItemName             *string `json:"ItemName"`
 		Client               *string `json:"Client"`
 		DeviceName           *string `json:"DeviceName"`
 		PlayMethod           *string `json:"PlayMethod"`
-		PlaybackDuration     int     `json:"PlaybackDuration"`
+		PlaybackDuration     int     `json:"PlaybackDuration"` // minutes
+		IsView               bool    `json:"IsView"`
 		ActivityDateInserted *string `json:"ActivityDateInserted"`
+		StartedAt            *string `json:"StartedAt"`
 		RemoteEndPoint       *string `json:"RemoteEndPoint"`
 		IsActive             bool    `json:"IsActive"`
 	}
-	var history []HistEntry
-	h.db.Raw(`
-		SELECT
-		  "Id",
-		  "UserId",
-		  "UserName",
-		  "Client",
-		  "DeviceName",
-		  "PlayMethod",
-		  FLOOR(COALESCE("PlaybackDuration", 0) / 60.0)::int AS "PlaybackDuration",
-		  "ActivityDateInserted",
-		  "RemoteEndPoint",
-		  false AS "IsActive"
-		FROM jf_playback_activity
-		WHERE "NowPlayingItemId" = ? OR "EpisodeId" = ?
-		ORDER BY "ActivityDateInserted"::timestamptz DESC
-		LIMIT 200
-	`, itemId, itemId).Scan(&history)
-
-	if history == nil {
-		history = []HistEntry{}
+	history := []HistEntry{}
+	q, args = match().sql(`
+		SELECT acts.id AS "Id", acts.user_id AS "UserId", acts.user_name AS "UserName",
+		       acts.item_id AS "ItemId", acts.item_name AS "ItemName",
+		       p."Client", p."DeviceName", p."PlayMethod",
+		       FLOOR(acts.duration / 60.0)::int AS "PlaybackDuration",
+		       acts.is_view AS "IsView",
+		       p."ActivityDateInserted",
+		       ` + statsql.ISO("acts.started_at") + ` AS "StartedAt",
+		       p."RemoteEndPoint",
+		       false AS "IsActive"
+		FROM acts JOIN jf_playback_activity p ON p."Id" = acts.id
+		ORDER BY acts.started_at DESC
+		LIMIT 200`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&history).Error) {
+		return
 	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	now := time.Now().Format(time.RFC3339)
-	for i := range live {
-		ls := live[i]
-		if ls.NowPlayingItemId != itemId && ls.EpisodeId != itemId {
-			continue
-		}
-		uid := ls.UserId
-		uname := ls.UserName
-		client := ls.Client
-		pm := ls.PlayMethod
-		history = append([]HistEntry{{
-			UserId:               &uid,
-			UserName:             &uname,
-			Client:               &client,
-			PlayMethod:           &pm,
-			PlaybackDuration:     ls.PlaybackDuration,
-			ActivityDateInserted: &now,
-			IsActive:             true,
-		}}, history...)
-	}
-
-	// Build stats
-	totalPlays := len(history)
-	totalWatchTime := 0
-	type userAggState struct {
-		UserName     string
-		PlayCount    int
-		WatchTime    int
-		LastWatched  *string
-	}
-	userMap := map[string]*userAggState{}
-	var lastWatched *string
-	isActive := false
-	for _, h2 := range history {
-		totalWatchTime += h2.PlaybackDuration
-		if h2.UserId != nil {
-			uid := *h2.UserId
-			if _, ok := userMap[uid]; !ok {
-				uname := uid
-				if h2.UserName != nil {
-					uname = *h2.UserName
-				}
-				userMap[uid] = &userAggState{UserName: uname}
-			}
-			st := userMap[uid]
-			if h2.UserName != nil {
-				st.UserName = *h2.UserName
-			}
-			st.PlayCount++
-			st.WatchTime += h2.PlaybackDuration
-			if st.LastWatched == nil && h2.ActivityDateInserted != nil {
-				st.LastWatched = h2.ActivityDateInserted
-			}
-		}
-		if lastWatched == nil && h2.ActivityDateInserted != nil {
-			lastWatched = h2.ActivityDateInserted
-		}
-		if h2.IsActive {
-			isActive = true
-		}
-	}
-
-	type UserAgg struct {
-		UserId        string  `json:"UserId"`
-		UserName      string  `json:"UserName"`
-		PlayCount     int     `json:"PlayCount"`
-		TotalWatchTime int    `json:"TotalWatchTime"`
-		LastWatched   *string `json:"LastWatched"`
-	}
-	var users []UserAgg
-	for uid, st := range userMap {
-		users = append(users, UserAgg{
-			UserId:         uid,
-			UserName:       st.UserName,
-			PlayCount:      st.PlayCount,
-			TotalWatchTime: st.WatchTime,
-			LastWatched:    st.LastWatched,
-		})
-	}
-	sort.Slice(users, func(i, j int) bool { return users[i].PlayCount > users[j].PlayCount })
 
 	c.JSON(http.StatusOK, gin.H{
 		"item": item,
 		"stats": gin.H{
-			"TotalPlays":     totalPlays,
-			"TotalWatchTime": totalWatchTime,
-			"UniqueUsers":    len(userMap),
-			"LastWatched":    lastWatched,
-			"IsActive":       isActive,
+			"TotalPlays":     totals.TotalPlays,
+			"TotalClicks":    totals.TotalClicks,
+			"TotalWatchTime": totals.TotalWatchTime,
+			"UniqueUsers":    totals.UniqueUsers,
+			"LastWatched":    totals.LastWatched,
+			"IsActive":       false,
 		},
 		"users":   users,
 		"history": history,
@@ -1747,56 +962,26 @@ func (h *StatsFrontendHandler) GetGenreStats(c *gin.Context) {
 		Count     int    `json:"Count"`
 		PlayCount int    `json:"PlayCount"`
 	}
-	var rows []Row
+	rows := []Row{}
 
 	if userId != "" {
+		f := acts().forUser(userId).where(`a."IsView"`)
 		if libraryId != "" {
-			h.db.Raw(`
-				SELECT
-				  genre AS "Genre",
-				  COUNT(DISTINCT COALESCE(a."EpisodeId", a."NowPlayingItemId"))::int AS "Count",
-				  COUNT(*)::int AS "PlayCount"
-				FROM jf_playback_activity a
-				LEFT JOIN jf_library_items i
-				  ON a."NowPlayingItemId" = i."Id" AND i."ParentId" = ?
-				CROSS JOIN LATERAL jsonb_array_elements_text(
-				  CASE
-				    WHEN jsonb_array_length(COALESCE(i."Genres", '[]'::jsonb)) = 0 THEN '["No Genre"]'::jsonb
-				    ELSE i."Genres"
-				  END
-				) AS genre
-				WHERE a."UserId" = ?
-				GROUP BY genre
-				ORDER BY "PlayCount" DESC, genre ASC
-				LIMIT 100
-			`, libraryId, userId).Scan(&rows)
-		} else {
-			h.db.Raw(`
-				SELECT
-				  genre AS "Genre",
-				  COUNT(DISTINCT COALESCE(a."EpisodeId", a."NowPlayingItemId"))::int AS "Count",
-				  COUNT(*)::int AS "PlayCount"
-				FROM jf_playback_activity a
-				LEFT JOIN jf_library_items i
-				  ON a."NowPlayingItemId" = i."Id"
-				CROSS JOIN LATERAL jsonb_array_elements_text(
-				  CASE
-				    WHEN jsonb_array_length(COALESCE(i."Genres", '[]'::jsonb)) = 0 THEN '["No Genre"]'::jsonb
-				    ELSE i."Genres"
-				  END
-				) AS genre
-				WHERE a."UserId" = ?
-				GROUP BY genre
-				ORDER BY "PlayCount" DESC, genre ASC
-				LIMIT 100
-			`, userId).Scan(&rows)
+			f.where(libraryIdExpr+` = ?`, libraryId)
+		}
+		q, args := f.sql(`
+			SELECT genre AS "Genre", COUNT(DISTINCT item_id)::int AS "Count", COUNT(*)::int AS "PlayCount"
+			FROM acts ` + genreLateral + `
+			WHERE acts.genres IS NOT NULL
+			GROUP BY genre
+			ORDER BY "PlayCount" DESC, genre ASC
+			LIMIT 100`)
+		if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+			return
 		}
 	} else if libraryId != "" {
-		h.db.Raw(`
-			SELECT
-			  genre AS "Genre",
-			  COUNT(*)::int AS "Count",
-			  0::int AS "PlayCount"
+		if dbError(c, h.db.Raw(`
+			SELECT genre AS "Genre", COUNT(*)::int AS "Count", 0::int AS "PlayCount"
 			FROM (
 			  SELECT "Genres" FROM jf_library_items
 			  WHERE "ParentId" = ? AND archived = false AND "Type" NOT IN ('Season', 'Folder')
@@ -1805,34 +990,34 @@ func (h *StatsFrontendHandler) GetGenreStats(c *gin.Context) {
 			  WHERE "LibraryId" = ? AND archived = false
 			) combined
 			CROSS JOIN LATERAL jsonb_array_elements_text(
-			  CASE
-			    WHEN jsonb_array_length(COALESCE(combined."Genres", '[]'::jsonb)) = 0 THEN '["No Genre"]'::jsonb
-			    ELSE combined."Genres"
-			  END
+			  CASE WHEN jsonb_array_length(COALESCE(combined."Genres", '[]'::jsonb)) = 0 THEN '["No Genre"]'::jsonb
+			       ELSE combined."Genres" END
 			) AS genre
 			GROUP BY genre
 			ORDER BY "Count" DESC, genre ASC
-		`, libraryId, libraryId).Scan(&rows)
-	}
-
-	if rows == nil {
-		rows = []Row{}
+		`, libraryId, libraryId).Scan(&rows).Error) {
+			return
+		}
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
-// ---------------------------------------------------------------------------
 // GET /stats/getUserGenreStats?userId=
-// ---------------------------------------------------------------------------
-
 func (h *StatsFrontendHandler) GetUserGenreStats(c *gin.Context) {
-	// Delegate to GetGenreStats — userId comes from query param
 	h.GetGenreStats(c)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getLibraryTracks?libraryId=
+// Music library listings (plays per track = views whose ItemId is the track)
 // ---------------------------------------------------------------------------
+
+const trackPlaysJoin = `
+	LEFT JOIN (
+	  SELECT "ItemId" AS track_id, COUNT(*)::int AS play_count
+	  FROM jf_playback_activity
+	  WHERE "MediaType" = 'Audio' AND "IsView"
+	  GROUP BY "ItemId"
+	) pc ON pc.track_id = t."Id"`
 
 func (h *StatsFrontendHandler) GetLibraryTracks(c *gin.Context) {
 	libraryId := c.Query("libraryId")
@@ -1840,7 +1025,6 @@ func (h *StatsFrontendHandler) GetLibraryTracks(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "libraryId is required"})
 		return
 	}
-
 	type Row struct {
 		Id           string  `json:"Id"`
 		Name         string  `json:"Name"`
@@ -1852,44 +1036,20 @@ func (h *StatsFrontendHandler) GetLibraryTracks(c *gin.Context) {
 		RunTimeTicks *int64  `json:"RunTimeTicks"`
 		PlayCount    int     `json:"PlayCount"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  t."Id",
-		  t."Name",
-		  t."AlbumArtist" AS "Artist",
-		  t."AlbumName",
-		  t."AlbumId",
-		  t."IndexNumber",
-		  t."DiscNumber",
-		  t."RunTimeTicks",
-		  COALESCE(pc.play_count, 0)::int AS "PlayCount"
-		FROM jf_music_tracks t
-		LEFT JOIN (
-		  SELECT "EpisodeId" AS track_id, COUNT(*)::int AS play_count
-		  FROM jf_playback_activity
-		  WHERE "EpisodeId" IS NOT NULL AND "EpisodeId" <> ''
-		  GROUP BY "EpisodeId"
-		) pc ON pc.track_id = t."Id"
-		WHERE t."LibraryId" = ?
-		  AND t.archived = false
-		ORDER BY
-		  COALESCE(t."AlbumArtist", '') ASC,
-		  COALESCE(t."AlbumName", '') ASC,
-		  t."DiscNumber" NULLS LAST,
-		  t."IndexNumber" NULLS LAST,
-		  t."Name" ASC
-	`, libraryId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	if dbError(c, h.db.Raw(`
+		SELECT t."Id", t."Name", t."AlbumArtist" AS "Artist", t."AlbumName", t."AlbumId",
+		       t."IndexNumber", t."DiscNumber", t."RunTimeTicks",
+		       COALESCE(pc.play_count, 0)::int AS "PlayCount"
+		FROM jf_music_tracks t`+trackPlaysJoin+`
+		WHERE t."LibraryId" = ? AND t.archived = false
+		ORDER BY COALESCE(t."AlbumArtist", '') ASC, COALESCE(t."AlbumName", '') ASC,
+		         t."DiscNumber" NULLS LAST, t."IndexNumber" NULLS LAST, t."Name" ASC
+	`, libraryId).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getLibraryAlbums?libraryId=
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetLibraryAlbums(c *gin.Context) {
 	libraryId := c.Query("libraryId")
@@ -1897,7 +1057,6 @@ func (h *StatsFrontendHandler) GetLibraryAlbums(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "libraryId is required"})
 		return
 	}
-
 	type Row struct {
 		Id               string  `json:"Id"`
 		Name             string  `json:"Name"`
@@ -1908,41 +1067,22 @@ func (h *StatsFrontendHandler) GetLibraryAlbums(c *gin.Context) {
 		TrackCount       int     `json:"TrackCount"`
 		PlayCount        int     `json:"PlayCount"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  album."Id",
-		  album."Name",
-		  album."AlbumArtist",
-		  album."ArtistId",
-		  album."ProductionYear",
-		  album."ImageTagsPrimary",
-		  COUNT(t."Id")::int AS "TrackCount",
-		  COALESCE(SUM(pc.play_count), 0)::int AS "PlayCount"
+	rows := []Row{}
+	if dbError(c, h.db.Raw(`
+		SELECT album."Id", album."Name", album."AlbumArtist", album."ArtistId", album."ProductionYear",
+		       album."ImageTagsPrimary",
+		       COUNT(t."Id")::int AS "TrackCount",
+		       COALESCE(SUM(pc.play_count), 0)::int AS "PlayCount"
 		FROM jf_library_items album
-		LEFT JOIN jf_music_tracks t ON t."AlbumId" = album."Id" AND t.archived = false
-		LEFT JOIN (
-		  SELECT "EpisodeId" AS track_id, COUNT(*)::int AS play_count
-		  FROM jf_playback_activity
-		  WHERE "EpisodeId" IS NOT NULL AND "EpisodeId" <> ''
-		  GROUP BY "EpisodeId"
-		) pc ON pc.track_id = t."Id"
-		WHERE album."ParentId" = ?
-		  AND album.archived = false
-		  AND album."Type" = 'MusicAlbum'
+		LEFT JOIN jf_music_tracks t ON t."AlbumId" = album."Id" AND t.archived = false`+trackPlaysJoin+`
+		WHERE album."ParentId" = ? AND album.archived = false AND album."Type" = 'MusicAlbum'
 		GROUP BY album."Id", album."Name", album."AlbumArtist", album."ArtistId", album."ProductionYear", album."ImageTagsPrimary"
 		ORDER BY album."Name"
-	`, libraryId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	`, libraryId).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getLibraryArtists?libraryId=
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetLibraryArtists(c *gin.Context) {
 	libraryId := c.Query("libraryId")
@@ -1950,7 +1090,6 @@ func (h *StatsFrontendHandler) GetLibraryArtists(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "libraryId is required"})
 		return
 	}
-
 	type Row struct {
 		Id               string  `json:"Id"`
 		Name             string  `json:"Name"`
@@ -1959,38 +1098,23 @@ func (h *StatsFrontendHandler) GetLibraryArtists(c *gin.Context) {
 		TrackCount       int     `json:"TrackCount"`
 		PlayCount        int     `json:"PlayCount"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  COALESCE(t."ArtistId", '') AS "Id",
-		  COALESCE(t."AlbumArtist", 'Unknown') AS "Name",
-		  ar."ImageTagsPrimary",
-		  COUNT(DISTINCT t."AlbumId")::int AS "AlbumCount",
-		  COUNT(t."Id")::int AS "TrackCount",
-		  COALESCE(SUM(pc.play_count), 0)::int AS "PlayCount"
+	rows := []Row{}
+	if dbError(c, h.db.Raw(`
+		SELECT COALESCE(t."ArtistId", '') AS "Id", COALESCE(t."AlbumArtist", 'Unknown') AS "Name",
+		       ar."ImageTagsPrimary",
+		       COUNT(DISTINCT t."AlbumId")::int AS "AlbumCount",
+		       COUNT(t."Id")::int AS "TrackCount",
+		       COALESCE(SUM(pc.play_count), 0)::int AS "PlayCount"
 		FROM jf_music_tracks t
-		LEFT JOIN jf_music_artists ar ON ar."Id" = t."ArtistId"
-		LEFT JOIN (
-		  SELECT "EpisodeId" AS track_id, COUNT(*)::int AS play_count
-		  FROM jf_playback_activity
-		  WHERE "EpisodeId" IS NOT NULL AND "EpisodeId" <> ''
-		  GROUP BY "EpisodeId"
-		) pc ON pc.track_id = t."Id"
-		WHERE t."LibraryId" = ?
-		  AND t.archived = false
+		LEFT JOIN jf_music_artists ar ON ar."Id" = t."ArtistId"`+trackPlaysJoin+`
+		WHERE t."LibraryId" = ? AND t.archived = false
 		GROUP BY COALESCE(t."ArtistId", ''), COALESCE(t."AlbumArtist", 'Unknown'), ar."ImageTagsPrimary"
 		ORDER BY COALESCE(t."AlbumArtist", 'Unknown')
-	`, libraryId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	`, libraryId).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getArtistAlbums?libraryId=&artistId=
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetArtistAlbums(c *gin.Context) {
 	libraryId := c.Query("libraryId")
@@ -1999,7 +1123,6 @@ func (h *StatsFrontendHandler) GetArtistAlbums(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "libraryId and artistId are required"})
 		return
 	}
-
 	type Row struct {
 		Id               string  `json:"Id"`
 		Name             string  `json:"Name"`
@@ -2010,42 +1133,22 @@ func (h *StatsFrontendHandler) GetArtistAlbums(c *gin.Context) {
 		TrackCount       int     `json:"TrackCount"`
 		PlayCount        int     `json:"PlayCount"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  t."AlbumId" AS "Id",
-		  COALESCE(album."Name", t."AlbumName") AS "Name",
-		  t."AlbumArtist",
-		  t."ArtistId",
-		  album."ProductionYear",
-		  album."ImageTagsPrimary",
-		  COUNT(t."Id")::int AS "TrackCount",
-		  COALESCE(SUM(pc.play_count), 0)::int AS "PlayCount"
+	rows := []Row{}
+	if dbError(c, h.db.Raw(`
+		SELECT t."AlbumId" AS "Id", COALESCE(album."Name", t."AlbumName") AS "Name",
+		       t."AlbumArtist", t."ArtistId", album."ProductionYear", album."ImageTagsPrimary",
+		       COUNT(t."Id")::int AS "TrackCount",
+		       COALESCE(SUM(pc.play_count), 0)::int AS "PlayCount"
 		FROM jf_music_tracks t
-		LEFT JOIN jf_library_items album ON album."Id" = t."AlbumId" AND album.archived = false
-		LEFT JOIN (
-		  SELECT "EpisodeId" AS track_id, COUNT(*)::int AS play_count
-		  FROM jf_playback_activity
-		  WHERE "EpisodeId" IS NOT NULL AND "EpisodeId" <> ''
-		  GROUP BY "EpisodeId"
-		) pc ON pc.track_id = t."Id"
-		WHERE t."ArtistId" = ?
-		  AND t."LibraryId" = ?
-		  AND t.archived = false
-		  AND t."AlbumId" IS NOT NULL
+		LEFT JOIN jf_library_items album ON album."Id" = t."AlbumId" AND album.archived = false`+trackPlaysJoin+`
+		WHERE t."ArtistId" = ? AND t."LibraryId" = ? AND t.archived = false AND t."AlbumId" IS NOT NULL
 		GROUP BY t."AlbumId", album."Name", t."AlbumName", t."AlbumArtist", t."ArtistId", album."ProductionYear", album."ImageTagsPrimary"
 		ORDER BY COALESCE(album."Name", t."AlbumName")
-	`, artistId, libraryId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	`, artistId, libraryId).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getAlbumTracks?albumId=
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetAlbumTracks(c *gin.Context) {
 	albumId := c.Query("albumId")
@@ -2053,7 +1156,6 @@ func (h *StatsFrontendHandler) GetAlbumTracks(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "albumId is required"})
 		return
 	}
-
 	type Row struct {
 		Id           string  `json:"Id"`
 		Name         string  `json:"Name"`
@@ -2065,42 +1167,26 @@ func (h *StatsFrontendHandler) GetAlbumTracks(c *gin.Context) {
 		Artist       *string `json:"Artist"`
 		PlayCount    int     `json:"PlayCount"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  t."Id",
-		  t."Name",
-		  t."IndexNumber",
-		  t."DiscNumber",
-		  t."RunTimeTicks",
-		  t."AlbumId",
-		  t."AlbumName",
-		  t."AlbumArtist" AS "Artist",
-		  COALESCE(pc.play_count, 0)::int AS "PlayCount"
-		FROM jf_music_tracks t
-		LEFT JOIN (
-		  SELECT "EpisodeId" AS track_id, COUNT(*)::int AS play_count
-		  FROM jf_playback_activity
-		  WHERE "EpisodeId" IS NOT NULL AND "EpisodeId" <> ''
-		  GROUP BY "EpisodeId"
-		) pc ON pc.track_id = t."Id"
-		WHERE t."AlbumId" = ?
-		  AND t.archived = false
+	rows := []Row{}
+	if dbError(c, h.db.Raw(`
+		SELECT t."Id", t."Name", t."IndexNumber", t."DiscNumber", t."RunTimeTicks",
+		       t."AlbumId", t."AlbumName", t."AlbumArtist" AS "Artist",
+		       COALESCE(pc.play_count, 0)::int AS "PlayCount"
+		FROM jf_music_tracks t`+trackPlaysJoin+`
+		WHERE t."AlbumId" = ? AND t.archived = false
 		ORDER BY t."DiscNumber" NULLS LAST, t."IndexNumber" NULLS LAST, t."Name"
-	`, albumId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	`, albumId).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getActivityTimeline
+// GET /stats/getActivityTimeline?year=&month=   (month in display time zone)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetActivityTimeline(c *gin.Context) {
-	now := time.Now()
+	now := time.Now().In(statsql.Location())
 	year, _ := strconv.Atoi(c.DefaultQuery("year", strconv.Itoa(now.Year())))
 	month, _ := strconv.Atoi(c.DefaultQuery("month", strconv.Itoa(int(now.Month()))))
 	if year == 0 {
@@ -2118,137 +1204,72 @@ func (h *StatsFrontendHandler) GetActivityTimeline(c *gin.Context) {
 		ItemName   *string `json:"ItemName"`
 		StartTime  *string `json:"StartTime"`
 		EndTime    *string `json:"EndTime"`
-		Duration   int     `json:"Duration"`
+		Duration   int     `json:"Duration"` // seconds actually watched
+		IsView     bool    `json:"IsView"`
 		Client     *string `json:"Client"`
 		PlayMethod *string `json:"PlayMethod"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  a."Id",
-		  a."UserId",
-		  a."UserName",
-		  a."NowPlayingItemId" AS "ItemId",
-		  a."NowPlayingItemName" AS "ItemName",
-		  (a."ActivityDateInserted"::timestamptz - (COALESCE(a."PlaybackDuration", 0) * INTERVAL '1 second'))::text AS "StartTime",
-		  a."ActivityDateInserted" AS "EndTime",
-		  COALESCE(a."PlaybackDuration", 0)::int AS "Duration",
-		  a."Client",
-		  a."PlayMethod"
-		FROM jf_playback_activity a
-		WHERE a."ActivityDateInserted"::timestamptz >= make_date(?, ?, 1)::timestamptz
-		  AND a."ActivityDateInserted"::timestamptz  < make_date(?, ?, 1)::timestamptz + INTERVAL '1 month'
-		ORDER BY a."ActivityDateInserted"::timestamptz DESC
-	`, year, month, year, month).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
-	}
-
-	live := h.getLiveActivity(c.Request.Context())
-	var liveRows []Row
-	for i := range live {
-		ls := live[i]
-		endTime := now.Format(time.RFC3339)
-		startTime := now.Add(-time.Duration(ls.PlaybackDuration) * time.Minute).Format(time.RFC3339)
-		uid := ls.UserId
-		uname := ls.UserName
-		client := ls.Client
-		pm := ls.PlayMethod
-		itemId := ls.NowPlayingItemId
-		itemName := ls.NowPlayingItemName
-		liveRows = append(liveRows, Row{
-			UserId:     &uid,
-			UserName:   &uname,
-			ItemId:     &itemId,
-			ItemName:   &itemName,
-			StartTime:  &startTime,
-			EndTime:    &endTime,
-			Duration:   ls.PlaybackDuration,
-			Client:     &client,
-			PlayMethod: &pm,
-		})
-	}
-
-	result := append(liveRows, rows...)
-	c.JSON(http.StatusOK, result)
-}
-
-// ---------------------------------------------------------------------------
-// POST /stats/getMostViewedLibraries  body: {days}
-// ---------------------------------------------------------------------------
-
-func (h *StatsFrontendHandler) GetMostViewedLibraries(c *gin.Context) {
-	var body struct {
-		From *string `json:"from"`
-		To   *string `json:"to"`
-	}
-	_ = c.ShouldBindJSON(&body)
-
-	now := time.Now()
-	fromTime := now.AddDate(0, 0, -30)
-	toTime := now
-	allTime := false
-
-	if body.From != nil {
-		if *body.From == "all" || *body.From == "0" {
-			allTime = true
-		} else if t, err := time.Parse("2006-01-02", *body.From); err == nil {
-			fromTime = t
-		}
-	}
-	if body.To != nil && *body.To != "" {
-		if t, err := time.Parse("2006-01-02", *body.To); err == nil {
-			toTime = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, time.UTC)
-		}
-	}
-
-	type Row struct {
-		Name  string `json:"Name"`
-		Count int    `json:"Count"`
-	}
-	var rows []Row
-	if allTime {
-		h.db.Raw(`
-			SELECT l."Name", COUNT(DISTINCT a."Id")::int AS "Count"
-			FROM jf_libraries l
-			LEFT JOIN (
-			  SELECT "Id", "ParentId" AS "LibraryId" FROM jf_library_items WHERE archived = false
-			  UNION ALL
-			  SELECT "Id", "LibraryId" FROM jf_music_tracks WHERE archived = false
-			) all_items ON all_items."LibraryId" = l."Id"
-			LEFT JOIN jf_playback_activity a
-			  ON (a."NowPlayingItemId" = all_items."Id" OR a."EpisodeId" = all_items."Id")
-			WHERE l.archived = false
-			GROUP BY l."Id", l."Name"
-			ORDER BY "Count" DESC
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(`
-			SELECT l."Name", COUNT(DISTINCT a."Id")::int AS "Count"
-			FROM jf_libraries l
-			LEFT JOIN (
-			  SELECT "Id", "ParentId" AS "LibraryId" FROM jf_library_items WHERE archived = false
-			  UNION ALL
-			  SELECT "Id", "LibraryId" FROM jf_music_tracks WHERE archived = false
-			) all_items ON all_items."LibraryId" = l."Id"
-			LEFT JOIN jf_playback_activity a
-			  ON (a."NowPlayingItemId" = all_items."Id" OR a."EpisodeId" = all_items."Id")
-			  AND a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			WHERE l.archived = false
-			GROUP BY l."Id", l."Name"
-			ORDER BY "Count" DESC
-		`, fromTime, toTime).Scan(&rows)
-	}
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	local := statsql.LocalTS("a")
+	q, args := acts().where(local+` >= make_timestamp(?, ?, 1, 0, 0, 0) AND `+local+` < make_timestamp(?, ?, 1, 0, 0, 0) + INTERVAL '1 month'`,
+		year, month, year, month).sql(`
+		SELECT id AS "Id", user_id AS "UserId", user_name AS "UserName",
+		       item_id AS "ItemId", COALESCE(now_playing_item_name, item_name) AS "ItemName",
+		       ` + statsql.ISO("started_at") + ` AS "StartTime",
+		       ` + statsql.ISO("ended_at") + ` AS "EndTime",
+		       duration::int AS "Duration",
+		       is_view AS "IsView",
+		       client AS "Client", play_method AS "PlayMethod"
+		FROM acts
+		ORDER BY started_at DESC`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// POST /stats/getLibraryLastPlayed  body: {libraryid}
+// POST /stats/getMostViewedLibraries  body: {from, to}
+// ---------------------------------------------------------------------------
+
+type rangeBody struct {
+	From *string `json:"from"`
+	To   *string `json:"to"`
+}
+
+func (b rangeBody) timeRange() TimeRange {
+	return parseRange(strOrEmpty(b.From), strOrEmpty(b.To))
+}
+
+func (h *StatsFrontendHandler) GetMostViewedLibraries(c *gin.Context) {
+	var body rangeBody
+	_ = c.ShouldBindJSON(&body)
+
+	type Row struct {
+		Id     string `json:"Id"`
+		Name   string `json:"Name"`
+		Count  int    `json:"Count"` // plays
+		Clicks int    `json:"Clicks"`
+	}
+	rows := []Row{}
+	q, args := acts().inRange(body.timeRange()).sql(`,
+		ls AS (
+		  SELECT library_id, ` + aggPlays + ` AS plays, ` + aggClicks + ` AS clicks
+		  FROM acts WHERE library_id IS NOT NULL GROUP BY library_id
+		)
+		SELECT l."Id", l."Name", COALESCE(ls.plays, 0) AS "Count", COALESCE(ls.clicks, 0) AS "Clicks"
+		FROM jf_libraries l
+		LEFT JOIN ls ON ls.library_id = l."Id"
+		WHERE l.archived = false
+		ORDER BY "Count" DESC, l."Name"`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
+	}
+	c.JSON(http.StatusOK, rows)
+}
+
+// ---------------------------------------------------------------------------
+// POST /stats/getLibraryLastPlayed  body: {libraryid}   (last 15 views)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetLibraryLastPlayed(c *gin.Context) {
@@ -2264,38 +1285,39 @@ func (h *StatsFrontendHandler) GetLibraryLastPlayed(c *gin.Context) {
 		Id                   *string `json:"Id"`
 		UserId               *string `json:"UserId"`
 		UserName             *string `json:"UserName"`
+		ItemId               *string `json:"ItemId"`
+		ItemName             *string `json:"ItemName"`
 		NowPlayingItemId     *string `json:"NowPlayingItemId"`
 		NowPlayingItemName   *string `json:"NowPlayingItemName"`
 		SeriesName           *string `json:"SeriesName"`
 		Client               *string `json:"Client"`
 		PlayMethod           *string `json:"PlayMethod"`
 		ActivityDateInserted *string `json:"ActivityDateInserted"`
-		PlaybackDuration     int     `json:"PlaybackDuration"`
-		ItemType             *string `json:"ItemType"`
+		StartedAt            *string `json:"StartedAt"`
+		PlaybackDuration     int     `json:"PlaybackDuration"` // minutes
+		ItemType             *string `json:"ItemType"`         // Movie | Episode | Audio
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  a."Id", a."UserId", a."UserName", a."NowPlayingItemId", a."NowPlayingItemName", a."SeriesName",
-		  a."Client", a."PlayMethod", a."ActivityDateInserted",
-		  FLOOR(COALESCE(a."PlaybackDuration", 0) / 60.0)::int AS "PlaybackDuration",
-		  COALESCE(i."Type", mt."Id"::text) AS "ItemType"
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId" AND i."ParentId" = ?
-		LEFT JOIN jf_music_tracks mt ON mt."Id" = a."NowPlayingItemId" AND mt."LibraryId" = ?
-		WHERE i."Id" IS NOT NULL OR mt."Id" IS NOT NULL
-		ORDER BY a."ActivityDateInserted"::timestamptz DESC
-		LIMIT 15
-	`, body.LibraryId, body.LibraryId).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	q, args := acts().where(`a."IsView"`).where(libraryIdExpr+` = ?`, body.LibraryId).sql(`
+		SELECT acts.id AS "Id", acts.user_id AS "UserId", acts.user_name AS "UserName",
+		       acts.item_id AS "ItemId", acts.item_name AS "ItemName",
+		       acts.now_playing_item_id AS "NowPlayingItemId", acts.now_playing_item_name AS "NowPlayingItemName",
+		       acts.series_name AS "SeriesName", acts.client AS "Client", acts.play_method AS "PlayMethod",
+		       p."ActivityDateInserted",
+		       ` + statsql.ISO("acts.started_at") + ` AS "StartedAt",
+		       FLOOR(acts.duration / 60.0)::int AS "PlaybackDuration",
+		       acts.media_type AS "ItemType"
+		FROM acts JOIN jf_playback_activity p ON p."Id" = acts.id
+		ORDER BY acts.started_at DESC
+		LIMIT 15`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// POST /stats/getGlobalUserStats  body: {userid, hours?}
+// POST /stats/getGlobalUserStats  body: {userid, hours?}   (default last 24 h)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetGlobalUserStats(c *gin.Context) {
@@ -2313,25 +1335,27 @@ func (h *StatsFrontendHandler) GetGlobalUserStats(c *gin.Context) {
 	}
 
 	var stat struct {
-		TotalPlays   int `json:"TotalPlays"`
-		TotalWatchTime int `json:"TotalWatchTime"`
-		UniqueItems  int `json:"UniqueItems"`
+		TotalPlays            int   `json:"TotalPlays"`
+		Plays                 int   `json:"Plays"` // alias of TotalPlays (used by UserDetail)
+		TotalClicks           int   `json:"TotalClicks"`
+		TotalWatchTime        int   `json:"TotalWatchTime"`          // minutes
+		TotalPlaybackDuration int64 `json:"total_playback_duration"` // seconds
+		UniqueItems           int   `json:"UniqueItems"`
 	}
-	h.db.Raw(`
-		SELECT
-		  COUNT(*)::int AS "TotalPlays",
-		  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS "TotalWatchTime",
-		  COUNT(DISTINCT "NowPlayingItemId")::int AS "UniqueItems"
-		FROM jf_playback_activity
-		WHERE "UserId" = ?
-		  AND "ActivityDateInserted"::timestamptz >= NOW() - MAKE_INTERVAL(hours => ?)
-	`, body.UserId, hours).Scan(&stat)
-
+	q, args := acts().forUser(body.UserId).
+		where(statsql.StartedAt("a")+` >= NOW() - MAKE_INTERVAL(hours => ?)`, hours).sql(`
+		SELECT ` + aggPlays + ` AS "TotalPlays", ` + aggPlays + ` AS "Plays", ` + aggClicks + ` AS "TotalClicks",
+		       ` + aggMinutes + ` AS "TotalWatchTime", ` + aggSeconds + ` AS "TotalPlaybackDuration",
+		       COUNT(DISTINCT item_id) FILTER (WHERE is_view)::int AS "UniqueItems"
+		FROM acts`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&stat).Error) {
+		return
+	}
 	c.JSON(http.StatusOK, stat)
 }
 
 // ---------------------------------------------------------------------------
-// POST /stats/getUserLastPlayed  body: {userid}
+// POST /stats/getUserLastPlayed  body: {userid}   (last 15 views)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetUserLastPlayed(c *gin.Context) {
@@ -2344,13 +1368,14 @@ func (h *StatsFrontendHandler) GetUserLastPlayed(c *gin.Context) {
 	}
 
 	var rows []map[string]interface{}
-	h.db.Raw(`
-		SELECT * FROM jf_playback_activity
-		WHERE "UserId" = ?
-		ORDER BY "ActivityDateInserted"::timestamptz DESC
+	if dbError(c, h.db.Raw(`
+		SELECT a.* FROM jf_playback_activity a
+		WHERE a."UserId" = ? AND a."IsView" AND `+statsql.MediaFilter("a")+`
+		ORDER BY `+statsql.StartedAt("a")+` DESC
 		LIMIT 15
-	`, body.UserId).Scan(&rows)
-
+	`, body.UserId).Scan(&rows).Error) {
+		return
+	}
 	if rows == nil {
 		rows = []map[string]interface{}{}
 	}
@@ -2358,39 +1383,52 @@ func (h *StatsFrontendHandler) GetUserLastPlayed(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getLibraryCardStats  (no libraryid = all)
+// GET /stats/getLibraryCardStats  (all libraries)
 // POST /stats/getLibraryCardStats  body: {libraryid}
 // ---------------------------------------------------------------------------
 
-func (h *StatsFrontendHandler) GetLibraryCardStatsGET(c *gin.Context) {
-	type Row struct {
-		Id                   string  `json:"Id"`
-		Name                 string  `json:"Name"`
-		CollectionType       string  `json:"CollectionType"`
-		ItemCount            int     `json:"ItemCount"`
-		ActivityDateInserted *string `json:"ActivityDateInserted"`
-		LastActivity         *string `json:"LastActivity"`
-	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  l."Id",
-		  l."Name",
+type libraryCardRow struct {
+	Id                   string  `json:"Id"`
+	Name                 string  `json:"Name"`
+	CollectionType       string  `json:"CollectionType"`
+	ItemCount            int     `json:"ItemCount"`
+	ActivityDateInserted *string `json:"ActivityDateInserted"` // last playback start (RFC 3339)
+	LastActivity         *string `json:"LastActivity"`         // interval since then
+}
+
+func (h *StatsFrontendHandler) queryLibraryCards(libraryId string) ([]libraryCardRow, error) {
+	outer := `,
+		last AS (
+		  SELECT library_id, MAX(started_at) AS ts FROM acts
+		  WHERE library_id IS NOT NULL GROUP BY library_id
+		)
+		SELECT l."Id", l."Name",
 		  COALESCE(l."CollectionType", l."Type", 'unknown') AS "CollectionType",
 		  COUNT(DISTINCT i."Id") FILTER (WHERE i."Type" NOT IN ('Season', 'Folder', 'MusicAlbum'))::int AS "ItemCount",
-		  (SELECT MAX(a."ActivityDateInserted")::timestamptz FROM jf_playback_activity a
-		   JOIN jf_library_items li ON li."Id" = a."NowPlayingItemId" AND li."ParentId" = l."Id") AS "ActivityDateInserted",
-		  (now() - (SELECT MAX(a."ActivityDateInserted")::timestamptz FROM jf_playback_activity a
-		   JOIN jf_library_items li ON li."Id" = a."NowPlayingItemId" AND li."ParentId" = l."Id"))::text AS "LastActivity"
+		  ` + statsql.ISO("last.ts") + ` AS "ActivityDateInserted",
+		  (now() - last.ts)::text AS "LastActivity"
 		FROM jf_libraries l
 		LEFT JOIN jf_library_items i ON i."ParentId" = l."Id" AND i.archived = false
-		WHERE l.archived = false
-		GROUP BY l."Id", l."Name", l."CollectionType", l."Type"
-		ORDER BY l."Name"
-	`).Scan(&rows)
+		LEFT JOIN last ON last.library_id = l."Id"
+		WHERE l.archived = false`
+	f := acts()
+	var outerArgs []interface{}
+	if libraryId != "" {
+		f.where(libraryIdExpr+` = ?`, libraryId)
+		outer += ` AND l."Id" = ?`
+		outerArgs = append(outerArgs, libraryId)
+	}
+	outer += ` GROUP BY l."Id", l."Name", l."CollectionType", l."Type", last.ts ORDER BY l."Name"`
+	q, args := f.sql(outer, outerArgs...)
+	rows := []libraryCardRow{}
+	err := h.db.Raw(q, args...).Scan(&rows).Error
+	return rows, err
+}
 
-	if rows == nil {
-		rows = []Row{}
+func (h *StatsFrontendHandler) GetLibraryCardStatsGET(c *gin.Context) {
+	rows, err := h.queryLibraryCards("")
+	if dbError(c, err) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
@@ -2403,32 +1441,10 @@ func (h *StatsFrontendHandler) GetLibraryCardStatsPOST(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "libraryid is required"})
 		return
 	}
-
-	type Row struct {
-		Id                   string  `json:"Id"`
-		Name                 string  `json:"Name"`
-		CollectionType       string  `json:"CollectionType"`
-		ItemCount            int     `json:"ItemCount"`
-		ActivityDateInserted *string `json:"ActivityDateInserted"`
-		LastActivity         *string `json:"LastActivity"`
+	rows, err := h.queryLibraryCards(body.LibraryId)
+	if dbError(c, err) {
+		return
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  l."Id",
-		  l."Name",
-		  COALESCE(l."CollectionType", l."Type", 'unknown') AS "CollectionType",
-		  COUNT(DISTINCT i."Id") FILTER (WHERE i."Type" NOT IN ('Season', 'Folder', 'MusicAlbum'))::int AS "ItemCount",
-		  (SELECT MAX(a."ActivityDateInserted")::timestamptz FROM jf_playback_activity a
-		   JOIN jf_library_items li ON li."Id" = a."NowPlayingItemId" AND li."ParentId" = l."Id") AS "ActivityDateInserted",
-		  (now() - (SELECT MAX(a."ActivityDateInserted")::timestamptz FROM jf_playback_activity a
-		   JOIN jf_library_items li ON li."Id" = a."NowPlayingItemId" AND li."ParentId" = l."Id"))::text AS "LastActivity"
-		FROM jf_libraries l
-		LEFT JOIN jf_library_items i ON i."ParentId" = l."Id" AND i.archived = false
-		WHERE l.archived = false AND l."Id" = ?
-		GROUP BY l."Id", l."Name", l."CollectionType", l."Type"
-	`, body.LibraryId).Scan(&rows)
-
 	if len(rows) == 0 {
 		c.JSON(http.StatusOK, nil)
 		return
@@ -2437,7 +1453,7 @@ func (h *StatsFrontendHandler) GetLibraryCardStatsPOST(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getLibraryMetadata
+// GET /stats/getLibraryMetadata / getLibraryOverview (catalog only)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetLibraryMetadata(c *gin.Context) {
@@ -2447,11 +1463,9 @@ func (h *StatsFrontendHandler) GetLibraryMetadata(c *gin.Context) {
 		CollectionType string `json:"CollectionType"`
 		ItemCount      int    `json:"ItemCount"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  l."Id",
-		  l."Name",
+	rows := []Row{}
+	if dbError(c, h.db.Raw(`
+		SELECT l."Id", l."Name",
 		  COALESCE(l."CollectionType", l."Type", 'unknown') AS "CollectionType",
 		  COUNT(DISTINCT i."Id") FILTER (WHERE i.archived = false AND i."Type" NOT IN ('Season', 'Folder'))::int AS "ItemCount"
 		FROM jf_libraries l
@@ -2459,17 +1473,11 @@ func (h *StatsFrontendHandler) GetLibraryMetadata(c *gin.Context) {
 		WHERE l.archived = false
 		GROUP BY l."Id", l."Name", l."CollectionType", l."Type"
 		ORDER BY l."Name"
-	`).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	`).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getLibraryOverview
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetLibraryOverview(c *gin.Context) {
 	type Row struct {
@@ -2478,11 +1486,9 @@ func (h *StatsFrontendHandler) GetLibraryOverview(c *gin.Context) {
 		CollectionType string `json:"CollectionType"`
 		TotalItems     int    `json:"TotalItems"`
 	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT
-		  l."Id",
-		  l."Name",
+	rows := []Row{}
+	if dbError(c, h.db.Raw(`
+		SELECT l."Id", l."Name",
 		  COALESCE(l."CollectionType", l."Type", 'unknown') AS "CollectionType",
 		  COUNT(i."Id") FILTER (WHERE i."Type" NOT IN ('Season', 'Folder'))::int AS "TotalItems"
 		FROM jf_libraries l
@@ -2490,71 +1496,77 @@ func (h *StatsFrontendHandler) GetLibraryOverview(c *gin.Context) {
 		WHERE l.archived = false
 		GROUP BY l."Id", l."Name", l."CollectionType", l."Type"
 		ORDER BY l."Name"
-	`).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	`).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getViewsByLibraryType?days=30
+// GET /stats/getViewsByLibraryType?from=&to=
+// Keys: Movie, Series (episodes), Music (tracks); "Audio" is kept as an alias
+// of Music and "Other" is always 0 (other media types are not counted).
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetViewsByLibraryType(c *gin.Context) {
 	tr := parseTimeRange(c)
-
 	type Row struct {
-		Type  *string `json:"type"`
-		Count int     `json:"count"`
+		MediaType string
+		Count     int
 	}
 	var rows []Row
-	if tr.AllTime {
-		h.db.Raw(`
-			SELECT COALESCE(i."Type", 'Other') AS type, COUNT(a."NowPlayingItemId") AS count
-			FROM jf_playback_activity a
-			LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-			GROUP BY i."Type"
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(`
-			SELECT COALESCE(i."Type", 'Other') AS type, COUNT(a."NowPlayingItemId") AS count
-			FROM jf_playback_activity a
-			LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-			WHERE a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			GROUP BY i."Type"
-		`, tr.From, tr.To).Scan(&rows)
+	q, args := acts().inRange(tr).sql(`
+		SELECT media_type AS "MediaType", ` + aggPlays + ` AS "Count" FROM acts GROUP BY media_type`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
-
-	result := map[string]int{
-		"Audio":  0,
-		"Movie":  0,
-		"Series": 0,
-		"Other":  0,
-	}
+	result := map[string]int{"Movie": 0, "Series": 0, "Music": 0, "Audio": 0, "Other": 0}
 	for _, r := range rows {
-		t := "Other"
-		if r.Type != nil {
-			t = *r.Type
-		}
-		switch t {
-		case "Audio":
-			result["Audio"] += r.Count
-		case "Movie", "Video":
+		switch r.MediaType {
+		case "Movie":
 			result["Movie"] += r.Count
-		case "Series", "Episode":
+		case "Episode":
 			result["Series"] += r.Count
-		default:
-			result["Other"] += r.Count
+		case "Audio":
+			result["Music"] += r.Count
+			result["Audio"] += r.Count
 		}
 	}
 	c.JSON(http.StatusOK, result)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getGenreUserStats?userid=&type=Movie|Episode|Audio&size=10&page=1
+// GET /stats/getGenreUserStats?userid=&type=Movie|Series|Episode|Audio|Music&size=10&page=1
+// GET /stats/getGenreLibraryStats?libraryid=&size=50&page=1
+// duration = watch time (s, all clicks); plays = views. Genres of the
+// series / album / track are used for episodes / tracks.
 // ---------------------------------------------------------------------------
+
+type genreStatRow struct {
+	Genre    string `json:"genre"`
+	Duration int64  `json:"duration"`
+	Plays    int    `json:"plays"`
+}
+
+func (h *StatsFrontendHandler) genrePage(f *actFilter, orderBy string, size, offset int) (int, []genreStatRow, error) {
+	gcte := `,
+		g AS (
+		  SELECT genre, ` + aggSeconds + ` AS duration, ` + aggPlays + ` AS plays
+		  FROM acts ` + genreLateral + `
+		  WHERE acts.genres IS NOT NULL
+		  GROUP BY genre
+		  HAVING COUNT(*) FILTER (WHERE is_view) > 0
+		)`
+	var total int
+	q, args := f.sql(gcte + ` SELECT COUNT(*) FROM g`)
+	if err := h.db.Raw(q, args...).Scan(&total).Error; err != nil {
+		return 0, nil, err
+	}
+	rows := []genreStatRow{}
+	q, args = f.sql(gcte+` SELECT genre, duration, plays FROM g ORDER BY `+orderBy+` LIMIT ? OFFSET ?`, size, offset)
+	err := h.db.Raw(q, args...).Scan(&rows).Error
+	return total, rows, err
+}
 
 func (h *StatsFrontendHandler) GetGenreUserStats(c *gin.Context) {
 	userId := c.Query("userid")
@@ -2562,81 +1574,24 @@ func (h *StatsFrontendHandler) GetGenreUserStats(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userid is required"})
 		return
 	}
-	mediaType := c.Query("type") // optional filter: Movie, Episode, Audio
 	size := parseDays(c.DefaultQuery("size", "10"), 10)
 	page := parseDays(c.DefaultQuery("page", "1"), 1)
-	offset := (page - 1) * size
 
-	// Optional type filter injected via fmt.Sprintf — the ? is a GORM placeholder
-	typeFilter := ""
-	if mediaType != "" {
-		typeFilter = `AND i."Type" = ?`
+	f := acts().forUser(userId)
+	if t := c.Query("type"); t != "" {
+		mt := mediaTypeParam(t)
+		if mt == "" {
+			c.JSON(http.StatusOK, paginate(0, size, page, []genreStatRow{}))
+			return
+		}
+		f.where(`a."MediaType" = ?`, mt)
 	}
-
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*) FROM (
-		  SELECT COALESCE(g.genre, 'No Genre') AS genre
-		  FROM jf_playback_activity a
-		  INNER JOIN jf_library_items i ON a."NowPlayingItemId" = i."Id"
-		  LEFT JOIN LATERAL (
-		    SELECT jsonb_array_elements_text(
-		      CASE WHEN jsonb_array_length(COALESCE(i."Genres", '[]'::jsonb)) = 0
-		           THEN '["No Genre"]'::jsonb
-		           ELSE i."Genres" END
-		    ) AS genre
-		  ) g ON true
-		  WHERE a."UserId" = ? %s
-		  GROUP BY COALESCE(g.genre, 'No Genre')
-		) sub
-	`, typeFilter)
-
-	dataQuery := fmt.Sprintf(`
-		SELECT COALESCE(g.genre, 'No Genre') AS genre,
-		       SUM(a."PlaybackDuration") AS duration,
-		       COUNT(*) AS plays
-		FROM jf_playback_activity a
-		INNER JOIN jf_library_items i ON a."NowPlayingItemId" = i."Id"
-		LEFT JOIN LATERAL (
-		  SELECT jsonb_array_elements_text(
-		    CASE WHEN jsonb_array_length(COALESCE(i."Genres", '[]'::jsonb)) = 0
-		         THEN '["No Genre"]'::jsonb
-		         ELSE i."Genres" END
-		  ) AS genre
-		) g ON true
-		WHERE a."UserId" = ? %s
-		GROUP BY COALESCE(g.genre, 'No Genre')
-		ORDER BY plays DESC
-		LIMIT ? OFFSET ?
-	`, typeFilter)
-
-	var total int
-	if mediaType != "" {
-		h.db.Raw(countQuery, userId, mediaType).Scan(&total)
-	} else {
-		h.db.Raw(countQuery, userId).Scan(&total)
-	}
-
-	type Row struct {
-		Genre    string `json:"genre"`
-		Duration int64  `json:"duration"`
-		Plays    int    `json:"plays"`
-	}
-	var rows []Row
-	if mediaType != "" {
-		h.db.Raw(dataQuery, userId, mediaType, size, offset).Scan(&rows)
-	} else {
-		h.db.Raw(dataQuery, userId, size, offset).Scan(&rows)
-	}
-
-	if rows == nil {
-		rows = []Row{}
+	total, rows, err := h.genrePage(f, `plays DESC, duration DESC, genre`, size, (page-1)*size)
+	if dbError(c, err) {
+		return
 	}
 	c.JSON(http.StatusOK, paginate(total, size, page, rows))
 }
-
-// ---------------------------------------------------------------------------
-// GET /stats/getGenreLibraryStats?libraryid=&size=50&page=1
-// ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetGenreLibraryStats(c *gin.Context) {
 	libraryId := c.Query("libraryid")
@@ -2646,53 +1601,10 @@ func (h *StatsFrontendHandler) GetGenreLibraryStats(c *gin.Context) {
 	}
 	size := parseDays(c.DefaultQuery("size", "50"), 50)
 	page := parseDays(c.DefaultQuery("page", "1"), 1)
-	offset := (page - 1) * size
 
-	var total int
-	h.db.Raw(`
-		SELECT COUNT(*) FROM (
-		  SELECT COALESCE(g.genre, 'No Genre') AS genre
-		  FROM jf_playback_activity a
-		  INNER JOIN jf_library_items i ON a."NowPlayingItemId" = i."Id"
-		  LEFT JOIN LATERAL (
-		    SELECT jsonb_array_elements_text(
-		      CASE WHEN jsonb_array_length(COALESCE(i."Genres", '[]'::jsonb)) = 0
-		           THEN '["No Genre"]'::jsonb
-		           ELSE i."Genres" END
-		    ) AS genre
-		  ) g ON true
-		  WHERE i."ParentId" = ?
-		  GROUP BY COALESCE(g.genre, 'No Genre')
-		) sub
-	`, libraryId).Scan(&total)
-
-	type Row struct {
-		Genre    string `json:"genre"`
-		Duration int64  `json:"duration"`
-		Plays    int    `json:"plays"`
-	}
-	var rows []Row
-	h.db.Raw(`
-		SELECT COALESCE(g.genre, 'No Genre') AS genre,
-		       SUM(a."PlaybackDuration") AS duration,
-		       COUNT(*) AS plays
-		FROM jf_playback_activity a
-		INNER JOIN jf_library_items i ON a."NowPlayingItemId" = i."Id"
-		LEFT JOIN LATERAL (
-		  SELECT jsonb_array_elements_text(
-		    CASE WHEN jsonb_array_length(COALESCE(i."Genres", '[]'::jsonb)) = 0
-		         THEN '["No Genre"]'::jsonb
-		         ELSE i."Genres" END
-		  ) AS genre
-		) g ON true
-		WHERE i."ParentId" = ?
-		GROUP BY COALESCE(g.genre, 'No Genre')
-		ORDER BY genre ASC
-		LIMIT ? OFFSET ?
-	`, libraryId, size, offset).Scan(&rows)
-
-	if rows == nil {
-		rows = []Row{}
+	total, rows, err := h.genrePage(acts().where(libraryIdExpr+` = ?`, libraryId), `genre ASC`, size, (page-1)*size)
+	if dbError(c, err) {
+		return
 	}
 	c.JSON(http.StatusOK, paginate(total, size, page, rows))
 }
@@ -2707,12 +1619,11 @@ func (h *StatsFrontendHandler) GetPlaybackActivity(c *gin.Context) {
 	offset := (page - 1) * size
 	search := c.DefaultQuery("search", "")
 	sortCol := c.DefaultQuery("sort", "ActivityDateInserted")
-	descStr := c.DefaultQuery("desc", "true")
-	isDesc := descStr != "false"
+	isDesc := c.DefaultQuery("desc", "true") != "false"
 
-	// Whitelist sort columns
 	allowedSort := map[string]string{
-		"ActivityDateInserted": `a."ActivityDateInserted"`,
+		"ActivityDateInserted": statsql.StartedAt("a"),
+		"StartedAt":            statsql.StartedAt("a"),
 		"UserName":             `a."UserName"`,
 		"NowPlayingItemName":   `a."NowPlayingItemName"`,
 		"PlaybackDuration":     `a."PlaybackDuration"`,
@@ -2721,36 +1632,30 @@ func (h *StatsFrontendHandler) GetPlaybackActivity(c *gin.Context) {
 	}
 	sortExpr, ok := allowedSort[sortCol]
 	if !ok {
-		sortExpr = `a."ActivityDateInserted"`
+		sortExpr = statsql.StartedAt("a")
 	}
 	order := "DESC"
 	if !isDesc {
 		order = "ASC"
 	}
 
+	where := ` WHERE ` + statsql.MediaFilter("a")
+	var args []interface{}
+	if search != "" {
+		where += ` AND LOWER(COALESCE(NULLIF(a."SeriesName", ''), a."NowPlayingItemName")) LIKE ?`
+		args = append(args, "%"+strings.ToLower(search)+"%")
+	}
+
 	var total int
-	if search != "" {
-		searchLike := "%" + strings.ToLower(search) + "%"
-		h.db.Raw(`
-			SELECT COUNT(*) FROM jf_playback_activity a
-			WHERE LOWER(CASE WHEN a."SeriesName" IS NULL THEN a."NowPlayingItemName" ELSE a."SeriesName" END) LIKE ?
-		`, searchLike).Scan(&total)
-	} else {
-		h.db.Raw(`SELECT COUNT(*) FROM jf_playback_activity a`).Scan(&total)
+	if dbError(c, h.db.Raw(`SELECT COUNT(*) FROM jf_playback_activity a`+where, args...).Scan(&total).Error) {
+		return
 	}
-
 	var rows []map[string]interface{}
-	q := `SELECT * FROM jf_playback_activity a`
-	if search != "" {
-		searchLike := "%" + strings.ToLower(search) + "%"
-		q += ` WHERE LOWER(CASE WHEN a."SeriesName" IS NULL THEN a."NowPlayingItemName" ELSE a."SeriesName" END) LIKE ?`
-		q += fmt.Sprintf(` ORDER BY %s %s LIMIT ? OFFSET ?`, sortExpr, order)
-		h.db.Raw(q, searchLike, size, offset).Scan(&rows)
-	} else {
-		q += fmt.Sprintf(` ORDER BY %s %s LIMIT ? OFFSET ?`, sortExpr, order)
-		h.db.Raw(q, size, offset).Scan(&rows)
+	q := `SELECT a.* FROM jf_playback_activity a` + where +
+		fmt.Sprintf(` ORDER BY %s %s NULLS LAST LIMIT ? OFFSET ?`, sortExpr, order)
+	if dbError(c, h.db.Raw(q, append(args, size, offset)...).Scan(&rows).Error) {
+		return
 	}
-
 	if rows == nil {
 		rows = []map[string]interface{}{}
 	}
@@ -2767,58 +1672,24 @@ func (h *StatsFrontendHandler) GetPlaybackActivity(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /stats/getPlaybackMethodStats  body: {days?}
+// POST /stats/getPlaybackMethodStats  body: {from, to}
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetPlaybackMethodStats(c *gin.Context) {
-	var body struct {
-		From *string `json:"from"`
-		To   *string `json:"to"`
-	}
+	var body rangeBody
 	_ = c.ShouldBindJSON(&body)
 
-	now := time.Now()
-	fromTime := now.AddDate(0, 0, -30)
-	toTime := now
-	allTime := false
-
-	if body.From != nil {
-		if *body.From == "all" || *body.From == "0" {
-			allTime = true
-		} else if t, err := time.Parse("2006-01-02", *body.From); err == nil {
-			fromTime = t
-		}
-	}
-	if body.To != nil && *body.To != "" {
-		if t, err := time.Parse("2006-01-02", *body.To); err == nil {
-			toTime = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, time.UTC)
-		}
-	}
-
 	type Row struct {
-		Name  *string `json:"Name"`
-		Count int     `json:"Count"`
+		Name   *string `json:"Name"`
+		Count  int     `json:"Count"` // plays
+		Clicks int     `json:"Clicks"`
 	}
-	var rows []Row
-	if allTime {
-		h.db.Raw(`
-			SELECT a."PlayMethod" AS "Name", count(a."PlayMethod") AS "Count"
-			FROM jf_playback_activity a
-			GROUP BY a."PlayMethod"
-			ORDER BY (count(*)) DESC
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(`
-			SELECT a."PlayMethod" AS "Name", count(a."PlayMethod") AS "Count"
-			FROM jf_playback_activity a
-			WHERE a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-			GROUP BY a."PlayMethod"
-			ORDER BY (count(*)) DESC
-		`, fromTime, toTime).Scan(&rows)
-	}
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	q, args := acts().inRange(body.timeRange()).sql(`
+		SELECT play_method AS "Name", ` + aggPlays + ` AS "Count", ` + aggClicks + ` AS "Clicks"
+		FROM acts GROUP BY play_method ORDER BY "Count" DESC, "Clicks" DESC`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
@@ -2841,14 +1712,14 @@ func (h *StatsFrontendHandler) GetLibraryItemsWithStats(c *gin.Context) {
 	offset := (page - 1) * size
 	search := c.DefaultQuery("search", "")
 	sortParam := c.DefaultQuery("sort", "Date")
-	descStr := c.DefaultQuery("desc", "true")
-	isDesc := descStr != "false"
+	isDesc := c.DefaultQuery("desc", "true") != "false"
 
 	sortMap := map[string]string{
 		"Date":      `i."DateCreated"`,
-		"Views":     `pc.times_played`,
+		"Views":     `pc.play_count`,
+		"Clicks":    `pc.click_count`,
 		"Size":      `info."Size"`,
-		"WatchTime": `pc.total_play_time`,
+		"WatchTime": `pc.play_seconds`,
 		"Title":     `i."Name"`,
 	}
 	sortExpr, ok := sortMap[sortParam]
@@ -2862,55 +1733,46 @@ func (h *StatsFrontendHandler) GetLibraryItemsWithStats(c *gin.Context) {
 
 	baseFrom := `
 		FROM jf_library_items i
-		LEFT JOIN (
-		  SELECT COALESCE("EpisodeId", "NowPlayingItemId") AS item_id,
-		    COUNT(*)::int AS times_played,
-		    COALESCE(SUM("PlaybackDuration"), 0)::int AS total_play_time
-		  FROM jf_playback_activity
-		  GROUP BY item_id
-		) pc ON pc.item_id = i."Id"
+		LEFT JOIN pc ON pc.group_id = i."Id"
 		LEFT JOIN jf_item_info info ON info."Id" = i."Id"
 		WHERE i."ParentId" = ?
 		  AND i.archived = false
-		  AND i."Type" NOT IN ('Season', 'Folder')
-	`
+		  AND i."Type" NOT IN ('Season', 'Folder')`
+	outerArgs := []interface{}{body.LibraryId}
+	if search != "" {
+		baseFrom += ` AND LOWER(i."Name") LIKE ?`
+		outerArgs = append(outerArgs, "%"+strings.ToLower(search)+"%")
+	}
+	f := acts().where(libraryIdExpr+` = ?`, body.LibraryId)
 
 	var total int
-	if search != "" {
-		searchLike := "%" + strings.ToLower(search) + "%"
-		h.db.Raw(`SELECT COUNT(*) `+baseFrom+` AND LOWER(i."Name") LIKE ?`, body.LibraryId, searchLike).Scan(&total)
-	} else {
-		h.db.Raw(`SELECT COUNT(*) `+baseFrom, body.LibraryId).Scan(&total)
+	q, args := f.sql(groupStatsCTE+` SELECT COUNT(*) `+baseFrom, outerArgs...)
+	if dbError(c, h.db.Raw(q, args...).Scan(&total).Error) {
+		return
 	}
 
 	type Row struct {
-		Id             string   `json:"Id"`
-		Name           string   `json:"Name"`
-		Type           string   `json:"Type"`
-		ProductionYear *int     `json:"ProductionYear"`
+		Id              string   `json:"Id"`
+		Name            string   `json:"Name"`
+		Type            string   `json:"Type"`
+		ProductionYear  *int     `json:"ProductionYear"`
 		CommunityRating *float64 `json:"CommunityRating"`
-		DateCreated    *string  `json:"DateCreated"`
-		Size           *int64   `json:"Size"`
-		TimesPlayed    int      `json:"times_played"`
-		TotalPlayTime  int      `json:"total_play_time"`
+		DateCreated     *string  `json:"DateCreated"`
+		Size            *int64   `json:"Size"`
+		TimesPlayed     int      `json:"times_played"`
+		TimesClicked    int      `json:"times_clicked"`
+		TotalPlayTime   int64    `json:"total_play_time"` // seconds
 	}
-	var rows []Row
-
-	selectClause := `SELECT i."Id", i."Name", i."Type", i."ProductionYear", i."CommunityRating", i."DateCreated", info."Size",
-		COALESCE(pc.times_played, 0) AS times_played, COALESCE(pc.total_play_time, 0) AS total_play_time`
-
-	orderClause := fmt.Sprintf(` ORDER BY %s %s NULLS LAST LIMIT ? OFFSET ?`, sortExpr, order)
-
-	if search != "" {
-		searchLike := "%" + strings.ToLower(search) + "%"
-		h.db.Raw(selectClause+baseFrom+` AND LOWER(i."Name") LIKE ?`+orderClause,
-			body.LibraryId, searchLike, size, offset).Scan(&rows)
-	} else {
-		h.db.Raw(selectClause+baseFrom+orderClause, body.LibraryId, size, offset).Scan(&rows)
-	}
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	q, args = f.sql(groupStatsCTE+`
+		SELECT i."Id", i."Name", i."Type", i."ProductionYear", i."CommunityRating", i."DateCreated", info."Size",
+		       COALESCE(pc.play_count, 0) AS times_played,
+		       COALESCE(pc.click_count, 0) AS times_clicked,
+		       COALESCE(pc.play_seconds, 0) AS total_play_time
+		`+baseFrom+fmt.Sprintf(` ORDER BY %s %s NULLS LAST, i."Name" LIMIT ? OFFSET ?`, sortExpr, order),
+		append(outerArgs, size, offset)...)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 
 	pr := paginate(total, size, page, rows)
@@ -2926,6 +1788,7 @@ func (h *StatsFrontendHandler) GetLibraryItemsWithStats(c *gin.Context) {
 
 // ---------------------------------------------------------------------------
 // POST /stats/getLibraryItemsPlayMethodStats  body: {libraryid, startDate?, endDate?, hours?}
+// Concurrent views per hour (display time zone), split by play method.
 // ---------------------------------------------------------------------------
 
 type playMethodRecord struct {
@@ -2934,31 +1797,39 @@ type playMethodRecord struct {
 	PlayMethod string
 }
 
-func countOverlapsPerHour(records []playMethodRecord) map[string]struct{ Transcodes, DirectPlays int } {
-	type hourCount struct{ Transcodes, DirectPlays int }
-	hourCounts := map[string]hourCount{}
+type hourCount struct {
+	Hour        time.Time
+	Transcodes  int
+	DirectPlays int
+}
 
+// countOverlapsPerHour counts, for each local clock hour, the views that were
+// running during (or within an hour of) that hour. Result is sorted by time.
+func countOverlapsPerHour(records []playMethodRecord, loc *time.Location) []hourCount {
+	counts := map[time.Time]*hourCount{}
 	for _, r := range records {
-		start := r.StartTime.Add(-time.Hour)
+		start := r.StartTime.Add(-time.Hour).In(loc)
 		end := r.EndTime.Add(time.Hour)
-
-		for t := start.Truncate(time.Hour); t.Before(end); t = t.Add(time.Hour) {
-			key := t.Format("Jan 02, 06 15:00")
-			hc := hourCounts[key]
+		t := time.Date(start.Year(), start.Month(), start.Day(), start.Hour(), 0, 0, 0, loc)
+		for ; t.Before(end); t = t.Add(time.Hour) {
+			hc, ok := counts[t]
+			if !ok {
+				hc = &hourCount{Hour: t}
+				counts[t] = hc
+			}
 			if r.PlayMethod == "Transcode" {
 				hc.Transcodes++
 			} else {
 				hc.DirectPlays++
 			}
-			hourCounts[key] = hc
 		}
 	}
-
-	result := map[string]struct{ Transcodes, DirectPlays int }{}
-	for k, v := range hourCounts {
-		result[k] = struct{ Transcodes, DirectPlays int }{v.Transcodes, v.DirectPlays}
+	out := make([]hourCount, 0, len(counts))
+	for _, v := range counts {
+		out = append(out, *v)
 	}
-	return result
+	sort.Slice(out, func(i, j int) bool { return out[i].Hour.Before(out[j].Hour) })
+	return out
 }
 
 func (h *StatsFrontendHandler) GetLibraryItemsPlayMethodStats(c *gin.Context) {
@@ -2973,90 +1844,60 @@ func (h *StatsFrontendHandler) GetLibraryItemsPlayMethodStats(c *gin.Context) {
 		return
 	}
 
+	loc := statsql.Location()
 	now := time.Now()
+	f := acts().where(`a."IsView"`).where(libraryIdExpr+` = ?`, body.LibraryId)
 
 	hasTimeFilter := (body.Hours != nil && *body.Hours > 0) ||
 		(body.StartDate != nil && *body.StartDate != "") ||
 		(body.EndDate != nil && *body.EndDate != "")
-
-	startTime := time.Time{}
-	endTime := now
 	if hasTimeFilter {
 		hours := 24
 		if body.Hours != nil && *body.Hours > 0 {
 			hours = *body.Hours
 		}
-		startTime = now.Add(-time.Duration(hours) * time.Hour)
+		startTime := now.Add(-time.Duration(hours) * time.Hour)
+		endTime := now
 		if body.StartDate != nil && *body.StartDate != "" {
-			if t, err := time.Parse("2006-01-02", *body.StartDate); err == nil {
+			if t, err := time.ParseInLocation("2006-01-02", *body.StartDate, loc); err == nil {
 				startTime = t
 			}
 		}
 		if body.EndDate != nil && *body.EndDate != "" {
-			if t, err := time.Parse("2006-01-02", *body.EndDate); err == nil {
-				endTime = t.Add(24 * time.Hour)
+			if t, err := time.ParseInLocation("2006-01-02", *body.EndDate, loc); err == nil {
+				endTime = t.AddDate(0, 0, 1)
 			}
 		}
+		// Views overlapping [startTime, endTime).
+		f.where(statsql.StartedAt("a")+` < ?`, endTime).
+			where(`COALESCE(a."EndedAt", `+statsql.StartedAt("a")+` + make_interval(secs => COALESCE(a."PlaybackDuration", 0)::float8)) >= ?`, startTime)
 	}
 
 	type RawRow struct {
-		ActivityDateInserted string  `gorm:"column:ActivityDateInserted"`
-		PlaybackDuration     *int64  `gorm:"column:PlaybackDuration"`
-		PlayMethod           *string `gorm:"column:PlayMethod"`
+		StartedAt  time.Time
+		EndedAt    time.Time
+		PlayMethod string
 	}
 	var rawRows []RawRow
-	query := h.db.Raw(`
-		SELECT a."ActivityDateInserted", a."PlaybackDuration", a."PlayMethod"
-		FROM jf_playback_activity a
-		JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		WHERE i."ParentId" = ?
-		ORDER BY a."ActivityDateInserted" DESC
-	`, body.LibraryId)
-	if hasTimeFilter {
-		query = h.db.Raw(`
-			SELECT a."ActivityDateInserted", a."PlaybackDuration", a."PlayMethod"
-			FROM jf_playback_activity a
-			JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-			WHERE i."ParentId" = ?
-			AND a."ActivityDateInserted" BETWEEN ? AND ?
-			ORDER BY a."ActivityDateInserted" DESC
-		`, body.LibraryId, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
+	q, args := f.sql(`SELECT started_at AS "StartedAt", ended_at AS "EndedAt", play_method AS "PlayMethod" FROM acts ORDER BY started_at`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rawRows).Error) {
+		return
 	}
-	query.Scan(&rawRows)
 
-	var records []playMethodRecord
+	records := make([]playMethodRecord, 0, len(rawRows))
 	for _, r := range rawRows {
-		endT, err := time.Parse(time.RFC3339, r.ActivityDateInserted)
-		if err != nil {
-			endT = now
-		}
-		dur := int64(0)
-		if r.PlaybackDuration != nil {
-			dur = *r.PlaybackDuration
-		}
-		pm := ""
-		if r.PlayMethod != nil {
-			pm = *r.PlayMethod
-		}
-		records = append(records, playMethodRecord{
-			StartTime:  endT.Add(-time.Duration(dur) * time.Second),
-			EndTime:    endT,
-			PlayMethod: pm,
-		})
+		records = append(records, playMethodRecord{StartTime: r.StartedAt, EndTime: r.EndedAt, PlayMethod: r.PlayMethod})
 	}
-
-	overlaps := countOverlapsPerHour(records)
 
 	type StatEntry struct {
 		Key         string `json:"Key"`
 		Transcodes  int    `json:"Transcodes"`
 		DirectPlays int    `json:"DirectPlays"`
 	}
-	var stats []StatEntry
-	for key, v := range overlaps {
-		stats = append(stats, StatEntry{Key: key, Transcodes: v.Transcodes, DirectPlays: v.DirectPlays})
+	stats := []StatEntry{}
+	for _, hc := range countOverlapsPerHour(records, loc) {
+		stats = append(stats, StatEntry{Key: hc.Hour.Format("Jan 02, 06 15:00"), Transcodes: hc.Transcodes, DirectPlays: hc.DirectPlays})
 	}
-	sort.Slice(stats, func(i, j int) bool { return stats[i].Key < stats[j].Key })
 
 	c.JSON(http.StatusOK, gin.H{
 		"types": []gin.H{
@@ -3068,155 +1909,87 @@ func (h *StatsFrontendHandler) GetLibraryItemsPlayMethodStats(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getPlaybacksByLibraryOverTime?days=30
+// GET /stats/getPlaybacksByLibraryOverTime?from=&to=
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetPlaybacksByLibraryOverTime(c *gin.Context) {
 	tr := parseTimeRange(c)
-
 	type Row struct {
 		Date        string `json:"date"        gorm:"column:date"`
 		LibraryId   string `json:"libraryId"   gorm:"column:LibraryId"`
 		LibraryName string `json:"libraryName" gorm:"column:LibraryName"`
 		Count       int    `json:"count"       gorm:"column:count"`
+		Clicks      int    `json:"clicks"      gorm:"column:clicks"`
 	}
-	var rows []Row
-
-	baseQuery := `
-		SELECT
-		  TO_CHAR(("ActivityDateInserted"::timestamptz)::date, 'YYYY-MM-DD') AS date,
-		  l."Id" AS "LibraryId",
-		  l."Name" AS "LibraryName",
-		  COUNT(DISTINCT a."Id")::int AS count
-		FROM jf_libraries l
-		JOIN (
-		  SELECT "Id", "ParentId" AS "LibraryId" FROM jf_library_items WHERE archived = false
-		  UNION ALL
-		  SELECT "Id", "LibraryId" FROM jf_music_tracks WHERE archived = false
-		) all_items ON all_items."LibraryId" = l."Id"
-		JOIN jf_playback_activity a
-		  ON (a."NowPlayingItemId" = all_items."Id" OR a."EpisodeId" = all_items."Id")`
-
-	if tr.AllTime {
-		h.db.Raw(baseQuery+`
-		WHERE l.archived = false
-		GROUP BY date, l."Id", l."Name"
-		ORDER BY date, l."Name"
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(baseQuery+`
-		  AND a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-		WHERE l.archived = false
-		GROUP BY date, l."Id", l."Name"
-		ORDER BY date, l."Name"
-		`, tr.From, tr.To).Scan(&rows)
-	}
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	q, args := acts().inRange(tr).sql(`
+		SELECT TO_CHAR(acts.local_ts::date, 'YYYY-MM-DD') AS date,
+		       l."Id" AS "LibraryId", l."Name" AS "LibraryName",
+		       ` + aggPlays + ` AS count, ` + aggClicks + ` AS clicks
+		FROM acts
+		JOIN jf_libraries l ON l."Id" = acts.library_id AND l.archived = false
+		GROUP BY acts.local_ts::date, l."Id", l."Name"
+		HAVING COUNT(*) FILTER (WHERE is_view) > 0
+		ORDER BY acts.local_ts::date, l."Name"`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getPlaybacksScatter?days=30  — one point per play (x=time, y=minutes)
+// GET /stats/getPlaybacksScatter?from=&to=  — one point per view
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetPlaybacksScatter(c *gin.Context) {
 	tr := parseTimeRange(c)
-
 	type Row struct {
 		Ts       string `json:"ts"       gorm:"column:ts"`
-		Duration int    `json:"duration" gorm:"column:duration"`
+		Duration int    `json:"duration" gorm:"column:duration"` // minutes
 		Name     string `json:"name"     gorm:"column:name"`
-		Type     string `json:"type"     gorm:"column:type"`
+		Type     string `json:"type"     gorm:"column:type"` // Movie | Episode | Audio
 	}
-	var rows []Row
-
-	base := `
-		SELECT
-		  TO_CHAR(a."ActivityDateInserted"::timestamptz, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts,
-		  GREATEST(FLOOR(a."PlaybackDuration" / 60.0)::int, 1)                          AS duration,
-		  COALESCE(a."NowPlayingItemName", '')                                            AS name,
-		  CASE
-		    WHEN a."EpisodeId" IS NOT NULL AND a."EpisodeId" != '' THEN 'Episode'
-		    WHEN mt."Id" IS NOT NULL                               THEN 'Audio'
-		    ELSE 'Movie'
-		  END AS type
-		FROM jf_playback_activity a
-		LEFT JOIN jf_music_tracks mt ON mt."Id" = a."NowPlayingItemId" AND mt.archived = false
-		WHERE a."PlaybackDuration" > 0`
-
-	if tr.AllTime {
-		h.db.Raw(base+`
-		ORDER BY a."ActivityDateInserted"::timestamptz DESC
-		LIMIT 3000
-		`).Scan(&rows)
-	} else {
-		h.db.Raw(base+`
-		  AND a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?
-		ORDER BY a."ActivityDateInserted"::timestamptz DESC
-		LIMIT 3000
-		`, tr.From, tr.To).Scan(&rows)
-	}
-
-	if rows == nil {
-		rows = []Row{}
+	rows := []Row{}
+	q, args := acts().inRange(tr).where(`a."IsView"`).sql(`
+		SELECT ` + statsql.ISO("started_at") + ` AS ts,
+		       GREATEST(FLOOR(duration / 60.0)::int, 1) AS duration,
+		       COALESCE(now_playing_item_name, item_name, '') AS name,
+		       media_type AS type
+		FROM acts
+		ORDER BY started_at DESC
+		LIMIT 3000`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 	c.JSON(http.StatusOK, rows)
 }
 
 // ---------------------------------------------------------------------------
-// Watch Heatmap (hour × day matrix)
+// GET /stats/getWatchHeatmap?from=&to=&userId=  (weekday × hour, local time)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetWatchHeatmap(c *gin.Context) {
 	tr := parseTimeRange(c)
-	userId := c.Query("userId")
-
-	query := `
-SELECT
-  EXTRACT(DOW FROM "ActivityDateInserted"::timestamptz)::int AS day,
-  EXTRACT(HOUR FROM "ActivityDateInserted"::timestamptz)::int AS hour,
-  COUNT(*)::int AS plays,
-  FLOOR(COALESCE(SUM("PlaybackDuration"), 0) / 60.0)::int AS duration
-FROM jf_playback_activity
-WHERE 1=1`
-
-	args := []interface{}{}
-
-	if !tr.AllTime {
-		query += ` AND "ActivityDateInserted"::timestamptz BETWEEN ? AND ?`
-		args = append(args, tr.From, tr.To)
-	}
-	if userId != "" {
-		query += ` AND "UserId" = ?`
-		args = append(args, userId)
-	}
-
-	query += ` GROUP BY day, hour ORDER BY day, hour`
-
 	type sqlRow struct {
-		Day      int `json:"day"`
-		Hour     int `json:"hour"`
-		Plays    int `json:"plays"`
-		Duration int `json:"duration"`
+		Day      int
+		Hour     int
+		Plays    int
+		Duration int
 	}
-
 	var sqlRows []sqlRow
-	if err := h.db.Raw(query, args...).Scan(&sqlRows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	q, args := acts().inRange(tr).forUser(c.Query("userId")).sql(`
+		SELECT EXTRACT(DOW FROM local_ts)::int AS day, EXTRACT(HOUR FROM local_ts)::int AS hour,
+		       ` + aggPlays + ` AS plays, ` + aggMinutes + ` AS duration
+		FROM acts GROUP BY 1, 2`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&sqlRows).Error) {
 		return
 	}
 
-	// Build lookup from SQL results
 	type key struct{ day, hour int }
 	lookup := make(map[key]sqlRow, len(sqlRows))
 	for _, r := range sqlRows {
 		lookup[key{r.Day, r.Hour}] = r
 	}
-
-	// Fill 7×24 grid
 	type cell struct {
 		Day      int `json:"day"`
 		Hour     int `json:"hour"`
@@ -3224,9 +1997,7 @@ WHERE 1=1`
 		Duration int `json:"duration"`
 	}
 	cells := make([]cell, 0, 7*24)
-	maxPlays := 0
-	maxDuration := 0
-
+	maxPlays, maxDuration := 0, 0
 	for d := 0; d < 7; d++ {
 		for hr := 0; hr < 24; hr++ {
 			cl := cell{Day: d, Hour: hr}
@@ -3243,25 +2014,17 @@ WHERE 1=1`
 			cells = append(cells, cl)
 		}
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"cells":       cells,
-		"maxPlays":    maxPlays,
-		"maxDuration": maxDuration,
-	})
+	c.JSON(http.StatusOK, gin.H{"cells": cells, "maxPlays": maxPlays, "maxDuration": maxDuration})
 }
 
 // ---------------------------------------------------------------------------
-// GetTimeToWatch – time between item added and first playback
+// GET /stats/getTimeToWatch?libraryId=&limit=20
+// Days between a movie / episode being added and its first view.
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetTimeToWatch(c *gin.Context) {
 	libraryID := c.Query("libraryId")
-	limitStr := c.DefaultQuery("limit", "20")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
-		limit = 20
-	}
+	limit := parseDays(c.DefaultQuery("limit", "20"), 20)
 
 	type row struct {
 		Id           string
@@ -3271,44 +2034,39 @@ func (h *StatsFrontendHandler) GetTimeToWatch(c *gin.Context) {
 		DateAdded    string
 		FirstWatched string
 	}
-
-	query := `
-WITH first_watch AS (
-  SELECT
-    COALESCE(a."NowPlayingItemId", a."EpisodeId") AS item_id,
-    MIN(a."ActivityDateInserted"::timestamptz) AS first_played
-  FROM jf_playback_activity a
-  WHERE a."PlaybackDuration" > 0
-  GROUP BY COALESCE(a."NowPlayingItemId", a."EpisodeId")
-),
-item_dates AS (
-  SELECT i."Id", i."Name", i."Type", i."DateCreated"::timestamptz AS date_added, i."ParentId"
-  FROM jf_library_items i
-  WHERE i.archived = false AND i."Type" NOT IN ('Season', 'Folder')
-  UNION ALL
-  SELECT e."Id", e."Name", e."Type", e."DateCreated"::timestamptz AS date_added, s."ParentId"
-  FROM jf_library_episodes e
-  JOIN jf_library_items s ON s."Id" = e."SeriesId"
-  WHERE e.archived = false
-)
-SELECT id."Id", id."Name", id."Type",
-       EXTRACT(EPOCH FROM (fw.first_played - id.date_added)) / 86400.0 AS days_to_watch,
-       TO_CHAR(id.date_added, 'YYYY-MM-DD') AS date_added,
-       TO_CHAR(fw.first_played, 'YYYY-MM-DD') AS first_watched
-FROM item_dates id
-JOIN first_watch fw ON fw.item_id = id."Id"
-WHERE id.date_added IS NOT NULL AND fw.first_played >= id.date_added`
-
-	var args []interface{}
+	outer := `,
+		first_watch AS (
+		  SELECT item_id, MIN(started_at) AS first_played
+		  FROM acts WHERE is_view AND media_type IN ('Movie', 'Episode')
+		  GROUP BY item_id
+		),
+		item_dates AS (
+		  SELECT i."Id", i."Name", i."Type", NULLIF(i."DateCreated", '')::timestamptz AS date_added, i."ParentId"
+		  FROM jf_library_items i
+		  WHERE i.archived = false AND i."Type" = 'Movie'
+		  UNION ALL
+		  SELECT e."Id", e."Name", COALESCE(e."Type", 'Episode'), NULLIF(e."DateCreated", '')::timestamptz, s."ParentId"
+		  FROM jf_library_episodes e
+		  JOIN jf_library_items s ON s."Id" = e."SeriesId"
+		  WHERE e.archived = false
+		)
+		SELECT id."Id", id."Name", id."Type",
+		       EXTRACT(EPOCH FROM (fw.first_played - id.date_added)) / 86400.0 AS days_to_watch,
+		       ` + `TO_CHAR(` + statsql.AtLocal("id.date_added") + `, 'YYYY-MM-DD') AS date_added,
+		       TO_CHAR(` + statsql.AtLocal("fw.first_played") + `, 'YYYY-MM-DD') AS first_watched
+		FROM item_dates id
+		JOIN first_watch fw ON fw.item_id = id."Id"
+		WHERE id.date_added IS NOT NULL AND fw.first_played >= id.date_added`
+	var outerArgs []interface{}
 	if libraryID != "" {
-		query += ` AND id."ParentId" = ?`
-		args = append(args, libraryID)
+		outer += ` AND id."ParentId" = ?`
+		outerArgs = append(outerArgs, libraryID)
 	}
-	query += ` ORDER BY days_to_watch DESC`
+	outer += ` ORDER BY days_to_watch DESC`
 
 	var rows []row
-	if err := h.db.Raw(query, args...).Scan(&rows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	q, args := acts().where(`a."IsView"`).sql(outer, outerArgs...)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
 		return
 	}
 
@@ -3316,21 +2074,19 @@ WHERE id.date_added IS NOT NULL AND fw.first_played >= id.date_added`
 		c.JSON(http.StatusOK, gin.H{
 			"avgDaysToWatch":    0,
 			"medianDaysToWatch": 0,
-			"distribution":     []gin.H{},
-			"slowestItems":     []gin.H{},
-			"fastestItems":     []gin.H{},
+			"distribution":      []gin.H{},
+			"slowestItems":      []gin.H{},
+			"fastestItems":      []gin.H{},
 		})
 		return
 	}
 
-	// Compute avg
 	var total float64
 	for _, r := range rows {
 		total += r.DaysToWatch
 	}
 	avg := total / float64(len(rows))
 
-	// Compute median (rows are sorted desc by days_to_watch)
 	n := len(rows)
 	var median float64
 	if n%2 == 0 {
@@ -3339,19 +2095,13 @@ WHERE id.date_added IS NOT NULL AND fw.first_played >= id.date_added`
 		median = rows[n/2].DaysToWatch
 	}
 
-	// Distribution buckets
 	type bucket struct {
 		Label string
 		Max   float64 // exclusive upper bound; -1 means infinity
 	}
 	buckets := []bucket{
-		{"Same day", 1},
-		{"1-3 days", 4},
-		{"4-7 days", 8},
-		{"1-2 weeks", 15},
-		{"2-4 weeks", 29},
-		{"1-3 months", 91},
-		{"3+ months", -1},
+		{"Same day", 1}, {"1-3 days", 4}, {"4-7 days", 8}, {"1-2 weeks", 15},
+		{"2-4 weeks", 29}, {"1-3 months", 91}, {"3+ months", -1},
 	}
 	counts := make([]int, len(buckets))
 	for _, r := range rows {
@@ -3371,26 +2121,16 @@ WHERE id.date_added IS NOT NULL AND fw.first_played >= id.date_added`
 		distribution[i] = distEntry{Bucket: b.Label, Count: counts[i]}
 	}
 
-	// Slowest (rows already sorted desc)
-	slowLimit := limit
-	if slowLimit > len(rows) {
-		slowLimit = len(rows)
+	if limit > len(rows) {
+		limit = len(rows)
 	}
-	slowest := rows[:slowLimit]
-
-	// Fastest (end of slice)
-	fastLimit := limit
-	if fastLimit > len(rows) {
-		fastLimit = len(rows)
-	}
-	fastest := make([]row, fastLimit)
-	copy(fastest, rows[len(rows)-fastLimit:])
-	// Reverse so fastest first
+	slowest := rows[:limit]
+	fastest := make([]row, limit)
+	copy(fastest, rows[len(rows)-limit:])
 	for i, j := 0, len(fastest)-1; i < j; i, j = i+1, j-1 {
 		fastest[i], fastest[j] = fastest[j], fastest[i]
 	}
 
-	// Build JSON items
 	toJSON := func(items []row) []gin.H {
 		out := make([]gin.H, len(items))
 		for i, r := range items {
@@ -3409,14 +2149,16 @@ WHERE id.date_added IS NOT NULL AND fw.first_played >= id.date_added`
 	c.JSON(http.StatusOK, gin.H{
 		"avgDaysToWatch":    math.Round(avg*100) / 100,
 		"medianDaysToWatch": math.Round(median*100) / 100,
-		"distribution":     distribution,
-		"slowestItems":     toJSON(slowest),
-		"fastestItems":     toJSON(fastest),
+		"distribution":      distribution,
+		"slowestItems":      toJSON(slowest),
+		"fastestItems":      toJSON(fastest),
 	})
 }
 
 // ---------------------------------------------------------------------------
 // GET /stats/getUnwatchedContent?libraryId=&type=&page=1&pageSize=25
+// An item is watched when it (movie) or one of its episodes / tracks
+// (series / album) has at least one view.
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetUnwatchedContent(c *gin.Context) {
@@ -3426,70 +2168,55 @@ func (h *StatsFrontendHandler) GetUnwatchedContent(c *gin.Context) {
 	page := parseDays(c.DefaultQuery("page", "1"), 1)
 	offset := (page - 1) * pageSize
 
-	// ── Summary: count total vs unwatched per type ──────────────────────────
+	watchedCTE := `, watched AS (SELECT DISTINCT group_id FROM acts WHERE group_id IS NOT NULL)`
+	f := acts().where(`a."IsView"`)
+
+	baseWhere := ` WHERE i.archived = false AND i."Type" NOT IN ('Season', 'Folder')`
+	var baseArgs []interface{}
+	if libraryId != "" {
+		baseWhere += ` AND i."ParentId" = ?`
+		baseArgs = append(baseArgs, libraryId)
+	}
+
 	type TypeStat struct {
 		Type      string `json:"type"`
 		Total     int    `json:"total"`
 		Unwatched int    `json:"unwatched"`
 	}
-	var typeStats []TypeStat
-
-	summaryQuery := `
-		SELECT
-			i."Type" AS type,
-			COUNT(*)::int AS total,
-			COUNT(*) FILTER (WHERE a."NowPlayingItemId" IS NULL)::int AS unwatched
+	typeStats := []TypeStat{}
+	q, args := f.sql(watchedCTE+`
+		SELECT i."Type" AS type, COUNT(*)::int AS total,
+		       COUNT(*) FILTER (WHERE w.group_id IS NULL)::int AS unwatched
 		FROM jf_library_items i
-		LEFT JOIN (
-			SELECT DISTINCT "NowPlayingItemId" FROM jf_playback_activity
-		) a ON a."NowPlayingItemId" = i."Id"
-		WHERE i.archived = false AND i."Type" NOT IN ('Season', 'Folder')
-	`
-	summaryArgs := []interface{}{}
-	if libraryId != "" {
-		summaryQuery += ` AND i."ParentId" = ?`
-		summaryArgs = append(summaryArgs, libraryId)
-	}
-	summaryQuery += ` GROUP BY i."Type"`
-
-	h.db.Raw(summaryQuery, summaryArgs...).Scan(&typeStats)
-	if typeStats == nil {
-		typeStats = []TypeStat{}
+		LEFT JOIN watched w ON w.group_id = i."Id"`+baseWhere+`
+		GROUP BY i."Type"`, baseArgs...)
+	if dbError(c, h.db.Raw(q, args...).Scan(&typeStats).Error) {
+		return
 	}
 
-	totalItems := 0
-	unwatchedItems := 0
+	totalItems, unwatchedItems := 0, 0
 	for _, ts := range typeStats {
 		totalItems += ts.Total
 		unwatchedItems += ts.Unwatched
 	}
-
 	unwatchedPercent := 0.0
 	if totalItems > 0 {
 		unwatchedPercent = math.Round(float64(unwatchedItems)/float64(totalItems)*1000) / 10
 	}
 
-	// ── Paginated unwatched items ───────────────────────────────────────────
-	var total int64
-	countQuery := `
-		SELECT COUNT(*)
-		FROM jf_library_items i
-		LEFT JOIN (
-			SELECT DISTINCT "NowPlayingItemId" FROM jf_playback_activity
-		) a ON a."NowPlayingItemId" = i."Id"
-		WHERE i.archived = false AND i."Type" NOT IN ('Season', 'Folder')
-		  AND a."NowPlayingItemId" IS NULL
-	`
-	countArgs := []interface{}{}
-	if libraryId != "" {
-		countQuery += ` AND i."ParentId" = ?`
-		countArgs = append(countArgs, libraryId)
-	}
+	listWhere := baseWhere + ` AND w.group_id IS NULL`
+	listArgs := append([]interface{}{}, baseArgs...)
 	if typeFilter != "" {
-		countQuery += ` AND i."Type" = ?`
-		countArgs = append(countArgs, typeFilter)
+		listWhere += ` AND i."Type" = ?`
+		listArgs = append(listArgs, typeFilter)
 	}
-	h.db.Raw(countQuery, countArgs...).Scan(&total)
+
+	var total int64
+	q, args = f.sql(watchedCTE+`
+		SELECT COUNT(*) FROM jf_library_items i LEFT JOIN watched w ON w.group_id = i."Id"`+listWhere, listArgs...)
+	if dbError(c, h.db.Raw(q, args...).Scan(&total).Error) {
+		return
+	}
 
 	type ItemRow struct {
 		Id          string          `json:"id"`
@@ -3499,103 +2226,45 @@ func (h *StatsFrontendHandler) GetUnwatchedContent(c *gin.Context) {
 		Genres      json.RawMessage `json:"genres"`
 		LibraryName string          `json:"libraryName"`
 	}
-	var rows []ItemRow
-
-	itemsQuery := `
-		SELECT i."Id" AS id, i."Name" AS name, i."Type" AS type,
-		       i."DateCreated" AS date_added,
+	rows := []ItemRow{}
+	q, args = f.sql(watchedCTE+`
+		SELECT i."Id" AS id, i."Name" AS name, i."Type" AS type, i."DateCreated" AS date_added,
 		       i."Genres" AS genres, l."Name" AS library_name
 		FROM jf_library_items i
 		LEFT JOIN jf_libraries l ON l."Id" = i."ParentId"
-		LEFT JOIN (
-			SELECT DISTINCT "NowPlayingItemId" FROM jf_playback_activity
-		) a ON a."NowPlayingItemId" = i."Id"
-		WHERE i.archived = false AND i."Type" NOT IN ('Season', 'Folder')
-		  AND a."NowPlayingItemId" IS NULL
-	`
-	itemsArgs := []interface{}{}
-	if libraryId != "" {
-		itemsQuery += ` AND i."ParentId" = ?`
-		itemsArgs = append(itemsArgs, libraryId)
-	}
-	if typeFilter != "" {
-		itemsQuery += ` AND i."Type" = ?`
-		itemsArgs = append(itemsArgs, typeFilter)
-	}
-	itemsQuery += ` ORDER BY i."DateCreated" DESC NULLS LAST LIMIT ? OFFSET ?`
-	itemsArgs = append(itemsArgs, pageSize, offset)
-
-	h.db.Raw(itemsQuery, itemsArgs...).Scan(&rows)
-	if rows == nil {
-		rows = []ItemRow{}
+		LEFT JOIN watched w ON w.group_id = i."Id"`+listWhere+`
+		ORDER BY i."DateCreated" DESC NULLS LAST LIMIT ? OFFSET ?`, append(listArgs, pageSize, offset)...)
+	if dbError(c, h.db.Raw(q, args...).Scan(&rows).Error) {
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"summary": gin.H{
-			"totalItems":     totalItems,
-			"unwatchedItems": unwatchedItems,
+			"totalItems":       totalItems,
+			"unwatchedItems":   unwatchedItems,
 			"unwatchedPercent": unwatchedPercent,
-			"byType":         typeStats,
+			"byType":           typeStats,
 		},
 		"items": paginate(int(total), pageSize, page, rows),
 	})
 }
 
 // ---------------------------------------------------------------------------
-// Binge-watching detection
+// GET /stats/getBingeStats?from=&to=&userId=
+// A binge session = >= 3 distinct episodes of the same series viewed by the
+// same user on the same local calendar day.
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetBingeStats(c *gin.Context) {
 	tr := parseTimeRange(c)
-	userId := c.Query("userId")
+	f := acts().inRange(tr).forUser(c.Query("userId")).where(`a."MediaType" = 'Episode'`)
 
-	dateFilter := ""
-	if !tr.AllTime {
-		dateFilter = fmt.Sprintf(`AND "ActivityDateInserted" >= '%s'`, tr.From.Format("2006-01-02"))
-	}
-
-	userFilter := ""
-	if userId != "" {
-		userFilter = fmt.Sprintf(`AND "UserId" = '%s'`, userId)
-	}
-
-	bingeSessionsCTE := fmt.Sprintf(`
-WITH episode_plays AS (
-  SELECT "UserId", "UserName",
-         "NowPlayingItemId" AS series_id, "SeriesName",
-         "ActivityDateInserted"::timestamptz AS played_at,
-         LAG("ActivityDateInserted"::timestamptz) OVER (
-           PARTITION BY "UserId", "NowPlayingItemId"
-           ORDER BY "ActivityDateInserted"::timestamptz
-         ) AS prev_played_at
-  FROM jf_playback_activity
-  WHERE "EpisodeId" IS NOT NULL AND "EpisodeId" != ''
-    AND EXISTS (SELECT 1 FROM jf_library_episodes e WHERE e."Id" = jf_playback_activity."EpisodeId")
-    %s %s
-),
-session_markers AS (
-  SELECT *,
-    SUM(CASE WHEN prev_played_at IS NULL
-              OR played_at - prev_played_at > INTERVAL '24 hours'
-         THEN 1 ELSE 0 END)
-      OVER (PARTITION BY "UserId", series_id ORDER BY played_at) AS session_id
-  FROM episode_plays
-),
-binge_sessions AS (
-  SELECT "UserId", MAX("UserName") AS user_name,
-         series_id, MAX("SeriesName") AS series_name,
-         session_id, COUNT(*) AS episode_count
-  FROM session_markers
-  GROUP BY "UserId", series_id, session_id
-  HAVING COUNT(*) >= 3
-)`, dateFilter, userFilter)
-
-	// --- Total binge sessions ---
 	var totalBingeSessions int64
-	h.db.Raw(bingeSessionsCTE + `
-SELECT COALESCE(COUNT(*), 0) FROM binge_sessions`).Scan(&totalBingeSessions)
+	q, args := f.sql(bingeCTE + `SELECT COUNT(*) FROM binge_sessions`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&totalBingeSessions).Error) {
+		return
+	}
 
-	// --- Top binged series ---
 	type SeriesRow struct {
 		SeriesId             string  `json:"seriesId"`
 		SeriesName           string  `json:"seriesName"`
@@ -3603,42 +2272,37 @@ SELECT COALESCE(COUNT(*), 0) FROM binge_sessions`).Scan(&totalBingeSessions)
 		TotalEpisodesWatched int64   `json:"totalEpisodesWatched"`
 		AvgEpisodesPerBinge  float64 `json:"avgEpisodesPerBinge"`
 	}
-	var topSeries []SeriesRow
-	h.db.Raw(bingeSessionsCTE + `
-SELECT series_id AS "series_id",
-       MAX(series_name) AS "series_name",
-       COUNT(*) AS "binge_count",
-       SUM(episode_count) AS "total_episodes_watched",
-       ROUND(AVG(episode_count)::numeric, 1) AS "avg_episodes_per_binge"
-FROM binge_sessions
-GROUP BY series_id
-ORDER BY "binge_count" DESC
-LIMIT 20`).Scan(&topSeries)
-
-	if topSeries == nil {
-		topSeries = []SeriesRow{}
+	topSeries := []SeriesRow{}
+	q, args = f.sql(bingeCTE + `
+		SELECT series_id, COALESCE(MAX(series_name), '') AS series_name,
+		       COUNT(*) AS binge_count,
+		       SUM(episode_count) AS total_episodes_watched,
+		       ROUND(AVG(episode_count)::numeric, 1)::float8 AS avg_episodes_per_binge
+		FROM binge_sessions
+		GROUP BY series_id
+		ORDER BY binge_count DESC, total_episodes_watched DESC
+		LIMIT 20`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&topSeries).Error) {
+		return
 	}
 
-	// --- Top binge users ---
 	type UserRow struct {
 		UserId               string `json:"userId"`
 		UserName             string `json:"userName"`
 		BingeCount           int64  `json:"bingeCount"`
 		TotalEpisodesWatched int64  `json:"totalEpisodesWatched"`
 	}
-	var topUsers []UserRow
-	h.db.Raw(bingeSessionsCTE + `
-SELECT "UserId" AS "user_id",
-       MAX(user_name) AS "user_name",
-       COUNT(*) AS "binge_count",
-       SUM(episode_count) AS "total_episodes_watched"
-FROM binge_sessions
-GROUP BY "UserId"
-ORDER BY "binge_count" DESC
-LIMIT 20`).Scan(&topUsers)
-
-	if topUsers == nil {
-		topUsers = []UserRow{}
+	topUsers := []UserRow{}
+	q, args = f.sql(bingeCTE + `
+		SELECT user_id, COALESCE(MAX(user_name), '') AS user_name,
+		       COUNT(*) AS binge_count,
+		       SUM(episode_count) AS total_episodes_watched
+		FROM binge_sessions
+		GROUP BY user_id
+		ORDER BY binge_count DESC, total_episodes_watched DESC
+		LIMIT 20`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&topUsers).Error) {
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -3649,76 +2313,19 @@ LIMIT 20`).Scan(&topUsers)
 }
 
 // ---------------------------------------------------------------------------
-// GET /stats/getCompletionRate?days=30&userId=&libraryId=
+// GET /stats/getCompletionRate?from=&to=&userId=&libraryId=
+// Unit = (user, item, local day) with >= 1 view; completed when the furthest
+// stop position or longest sitting reaches statsql.CompletionThreshold of the
+// runtime. totalPlays/completedPlays/abandonedPlays count those units.
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetCompletionRate(c *gin.Context) {
 	tr := parseTimeRange(c)
-	userId := c.Query("userId")
-	libraryId := c.Query("libraryId")
-
-	// Build dynamic WHERE clause
-	where := `WHERE COALESCE(a."PlaybackDuration", 0) > 0`
-	args := []interface{}{}
-
-	if !tr.AllTime {
-		where += ` AND a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?`
-		args = append(args, tr.From, tr.To)
-	}
-	if userId != "" {
-		where += ` AND a."UserId" = ?`
-		args = append(args, userId)
-	}
-	if libraryId != "" {
-		where += ` AND a."NowPlayingItemId" IN (SELECT "Id" FROM jf_library_items WHERE "ParentId" = ?)`
-		args = append(args, libraryId)
+	f := acts().inRange(tr).forUser(c.Query("userId"))
+	if libraryId := c.Query("libraryId"); libraryId != "" {
+		f.where(libraryIdExpr+` = ?`, libraryId)
 	}
 
-	// CTE that computes completion ratio per playback row
-	cte := `
-	WITH completion AS (
-		SELECT
-			a."PlaybackDuration",
-			CASE
-				WHEN mt."Id" IS NOT NULL
-					THEN 'Audio'
-				WHEN a."EpisodeId" IS NOT NULL AND a."EpisodeId" <> ''
-					THEN 'Episode'
-				ELSE 'Movie'
-			END AS item_type,
-			LEAST(
-				a."PlaybackDuration"::float
-				/ NULLIF(
-					COALESCE(
-						CASE
-							WHEN mt."Id" IS NOT NULL THEN mt."RunTimeTicks"
-							WHEN a."EpisodeId" IS NOT NULL AND a."EpisodeId" <> ''
-								THEN e."RunTimeTicks"
-							ELSE i."RunTimeTicks"
-						END,
-						0
-					) / 10000000.0,
-					0
-				),
-				1.0
-			) AS completion_ratio
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i    ON i."Id" = a."NowPlayingItemId"
-		LEFT JOIN jf_library_episodes e ON e."Id" = a."EpisodeId"
-		LEFT JOIN jf_music_tracks mt    ON mt."Id" = a."EpisodeId"
-		` + where + `
-			AND COALESCE(
-				CASE
-					WHEN mt."Id" IS NOT NULL THEN mt."RunTimeTicks"
-					WHEN a."EpisodeId" IS NOT NULL AND a."EpisodeId" <> ''
-						THEN e."RunTimeTicks"
-					ELSE i."RunTimeTicks"
-				END,
-				0
-			) > 0
-	)`
-
-	// 1. Overall stats
 	type OverallResult struct {
 		AvgCompletionRate float64 `json:"avgCompletionRate"`
 		TotalPlays        int     `json:"totalPlays"`
@@ -3726,70 +2333,58 @@ func (h *StatsFrontendHandler) GetCompletionRate(c *gin.Context) {
 		AbandonedPlays    int     `json:"abandonedPlays"`
 	}
 	var overall OverallResult
-	h.db.Raw(cte+`
-		SELECT
-			COALESCE(AVG(completion_ratio), 0)::float AS "avgCompletionRate",
-			COUNT(*)::int AS "totalPlays",
-			COUNT(*) FILTER (WHERE completion_ratio >= 0.75)::int AS "completedPlays",
-			COUNT(*) FILTER (WHERE completion_ratio < 0.75)::int AS "abandonedPlays"
-		FROM completion
-	`, args...).Scan(&overall)
+	q, args := f.sql(completionCTE + `
+		SELECT COALESCE(AVG(completion_ratio), 0)::float8 AS "avgCompletionRate",
+		       COUNT(*)::int AS "totalPlays",
+		       COUNT(*) FILTER (WHERE ` + completedCond + `)::int AS "completedPlays",
+		       COUNT(*) FILTER (WHERE NOT (` + completedCond + `))::int AS "abandonedPlays"
+		FROM completion`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&overall).Error) {
+		return
+	}
 
-	// 2. By type
 	type ByTypeRow struct {
 		Type              string  `json:"type"`
 		AvgCompletionRate float64 `json:"avgCompletionRate"`
 		TotalPlays        int     `json:"totalPlays"`
+		CompletedPlays    int     `json:"completedPlays"`
 	}
-	var byType []ByTypeRow
-	h.db.Raw(cte+`
-		SELECT
-			item_type AS "type",
-			COALESCE(AVG(completion_ratio), 0)::float AS "avgCompletionRate",
-			COUNT(*)::int AS "totalPlays"
+	byType := []ByTypeRow{}
+	q, args = f.sql(completionCTE + `
+		SELECT item_type AS "type",
+		       COALESCE(AVG(completion_ratio), 0)::float8 AS "avgCompletionRate",
+		       COUNT(*)::int AS "totalPlays",
+		       COUNT(*) FILTER (WHERE ` + completedCond + `)::int AS "completedPlays"
 		FROM completion
 		GROUP BY item_type
-		ORDER BY "totalPlays" DESC
-	`, args...).Scan(&byType)
-	if byType == nil {
-		byType = []ByTypeRow{}
+		ORDER BY "totalPlays" DESC`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&byType).Error) {
+		return
 	}
 
-	// 3. Distribution buckets
 	type DistRow struct {
 		Bucket string `json:"bucket"`
 		Count  int    `json:"count"`
 	}
-	var dist []DistRow
-	h.db.Raw(cte+`
-		SELECT
-			b.bucket,
-			COALESCE(cnt, 0)::int AS "count"
-		FROM (VALUES ('0-25%'), ('25-50%'), ('50-75%'), ('75-100%')) AS b(bucket)
+	dist := []DistRow{}
+	q, args = f.sql(completionCTE + `
+		SELECT b.bucket, COALESCE(d.cnt, 0)::int AS "count"
+		FROM (VALUES (1, '0-25%'), (2, '25-50%'), (3, '50-75%'), (4, '75-100%')) AS b(ord, bucket)
 		LEFT JOIN (
-			SELECT
-				CASE
-					WHEN completion_ratio < 0.25 THEN '0-25%'
-					WHEN completion_ratio < 0.50 THEN '25-50%'
-					WHEN completion_ratio < 0.75 THEN '50-75%'
-					ELSE '75-100%'
-				END AS bucket,
-				COUNT(*)::int AS cnt
-			FROM completion
-			GROUP BY 1
+		  SELECT CASE
+		           WHEN completion_ratio < 0.25 THEN '0-25%'
+		           WHEN completion_ratio < 0.50 THEN '25-50%'
+		           WHEN completion_ratio < 0.75 THEN '50-75%'
+		           ELSE '75-100%'
+		         END AS bucket,
+		         COUNT(*)::int AS cnt
+		  FROM completion GROUP BY 1
 		) d ON d.bucket = b.bucket
-		ORDER BY CASE b.bucket
-			WHEN '0-25%' THEN 1
-			WHEN '25-50%' THEN 2
-			WHEN '50-75%' THEN 3
-			WHEN '75-100%' THEN 4
-		END
-	`, args...).Scan(&dist)
-	if dist == nil {
-		dist = []DistRow{}
+		ORDER BY b.ord`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&dist).Error) {
+		return
 	}
 
-	// Round avgCompletionRate to 2 decimal places
 	overall.AvgCompletionRate = math.Round(overall.AvgCompletionRate*100) / 100
 	for i := range byType {
 		byType[i].AvgCompletionRate = math.Round(byType[i].AvgCompletionRate*100) / 100
@@ -3799,109 +2394,66 @@ func (h *StatsFrontendHandler) GetCompletionRate(c *gin.Context) {
 		"overall":      overall,
 		"byType":       byType,
 		"distribution": dist,
+		"threshold":    statsql.CompletionThreshold,
 	})
 }
 
 // ---------------------------------------------------------------------------
-// GetViewingDiversity - diversity of viewing habits per user
+// GET /stats/getViewingDiversity?from=&to=&userId=   (views only)
 // ---------------------------------------------------------------------------
 
 func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 	tr := parseTimeRange(c)
 	userId := c.Query("userId")
-
-	// Build date filter fragment
-	dateFilter := ""
-	dateArgs := []interface{}{}
-	if !tr.AllTime {
-		dateFilter = `AND a."ActivityDateInserted"::timestamptz BETWEEN ? AND ?`
-		dateArgs = append(dateArgs, tr.From, tr.To)
-	}
-
-	userFilter := ""
-	userArgs := []interface{}{}
-	if userId != "" {
-		userFilter = `AND a."UserId" = ?`
-		userArgs = append(userArgs, userId)
-	}
-
-	// Genre query
-	genreSQL := fmt.Sprintf(`
-		SELECT a."UserId",
-		       COALESCE(u."Name", a."UserName", a."UserId") AS user_name,
-		       genre,
-		       COUNT(*)::int AS plays
-		FROM jf_playback_activity a
-		LEFT JOIN jf_users u ON u."Id" = a."UserId"
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId" AND i.archived = false
-		CROSS JOIN LATERAL jsonb_array_elements_text(
-		  CASE WHEN jsonb_array_length(COALESCE(i."Genres", '[]'::jsonb)) = 0 THEN '["Unknown"]'::jsonb
-		       ELSE i."Genres" END
-		) AS genre
-		WHERE 1=1 %s %s
-		GROUP BY a."UserId", u."Name", a."UserName", genre
-	`, dateFilter, userFilter)
-
-	genreArgs := append(append([]interface{}{}, dateArgs...), userArgs...)
+	f := acts().inRange(tr).forUser(userId).where(`a."IsView"`)
 
 	type genreRow struct {
-		UserId   string `gorm:"column:UserId"`
-		UserName string `gorm:"column:user_name"`
-		Genre    string `gorm:"column:genre"`
-		Plays    int    `gorm:"column:plays"`
+		UserId   string
+		UserName string
+		Genre    string
+		Plays    int
 	}
 	var genreRows []genreRow
-	if err := h.db.Raw(genreSQL, genreArgs...).Scan(&genreRows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	q, args := f.sql(`
+		SELECT user_id, MAX(user_name) AS user_name, genre, COUNT(*)::int AS plays
+		FROM acts ` + genreLateral + `
+		WHERE acts.genres IS NOT NULL AND user_id IS NOT NULL
+		GROUP BY user_id, genre`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&genreRows).Error) {
 		return
 	}
-
-	// Library query
-	libSQL := fmt.Sprintf(`
-		SELECT a."UserId", l."Id" AS library_id, l."Name" AS library_name, COUNT(*)::int AS plays
-		FROM jf_playback_activity a
-		LEFT JOIN jf_library_items i ON i."Id" = a."NowPlayingItemId"
-		LEFT JOIN jf_libraries l ON l."Id" = i."ParentId"
-		WHERE l."Id" IS NOT NULL %s %s
-		GROUP BY a."UserId", l."Id", l."Name"
-	`, dateFilter, userFilter)
-
-	libArgs := append(append([]interface{}{}, dateArgs...), userArgs...)
 
 	type libRow struct {
-		UserId      string `gorm:"column:UserId"`
-		LibraryId   string `gorm:"column:library_id"`
-		LibraryName string `gorm:"column:library_name"`
-		Plays       int    `gorm:"column:plays"`
+		UserId      string
+		LibraryId   string
+		LibraryName string
+		Plays       int
 	}
 	var libRows []libRow
-	if err := h.db.Raw(libSQL, libArgs...).Scan(&libRows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	q, args = f.sql(`
+		SELECT acts.user_id, l."Id" AS library_id, l."Name" AS library_name, COUNT(*)::int AS plays
+		FROM acts JOIN jf_libraries l ON l."Id" = acts.library_id
+		WHERE acts.user_id IS NOT NULL
+		GROUP BY acts.user_id, l."Id", l."Name"`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&libRows).Error) {
 		return
 	}
-
-	// Unique items query
-	itemSQL := fmt.Sprintf(`
-		SELECT a."UserId", COUNT(DISTINCT a."NowPlayingItemId")::int AS unique_items, COUNT(*)::int AS total_plays
-		FROM jf_playback_activity a
-		WHERE 1=1 %s %s
-		GROUP BY a."UserId"
-	`, dateFilter, userFilter)
-
-	itemArgs := append(append([]interface{}{}, dateArgs...), userArgs...)
 
 	type itemRow struct {
-		UserId      string `gorm:"column:UserId"`
-		UniqueItems int    `gorm:"column:unique_items"`
-		TotalPlays  int    `gorm:"column:total_plays"`
+		UserId      string
+		UserName    string
+		UniqueItems int
+		TotalPlays  int
 	}
 	var itemRows []itemRow
-	if err := h.db.Raw(itemSQL, itemArgs...).Scan(&itemRows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	q, args = f.sql(`
+		SELECT user_id, MAX(user_name) AS user_name,
+		       COUNT(DISTINCT item_id)::int AS unique_items, COUNT(*)::int AS total_plays
+		FROM acts WHERE user_id IS NOT NULL
+		GROUP BY user_id`)
+	if dbError(c, h.db.Raw(q, args...).Scan(&itemRows).Error) {
 		return
 	}
-
-	// Aggregate per user
 
 	type genreInfo struct {
 		Genre string
@@ -3911,9 +2463,7 @@ func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 	userNames := map[string]string{}
 	for _, r := range genreRows {
 		userGenres[r.UserId] = append(userGenres[r.UserId], genreInfo{Genre: r.Genre, Plays: r.Plays})
-		userNames[r.UserId] = r.UserName
 	}
-
 	type libInfo struct {
 		LibraryId   string
 		LibraryName string
@@ -3923,21 +2473,12 @@ func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 	for _, r := range libRows {
 		userLibs[r.UserId] = append(userLibs[r.UserId], libInfo{LibraryId: r.LibraryId, LibraryName: r.LibraryName, Plays: r.Plays})
 	}
-
 	userItems := map[string]itemRow{}
 	for _, r := range itemRows {
 		userItems[r.UserId] = r
+		userNames[r.UserId] = r.UserName
 	}
 
-	userSet := map[string]bool{}
-	for _, r := range genreRows {
-		userSet[r.UserId] = true
-	}
-	for _, r := range itemRows {
-		userSet[r.UserId] = true
-	}
-
-	// Shannon entropy: normalized to [0,1]
 	shannonDiversity := func(genres []genreInfo) float64 {
 		total := 0
 		for _, g := range genres {
@@ -3957,36 +2498,26 @@ func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 		if maxEntropy == 0 {
 			return 0
 		}
-		score := entropy / maxEntropy
-		return math.Round(score*100) / 100
+		return math.Round(entropy/maxEntropy*100) / 100
 	}
-
-	// Build response
 
 	if userId != "" {
 		genres := userGenres[userId]
 		libs := userLibs[userId]
-		items := userItems[userId]
-		userName := userNames[userId]
 
 		totalGenrePlays := 0
 		for _, g := range genres {
 			totalGenrePlays += g.Plays
 		}
-
 		genreBreakdown := make([]gin.H, 0, len(genres))
 		for _, g := range genres {
 			pct := 0.0
 			if totalGenrePlays > 0 {
 				pct = math.Round(float64(g.Plays)/float64(totalGenrePlays)*10000) / 100
 			}
-			genreBreakdown = append(genreBreakdown, gin.H{
-				"genre":   g.Genre,
-				"plays":   g.Plays,
-				"percent": pct,
-			})
+			genreBreakdown = append(genreBreakdown, gin.H{"genre": g.Genre, "plays": g.Plays, "percent": pct})
 		}
-		sort.Slice(genreBreakdown, func(i, j int) bool {
+		sort.SliceStable(genreBreakdown, func(i, j int) bool {
 			return genreBreakdown[i]["plays"].(int) > genreBreakdown[j]["plays"].(int)
 		})
 
@@ -3994,7 +2525,6 @@ func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 		for _, l := range libs {
 			totalLibPlays += l.Plays
 		}
-
 		libraryBreakdown := make([]gin.H, 0, len(libs))
 		for _, l := range libs {
 			pct := 0.0
@@ -4002,30 +2532,27 @@ func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 				pct = math.Round(float64(l.Plays)/float64(totalLibPlays)*10000) / 100
 			}
 			libraryBreakdown = append(libraryBreakdown, gin.H{
-				"libraryId":   l.LibraryId,
-				"libraryName": l.LibraryName,
-				"plays":       l.Plays,
-				"percent":     pct,
+				"libraryId": l.LibraryId, "libraryName": l.LibraryName, "plays": l.Plays, "percent": pct,
 			})
 		}
-		sort.Slice(libraryBreakdown, func(i, j int) bool {
+		sort.SliceStable(libraryBreakdown, func(i, j int) bool {
 			return libraryBreakdown[i]["plays"].(int) > libraryBreakdown[j]["plays"].(int)
 		})
 
 		c.JSON(http.StatusOK, gin.H{
 			"userId":           userId,
-			"userName":         userName,
+			"userName":         userNames[userId],
 			"diversityScore":   shannonDiversity(genres),
 			"uniqueGenres":     len(genres),
 			"uniqueLibraries":  len(libs),
-			"uniqueItems":      items.UniqueItems,
+			"uniqueItems":      userItems[userId].UniqueItems,
+			"totalPlays":       userItems[userId].TotalPlays,
 			"genreBreakdown":   genreBreakdown,
 			"libraryBreakdown": libraryBreakdown,
 		})
 		return
 	}
 
-	// All users ranking
 	type userSummary struct {
 		UserId         string  `json:"userId"`
 		UserName       string  `json:"userName"`
@@ -4035,12 +2562,8 @@ func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 		UniqueItems    int     `json:"uniqueItems"`
 		TotalPlays     int     `json:"totalPlays"`
 	}
-
-	users := make([]userSummary, 0, len(userSet))
-	for uid := range userSet {
-		genres := userGenres[uid]
-		libs := userLibs[uid]
-		items := userItems[uid]
+	users := make([]userSummary, 0, len(userItems))
+	for uid, items := range userItems {
 		name := userNames[uid]
 		if name == "" {
 			name = uid
@@ -4048,19 +2571,18 @@ func (h *StatsFrontendHandler) GetViewingDiversity(c *gin.Context) {
 		users = append(users, userSummary{
 			UserId:         uid,
 			UserName:       name,
-			DiversityScore: shannonDiversity(genres),
-			UniqueGenres:   len(genres),
-			UniqueLibs:     len(libs),
+			DiversityScore: shannonDiversity(userGenres[uid]),
+			UniqueGenres:   len(userGenres[uid]),
+			UniqueLibs:     len(userLibs[uid]),
 			UniqueItems:    items.UniqueItems,
 			TotalPlays:     items.TotalPlays,
 		})
 	}
 	sort.Slice(users, func(i, j int) bool {
-		return users[i].DiversityScore > users[j].DiversityScore
+		if users[i].DiversityScore != users[j].DiversityScore {
+			return users[i].DiversityScore > users[j].DiversityScore
+		}
+		return users[i].UserId < users[j].UserId
 	})
-
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
-
-// ensure math is used
-var _ = math.Floor

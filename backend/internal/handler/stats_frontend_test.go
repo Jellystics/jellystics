@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Jellystics/Jellystics/internal/database/models"
 	"github.com/Jellystics/Jellystics/internal/handler"
@@ -43,11 +44,15 @@ func seedStats(t *testing.T, db *gorm.DB) {
 		{Id: "m1", Name: sp("Inception"), Type: &movie, ParentId: sp("lib-movies"), Genres: genres},
 	}))
 
+	// Two days ago (UTC), so the rows sit inside the default 30-day window.
+	day := testutil.RecentDay(2)
+	at := func(h, m int) *string { return sp(testutil.TS(day.Add(time.Duration(h)*time.Hour + time.Duration(m)*time.Minute))) }
 	must(repos.Playback.Upsert(ctx, []models.JFPlaybackActivity{
-		{Id: "r1", UserId: sp("u1"), UserName: sp("Alice"), NowPlayingItemId: sp("m1"), NowPlayingItemName: sp("Inception"), Client: sp("Web"), PlayMethod: sp("DirectPlay"), PlaybackDuration: i64(600), ActivityDateInserted: sp("2026-07-12 14:00:00+00:00"), Source: "watchdog"},
-		{Id: "r2", UserId: sp("u1"), UserName: sp("Alice"), NowPlayingItemId: sp("m1"), NowPlayingItemName: sp("Inception"), Client: sp("Web"), PlayMethod: sp("DirectPlay"), PlaybackDuration: i64(600), ActivityDateInserted: sp("2026-07-12 14:30:00+00:00"), Source: "watchdog"},
-		{Id: "r3", UserId: sp("u2"), UserName: sp("Bob"), NowPlayingItemId: sp("m1"), NowPlayingItemName: sp("Inception"), Client: sp("Android"), PlayMethod: sp("Transcode"), PlaybackDuration: i64(300), ActivityDateInserted: sp("2026-07-12 09:00:00+00:00"), Source: "watchdog"},
+		{Id: "r1", UserId: sp("u1"), UserName: sp("Alice"), NowPlayingItemId: sp("m1"), NowPlayingItemName: sp("Inception"), Client: sp("Web"), PlayMethod: sp("DirectPlay"), PlaybackDuration: i64(600), ActivityDateInserted: at(14, 0), Source: "watchdog"},
+		{Id: "r2", UserId: sp("u1"), UserName: sp("Alice"), NowPlayingItemId: sp("m1"), NowPlayingItemName: sp("Inception"), Client: sp("Web"), PlayMethod: sp("DirectPlay"), PlaybackDuration: i64(600), ActivityDateInserted: at(14, 30), Source: "watchdog"},
+		{Id: "r3", UserId: sp("u2"), UserName: sp("Bob"), NowPlayingItemId: sp("m1"), NowPlayingItemName: sp("Inception"), Client: sp("Android"), PlayMethod: sp("Transcode"), PlaybackDuration: i64(300), ActivityDateInserted: at(9, 0), Source: "watchdog"},
 	}))
+	testutil.BackfillTracking(t, db)
 }
 
 // serve registers one handler at path and returns the recorded response.

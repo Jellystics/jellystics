@@ -306,3 +306,40 @@ func waitForClients(h *Hub, n int, timeout time.Duration) bool {
 	}
 	return false
 }
+
+func TestPolling_ConnectRejectedWithoutValidToken(t *testing.T) {
+	h := NewHub()
+	h.SetAuthorizer(func(tok string) bool { return tok == "good" })
+
+	hs := httptest.NewRecorder()
+	h.ServeHTTP(hs, httptest.NewRequest("GET", "/socket.io/?EIO=4&transport=polling", nil))
+	body := hs.Body.String()
+	i := strings.Index(body, `"sid":"`)
+	sid := body[i+7 : i+7+36]
+
+	for tok, want := range map[string]string{"bad": "44", "good": "40"} {
+		post := httptest.NewRequest("POST", "/socket.io/?EIO=4&transport=polling&sid="+sid, strings.NewReader(`40{"token":"`+tok+`"}`))
+		h.ServeHTTP(httptest.NewRecorder(), post)
+		get := httptest.NewRecorder()
+		h.ServeHTTP(get, httptest.NewRequest("GET", "/socket.io/?EIO=4&transport=polling&sid="+sid, nil))
+		if !strings.HasPrefix(get.Body.String(), want) {
+			t.Errorf("token %q: got %q, want prefix %q", tok, get.Body.String(), want)
+		}
+	}
+}
+
+func TestStillAuthorized_RevalidatesAfterInterval(t *testing.T) {
+	h := NewHub()
+	valid := true
+	h.SetAuthorizer(func(tok string) bool { return valid && tok == "t" })
+	c := &wsClient{token: "t", authedAt: time.Now()}
+
+	valid = false // session revoked
+	if !h.stillAuthorized(c) {
+		t.Fatal("re-validation must be rate-limited")
+	}
+	c.authedAt = time.Now().Add(-reauthEvery - time.Second)
+	if h.stillAuthorized(c) {
+		t.Fatal("revoked session must be rejected once the interval elapsed")
+	}
+}

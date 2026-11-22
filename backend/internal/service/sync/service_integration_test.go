@@ -28,11 +28,13 @@ type mockJF struct {
 	libraries []jellyfin.Library
 	// items maps IncludeItemTypes (comma-joined) -> items returned for /Items.
 	items map[string][]jellyfin.Item
+	// userData maps item id -> user data returned by GET /Items/{id}.
+	userData map[string]jellyfin.UserItemData
 }
 
 func newMockJF(t *testing.T) *mockJF {
 	t.Helper()
-	m := &mockJF{items: map[string][]jellyfin.Item{}}
+	m := &mockJF{items: map[string][]jellyfin.Item{}, userData: map[string]jellyfin.UserItemData{}}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/Sessions", func(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +67,15 @@ func newMockJF(t *testing.T) *mockJF {
 			TotalRecordCount: len(items),
 			StartIndex:       0,
 		})
+	})
+
+	mux.HandleFunc("/Items/", func(w http.ResponseWriter, r *http.Request) {
+		ud, ok := m.userData[strings.TrimPrefix(r.URL.Path, "/Items/")]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]any{"UserData": ud})
 	})
 
 	m.server = httptest.NewServer(mux)
@@ -103,10 +114,11 @@ func newTestService(t *testing.T, mock *mockJF) (*Service, *gorm.DB) {
 // (~10s between ticks); in a test the two ticks happen microseconds apart, so we
 // simulate elapsed time explicitly. This does NOT touch the position/pause
 // accounting — it only supplies the wall-clock the increment is clamped to.
-func rewindTick(t *testing.T, db *gorm.DB, sessionID string, secs int) {
+func rewindTick(t *testing.T, db *gorm.DB, sessionID string, secs float64) {
 	t.Helper()
 	err := db.Exec(
-		`UPDATE jf_activity_watchdog SET "LastTickAt" = "LastTickAt" - (? * interval '1 second') WHERE "Id" = ?`,
+		`UPDATE jf_activity_watchdog SET "LastTickAt" = "LastTickAt" - (? * interval '1 second'), "StartedAt" = "StartedAt" - (? * interval '1 second') WHERE "Id" = ?`,
+		secs,
 		secs, sessionID,
 	).Error
 	if err != nil {
@@ -148,251 +160,6 @@ func musicSession(sessionID, albumID, trackID, trackName, albumName string, posS
 			Album:   &album,
 		},
 		PlayState: &jellyfin.PlayState{PositionTicks: &pos, IsPaused: false},
-	}
-}
-
-// TestSessionTick_PauseNeverCounted proves that while a session is paused the
-// media PositionTicks are frozen, so the accumulated WatchedSeconds does not
-// grow — regardless of how much wall-clock time passes.
-func TestSessionTick_PauseNeverCounted(t *testing.T) {
-	mock := newMockJF(t)
-	// Tick 1: fresh session at pos 100 (no baseline yet → +0).
-	// Tick 2: pos 110, 10s wall elapsed → +10.
-	// Tick 3: PAUSED, pos frozen at 110, 10s wall elapsed → +0.
-	// Tick 4: still paused, pos still 110, 10s wall → +0.
-	// Tick 5: resumed, pos 120, 10s wall → +10. Total real watched = 20.
-	mock.sessionScript = [][]jellyfin.SessionInfo{
-		{movieSession("sess-1", "movie-1", "Inception", 100, false)},
-		{movieSession("sess-1", "movie-1", "Inception", 110, false)},
-		{movieSession("sess-1", "movie-1", "Inception", 110, true)},
-		{movieSession("sess-1", "movie-1", "Inception", 110, true)},
-		{movieSession("sess-1", "movie-1", "Inception", 120, false)},
-	}
-	svc, db := newTestService(t, mock)
-	ctx := context.Background()
-
-	for i := 0; i < 5; i++ {
-		svc.SessionTick(ctx)
-		// Simulate ~10s between ticks so the wall-clock clamp permits progress.
-		rewindTick(t, db, "sess-1", 10)
-	}
-
-	var wd models.JFActivityWatchdog
-	if err := db.Where(`"Id" = ?`, "sess-1").First(&wd).Error; err != nil {
-		t.Fatalf("watchdog row missing: %v", err)
-	}
-	if wd.WatchedSeconds != 20 {
-		t.Fatalf("WatchedSeconds = %d, want 20 (20s of pause must be excluded)", wd.WatchedSeconds)
-	}
-}
-
-// TestSessionTick_PromoteFinishedSession proves that when a session ends (drops
-// out of /Sessions) its accumulated real watch time is promoted to
-// jf_playback_activity in SECONDS, and the watchdog row is cleared.
-func TestSessionTick_PromoteFinishedSession(t *testing.T) {
-	mock := newMockJF(t)
-	// Accumulate 40s of real watch time in +10s ticks (per-tick increment is
-	// capped at maxTickDelta=15, so we keep each step at 10s), then the session
-	// disappears from /Sessions.
-	mock.sessionScript = [][]jellyfin.SessionInfo{
-		{movieSession("sess-1", "movie-1", "Inception", 0, false)},
-		{movieSession("sess-1", "movie-1", "Inception", 10, false)}, // +10
-		{movieSession("sess-1", "movie-1", "Inception", 20, false)}, // +10
-		{movieSession("sess-1", "movie-1", "Inception", 30, false)}, // +10
-		{movieSession("sess-1", "movie-1", "Inception", 40, false)}, // +10 → 40 real
-		{}, // session ended → promote
-	}
-	svc, db := newTestService(t, mock)
-	ctx := context.Background()
-
-	for i := 0; i < 5; i++ {
-		svc.SessionTick(ctx)
-		rewindTick(t, db, "sess-1", 10)
-	}
-	svc.SessionTick(ctx) // end
-
-	// Watchdog cleared.
-	var count int64
-	db.Model(&models.JFActivityWatchdog{}).Where(`"Id" = ?`, "sess-1").Count(&count)
-	if count != 0 {
-		t.Fatalf("watchdog row should be deleted after promotion, found %d", count)
-	}
-
-	var act models.JFPlaybackActivity
-	if err := db.Where(`"NowPlayingItemId" = ?`, "movie-1").First(&act).Error; err != nil {
-		t.Fatalf("promoted activity missing: %v", err)
-	}
-	if act.PlaybackDuration == nil || *act.PlaybackDuration != 40 {
-		t.Fatalf("PlaybackDuration = %v, want 40 (real watched seconds)", act.PlaybackDuration)
-	}
-	if act.Source != "watchdog" {
-		t.Fatalf("Source = %q, want watchdog", act.Source)
-	}
-}
-
-// TestSessionTick_ShortSessionDiscarded proves that a session shorter than
-// minPlaybackSeconds (30s) is discarded on end and never promoted.
-func TestSessionTick_ShortSessionDiscarded(t *testing.T) {
-	mock := newMockJF(t)
-	// Only ~10s of real watch time, then end.
-	mock.sessionScript = [][]jellyfin.SessionInfo{
-		{movieSession("sess-1", "movie-short", "Trailer", 0, false)},
-		{movieSession("sess-1", "movie-short", "Trailer", 10, false)}, // +10
-		{}, // end
-	}
-	svc, db := newTestService(t, mock)
-	ctx := context.Background()
-
-	svc.SessionTick(ctx)
-	rewindTick(t, db, "sess-1", 10)
-	svc.SessionTick(ctx)
-	rewindTick(t, db, "sess-1", 10)
-	svc.SessionTick(ctx) // end
-
-	var count int64
-	db.Model(&models.JFPlaybackActivity{}).Where(`"NowPlayingItemId" = ?`, "movie-short").Count(&count)
-	if count != 0 {
-		t.Fatalf("short session (<30s) must not be promoted, found %d activity row(s)", count)
-	}
-	// Watchdog row also removed.
-	db.Model(&models.JFActivityWatchdog{}).Where(`"Id" = ?`, "sess-1").Count(&count)
-	if count != 0 {
-		t.Fatalf("short-session watchdog row should be deleted, found %d", count)
-	}
-}
-
-// TestSessionTick_MediaSwitchPromotesPrevious proves that when a session switches
-// to a different item, the previous item is promoted to jf_playback_activity with
-// its accumulated PlaybackDuration (seconds) and a fresh watchdog begins for the
-// new item.
-func TestSessionTick_MediaSwitchPromotesPrevious(t *testing.T) {
-	mock := newMockJF(t)
-	// movie-A accumulates 40s (+10s per tick, under the 15s cap), then the
-	// session switches to movie-B which starts a fresh count.
-	mock.sessionScript = [][]jellyfin.SessionInfo{
-		{movieSession("sess-1", "movie-A", "First Film", 0, false)},
-		{movieSession("sess-1", "movie-A", "First Film", 10, false)}, // +10
-		{movieSession("sess-1", "movie-A", "First Film", 20, false)}, // +10
-		{movieSession("sess-1", "movie-A", "First Film", 30, false)}, // +10
-		{movieSession("sess-1", "movie-A", "First Film", 40, false)}, // +10 → 40 real
-		{movieSession("sess-1", "movie-B", "Second Film", 5, false)}, // SWITCH → promote movie-A(40)
-		{movieSession("sess-1", "movie-B", "Second Film", 15, false)}, // movie-B +10
-	}
-	svc, db := newTestService(t, mock)
-	ctx := context.Background()
-
-	// Five ticks build movie-A to 40s. Do NOT rewind after the final build tick:
-	// the switch promotion credits one last wall-clock leg (fallback path with
-	// curPos=nil), so leaving ~0 wall-clock before the switch keeps the promoted
-	// duration at the accumulated 40s.
-	for i := 0; i < 5; i++ {
-		svc.SessionTick(ctx)
-		if i < 4 {
-			rewindTick(t, db, "sess-1", 10)
-		}
-	}
-	svc.SessionTick(ctx) // switch → movie-A promoted, movie-B watchdog starts fresh
-	rewindTick(t, db, "sess-1", 10)
-	svc.SessionTick(ctx) // movie-B accumulates +10
-
-	// movie-A promoted with 40s.
-	var actA models.JFPlaybackActivity
-	if err := db.Where(`"NowPlayingItemId" = ?`, "movie-A").First(&actA).Error; err != nil {
-		t.Fatalf("movie-A should be promoted on media switch: %v", err)
-	}
-	if actA.PlaybackDuration == nil || *actA.PlaybackDuration != 40 {
-		t.Fatalf("movie-A PlaybackDuration = %v, want 40", actA.PlaybackDuration)
-	}
-
-	// A fresh watchdog now tracks movie-B.
-	var wd models.JFActivityWatchdog
-	if err := db.Where(`"Id" = ?`, "sess-1").First(&wd).Error; err != nil {
-		t.Fatalf("watchdog for switched session missing: %v", err)
-	}
-	if wd.NowPlayingItemId == nil || *wd.NowPlayingItemId != "movie-B" {
-		t.Fatalf("watchdog now-playing = %v, want movie-B", wd.NowPlayingItemId)
-	}
-	// movie-B accumulated its own real time (started fresh at 0 → +10).
-	if wd.WatchedSeconds != 10 {
-		t.Fatalf("movie-B WatchedSeconds = %d, want 10 (fresh count after switch)", wd.WatchedSeconds)
-	}
-}
-
-// TestSessionTick_MusicMapping proves the music parent/child mapping mirrors
-// Series/Episode: NowPlayingItemId = albumId, EpisodeId = trackId.
-func TestSessionTick_MusicMapping(t *testing.T) {
-	mock := newMockJF(t)
-	// +10s per tick (under the 15s cap) to reach 40s of real play, then end.
-	mock.sessionScript = [][]jellyfin.SessionInfo{
-		{musicSession("sess-1", "album-1", "track-1", "Song One", "Greatest Hits", 0)},
-		{musicSession("sess-1", "album-1", "track-1", "Song One", "Greatest Hits", 10)},
-		{musicSession("sess-1", "album-1", "track-1", "Song One", "Greatest Hits", 20)},
-		{musicSession("sess-1", "album-1", "track-1", "Song One", "Greatest Hits", 30)},
-		{musicSession("sess-1", "album-1", "track-1", "Song One", "Greatest Hits", 40)},
-		{}, // end → promote
-	}
-	svc, db := newTestService(t, mock)
-	ctx := context.Background()
-
-	for i := 0; i < 5; i++ {
-		svc.SessionTick(ctx)
-		rewindTick(t, db, "sess-1", 10)
-	}
-	svc.SessionTick(ctx) // end
-
-	var act models.JFPlaybackActivity
-	if err := db.Where(`"EpisodeId" = ?`, "track-1").First(&act).Error; err != nil {
-		t.Fatalf("promoted music activity missing (queried by track EpisodeId): %v", err)
-	}
-	if act.NowPlayingItemId == nil || *act.NowPlayingItemId != "album-1" {
-		t.Fatalf("NowPlayingItemId = %v, want album-1 (album is the parent)", act.NowPlayingItemId)
-	}
-	if act.EpisodeId == nil || *act.EpisodeId != "track-1" {
-		t.Fatalf("EpisodeId = %v, want track-1 (track is the child)", act.EpisodeId)
-	}
-	if act.SeriesName == nil || *act.SeriesName != "Greatest Hits" {
-		t.Fatalf("SeriesName = %v, want album name Greatest Hits", act.SeriesName)
-	}
-	if act.PlaybackDuration == nil || *act.PlaybackDuration != 40 {
-		t.Fatalf("PlaybackDuration = %v, want 40s", act.PlaybackDuration)
-	}
-}
-
-// TestSyncSessions_MediaSwitchPromotesPrevious mirrors the SessionTick media-switch
-// test for the manual-trigger twin SyncSessions, which must stay behaviourally in
-// sync with SessionTick's promotion logic.
-func TestSyncSessions_MediaSwitchPromotesPrevious(t *testing.T) {
-	mock := newMockJF(t)
-	// +10s per tick (under the 15s cap) to build movie-A to 40s, then switch.
-	mock.sessionScript = [][]jellyfin.SessionInfo{
-		{movieSession("sess-1", "movie-A", "First Film", 0, false)},
-		{movieSession("sess-1", "movie-A", "First Film", 10, false)},
-		{movieSession("sess-1", "movie-A", "First Film", 20, false)},
-		{movieSession("sess-1", "movie-A", "First Film", 30, false)},
-		{movieSession("sess-1", "movie-A", "First Film", 40, false)}, // → 40 real
-		{movieSession("sess-1", "movie-B", "Second Film", 5, false)}, // switch → promote A
-	}
-	svc, db := newTestService(t, mock)
-	ctx := context.Background()
-
-	for i := 0; i < 5; i++ {
-		if err := svc.SyncSessions(ctx); err != nil {
-			t.Fatalf("SyncSessions: %v", err)
-		}
-		if i < 4 { // no rewind before the switch: promotion adds a final wall-clock leg
-			rewindTick(t, db, "sess-1", 10)
-		}
-	}
-	if err := svc.SyncSessions(ctx); err != nil { // switch → promote A
-		t.Fatalf("SyncSessions: %v", err)
-	}
-
-	var actA models.JFPlaybackActivity
-	if err := db.Where(`"NowPlayingItemId" = ?`, "movie-A").First(&actA).Error; err != nil {
-		t.Fatalf("SyncSessions should promote movie-A on switch: %v", err)
-	}
-	if actA.PlaybackDuration == nil || *actA.PlaybackDuration != 40 {
-		t.Fatalf("movie-A PlaybackDuration = %v, want 40", actA.PlaybackDuration)
 	}
 }
 

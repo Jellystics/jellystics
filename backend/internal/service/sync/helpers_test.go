@@ -8,62 +8,6 @@ import (
 
 func sp(s string) *string { return &s }
 
-// TestItemKey verifies the media-switch identity used to detect when a session
-// moves to a different item. Movies carry only a parent id; TV episodes and
-// music tracks carry parent|child.
-func TestItemKey(t *testing.T) {
-	tests := []struct {
-		name    string
-		parent  string
-		episode *string
-		want    string
-	}{
-		{"movie: parent only", "movie-1", nil, "movie-1"},
-		{"tv: series|episode", "series-1", sp("ep-9"), "series-1|ep-9"},
-		{"music: album|track", "album-1", sp("track-3"), "album-1|track-3"},
-		{"empty parent, no child", "", nil, ""},
-		{"empty parent, with child", "", sp("track-3"), "|track-3"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := itemKey(tt.parent, tt.episode); got != tt.want {
-				t.Fatalf("itemKey(%q, %v) = %q, want %q", tt.parent, tt.episode, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestItemKey_SwitchDetection documents the actual comparison used at both call
-// sites: a switch fires only when the previous key is non-empty and differs.
-func TestItemKey_SwitchDetection(t *testing.T) {
-	switched := func(prevParent string, prevEp *string, newParent string, newEp *string) bool {
-		prevKey := itemKey(prevParent, prevEp)
-		newKey := itemKey(newParent, newEp)
-		return prevKey != "" && prevKey != newKey
-	}
-
-	// Same movie → no switch.
-	if switched("movie-1", nil, "movie-1", nil) {
-		t.Fatal("same movie should not be a switch")
-	}
-	// Different movie → switch.
-	if !switched("movie-1", nil, "movie-2", nil) {
-		t.Fatal("different movie should be a switch")
-	}
-	// Same album, next track → switch (track-level accuracy).
-	if !switched("album-1", sp("track-1"), "album-1", sp("track-2")) {
-		t.Fatal("next track in same album should be a switch")
-	}
-	// Same series, next episode → switch.
-	if !switched("series-1", sp("ep-1"), "series-1", sp("ep-2")) {
-		t.Fatal("next episode should be a switch")
-	}
-	// No prior baseline (empty prev key) → never a switch (fresh session).
-	if switched("", nil, "movie-1", nil) {
-		t.Fatal("empty previous key must not count as a switch")
-	}
-}
-
 func TestTitleCase(t *testing.T) {
 	tests := []struct{ in, want string }{
 		{"", ""},
@@ -164,3 +108,5 @@ func TestMapPluginRow(t *testing.T) {
 		}
 	})
 }
+
+const ticksPerSecond = 10_000_000

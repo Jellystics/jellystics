@@ -19,6 +19,7 @@ type Container struct {
 	Log         LogRepository
 	Webhook     WebhookRepository
 	Stats       StatsRepository
+	AuthSession AuthSessionRepository
 }
 
 // New wires all GORM-backed repository implementations.
@@ -39,5 +40,6 @@ func New(db *gorm.DB) *Container {
 		Log:         &logRepo{db},
 		Webhook:     &webhookRepo{db},
 		Stats:       &statsRepo{db},
+		AuthSession: &authSessionRepo{db},
 	}
 }

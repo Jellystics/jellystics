@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getDeviceId, getDeviceName } from '@/lib/device'
 import {
   Box, Button, TextField, Typography,
   CircularProgress, Alert, Paper, Divider,
@@ -71,7 +72,12 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
     try {
-      const res = await publicApi.post<{ token: string }>('/auth/jellyfin-login', { username, password })
+      const res = await publicApi.post<{ token: string }>('/auth/jellyfin-login', {
+        username,
+        password,
+        deviceId: getDeviceId(),
+        deviceName: getDeviceName(),
+      })
       localStorage.setItem('jellystics-token', res.data.token)
       localStorage.setItem('jellystics-username', username)
       window.location.href = '/'

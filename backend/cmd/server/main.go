@@ -24,6 +24,7 @@ import (
 	syncsvc "github.com/Jellystics/Jellystics/internal/service/sync"
 	tasksvc "github.com/Jellystics/Jellystics/internal/service/task"
 	webhooksvc "github.com/Jellystics/Jellystics/internal/service/webhook"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/Jellystics/Jellystics/internal/ws"
 	"github.com/gin-gonic/gin"
 )
@@ -46,6 +47,12 @@ func main() {
 	hub := ws.NewHub()
 	jfClient := jellyfin.NewClient(cfg.JFHost, cfg.JFApiKey)
 	repos := repository.New(db)
+	if tz, _ := statsql.Timezone(); tz == "UTC" {
+		log.Printf("TZ is not set: days, hours and plugin import dates are computed in UTC (set TZ, e.g. TZ=Europe/Paris)")
+	}
+	if err := repos.Playback.BackfillTracking(context.Background()); err != nil {
+		log.Printf("backfill tracking columns: %v", err)
+	}
 
 	// Seed METRICS_API_KEY into app_config if provided (required for headless mode).
 	if cfg.MetricsAPIKey != "" {
@@ -111,10 +118,22 @@ func main() {
 	sched := scheduler.New(repos, runner)
 	sched.Start(context.Background())
 
-	// Every 10 s: broadcast live sessions, update watchdog, promote finished
+	// Daily: revoke and delete browser sessions unused for 30 days.
+	go func() {
+		for {
+			if n, err := svcs.Auth.PruneIdleSessions(context.Background()); err != nil {
+				log.Printf("prune idle sessions: %v", err)
+			} else if n > 0 {
+				log.Printf("pruned %d idle login session(s)", n)
+			}
+			time.Sleep(24 * time.Hour)
+		}
+	}()
+
+	// Every PollInterval: broadcast live sessions, update watchdog, promote finished
 	// sessions to jf_playback_activity (ActivityMonitor equivalent).
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(syncsvc.PollInterval)
 		defer ticker.Stop()
 		ctx := context.Background()
 		for range ticker.C {
