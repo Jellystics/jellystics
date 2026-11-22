@@ -537,6 +537,7 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 				OR (COALESCE(a.imported, false) = false
 				 AND a."UserId" = src."UserId" AND a."ItemId" = src."ItemId"
 				 AND a."StartedAt" BETWEEN src.started_at - interval '14 hours' AND src.started_at + interval '14 hours'
+				 AND abs(extract(epoch FROM a."StartedAt" - src.started_at)) >= 1680
 				 AND mod(abs(extract(epoch FROM a."StartedAt" - src.started_at))::numeric + 120, 1800) <= 240
 				 AND abs(COALESCE(a."PlaybackDuration", 0) - src.dur) <= GREATEST(60, 0.15 * GREATEST(COALESCE(a."PlaybackDuration", 0), src.dur)))
 			  )

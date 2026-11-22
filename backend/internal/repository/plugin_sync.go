@@ -133,8 +133,18 @@ func (r *playbackRepo) DeleteCoveredTSVImports(ctx context.Context, ids []string
 func SamePlayCond(userA, itemA, startA, durA, userB, itemB, startB, durB string) string {
 	return `(` + userA + ` = ` + userB + ` AND ` + itemA + ` = ` + itemB +
 		` AND ` + startA + ` BETWEEN ` + startB + ` - ` + samePlayStartSlack + ` AND ` + startB + ` + ` + samePlayStartSlack +
+		` AND abs(extract(epoch FROM ` + startA + ` - ` + startB + `)) <= ` + samePlayWindow(durA, durB) +
 		` AND (COALESCE(` + durA + `, 0) <= 0 OR COALESCE(` + durB + `, 0) <= 0` +
 		` OR abs(` + durA + ` - ` + durB + `) <= GREATEST(60, 0.2 * GREATEST(` + durA + `, ` + durB + `))))`
+}
+
+// samePlayWindow is the start-time window in seconds: min(120, max(10, 50 %
+// of the shorter duration)) when both durations are known (> 0), so a short
+// track replayed back to back (90 s: A 0:00–1:30, B 1:30–3:00) stays two
+// plays; 120 s when a duration is unknown.
+func samePlayWindow(durA, durB string) string {
+	return `(CASE WHEN COALESCE(` + durA + `, 0) > 0 AND COALESCE(` + durB + `, 0) > 0` +
+		` THEN LEAST(120, GREATEST(10, 0.5 * LEAST(` + durA + `, ` + durB + `))) ELSE 120 END)`
 }
 
 // samePlayStartSlack: start times of the same play recorded by two sources
@@ -418,13 +428,17 @@ func (r *pluginSyncRepo) FilterTrackerPlays(ctx context.Context, acts []models.J
 			  AND "StartedAt" < CAST(@end AS timestamptz) + `+trackerOverlapSlack+`
 			  AND COALESCE("EndedAt", "StartedAt") > CAST(@start AS timestamptz) - `+trackerOverlapSlack+`
 			  -- Same play, not just adjacent ones (back-to-back replays): starts
-			  -- within the shared slack, or the tracker play inside the plugin
-			  -- play. Durations are not compared: open plugin plays are partial.
-			  AND ("StartedAt" BETWEEN CAST(@start AS timestamptz) - `+samePlayStartSlack+` AND CAST(@start AS timestamptz) + `+samePlayStartSlack+`
+			  -- within the shared same-play window, or the tracker play inside
+			  -- the plugin play. Durations are not compared: open plugin plays
+			  -- are partial.
+			  AND (abs(extract(epoch FROM "StartedAt" - CAST(@start AS timestamptz))) <= CASE
+			         -- an open checkpoint's duration is partial: scale on the tracker play only
+			         WHEN COALESCE("PluginOpen", false) THEN `+samePlayWindow(`CAST(@dur AS bigint)`, `CAST(@dur AS bigint)`)+`
+			         ELSE `+samePlayWindow(`"PlaybackDuration"`, `CAST(@dur AS bigint)`)+` END
 			       OR (CAST(@start AS timestamptz) >= "StartedAt" - `+trackerOverlapSlack+`
 			           AND CAST(@end AS timestamptz) <= COALESCE("EndedAt", "StartedAt") + `+trackerOverlapSlack+`))`,
 			map[string]any{"plugin": SourceJellysticsPlugin, "user": *a.UserId, "item": *a.ItemId,
-				"device": a.DeviceId, "start": *a.StartedAt, "end": end}).Scan(&rows).Error
+				"device": a.DeviceId, "start": *a.StartedAt, "end": end, "dur": a.PlaybackDuration}).Scan(&rows).Error
 		if err != nil {
 			return nil, err
 		}

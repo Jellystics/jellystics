@@ -75,6 +75,63 @@ func TestSamePlay_LegacyMergeBackToBack(t *testing.T) {
 	}
 }
 
+// 90-s track replayed back to back (A 0:00–1:30, B 1:30–3:00): two plays on
+// the TSV, legacy merge and restore paths; a genuine duplicate (±5 s, same
+// duration) still collapses.
+func TestSamePlay_ShortTrackBackToBack(t *testing.T) {
+	t.Setenv("TZ", "UTC")
+	ctx := context.Background()
+	b := spStart.Add(90 * time.Second)
+
+	t.Run("tsv", func(t *testing.T) {
+		db := setupTestDB(t)
+		repos := repository.New(db)
+		_ = repos.Playback.Upsert(ctx, []models.JFPlaybackActivity{
+			spRow("p-a", "jellystics-plugin", spStart, 90),
+			spRow("tsv-a", "import", spStart.Add(5*time.Second), 90),
+			spRow("tsv-b", "import", b, 90),
+		})
+		if n, err := repos.Playback.DeleteCoveredTSVImports(ctx, []string{"tsv-a", "tsv-b"}); err != nil || n != 1 {
+			t.Fatalf("deleted %d, %v", n, err)
+		}
+		if got := spIDs(t, db); got != "[p-a tsv-b]" {
+			t.Fatalf("rows = %s", got)
+		}
+	})
+
+	t.Run("legacy merge", func(t *testing.T) {
+		db := setupTestDB(t)
+		repos := repository.New(db)
+		p := func(s string) *string { return &s }
+		d := func(v int64) *int64 { return &v }
+		_ = repos.MusicTrack.Upsert(ctx, []models.JFMusicTrack{{Id: "track-1", Name: p("Song"), RunTimeTicks: d(90 * 10_000_000), Genres: datatypes.JSON("[]")}})
+		_ = repos.Playback.Upsert(ctx, []models.JFPlaybackActivity{spRow("tr-a", "watchdog", spStart, 90)})
+		_ = repos.PluginData.Upsert(ctx, []models.JFPluginData{
+			{RowId: "1", ItemId: p("track-1"), UserId: p("u1"), ItemType: p("Audio"), PlayDuration: d(90), DateCreated: p("2026-11-10 20:00:25")}, // A (+5 s)
+			{RowId: "2", ItemId: p("track-1"), UserId: p("u1"), ItemType: p("Audio"), PlayDuration: d(90), DateCreated: p("2026-11-10 20:01:50")}, // B
+		})
+		if err := repos.PluginData.MergeIntoPlaybackActivity(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := spIDs(t, db); got != "[tr-a 2]" {
+			t.Fatalf("rows = %s", got)
+		}
+	})
+
+	t.Run("restore", func(t *testing.T) {
+		db := setupTestDB(t)
+		repos := repository.New(db)
+		_ = repos.Playback.Upsert(ctx, []models.JFPlaybackActivity{spRow("tr-a", "watchdog", spStart, 90)})
+		restored, skipped, err := repos.Playback.RestorePlays(ctx, []models.JFPlaybackActivity{
+			spRow("old-a", "plugin", spStart.Add(5*time.Second), 90),
+			spRow("old-b", "plugin", b, 90),
+		})
+		if err != nil || restored != 1 || skipped != 1 || spIDs(t, db) != "[tr-a old-b]" {
+			t.Fatalf("restored %d skipped %d, %v, rows %s", restored, skipped, err, spIDs(t, db))
+		}
+	})
+}
+
 // Restore into a live database: the same row is updated by Id, a duplicate of
 // an existing play from another source is skipped, new plays are restored.
 func TestRestorePlays_LiveAndEmpty(t *testing.T) {
