@@ -5,6 +5,7 @@ import { useFormat } from '@/lib/format'
 import type { LibraryDetail } from '@/api'
 import { useLibraryDecades, useLibraryGrowth, type DecadeRow, type GrowthBucket } from '@/api/entityExtras'
 import { entityPath } from './entity'
+import { SubQuery } from './EntityParts'
 import styles from './entity.module.css'
 import local from './library.module.css'
 
@@ -57,9 +58,9 @@ function Growth({ id }: { id: string }) {
       legend={[{ label: added.name, color: added.color, line: true }, { label: first.name, color: first.color, line: true }]}
       table={{ columns: [t('app.library.growth.date'), added.name, first.name], rows: points.map((p, i) => [labels[i], p.added, p.firstViews]) }}
     >
-      {q.isError ? <EmptyState title={t('app.entity.error')} />
-        : empty ? <EmptyState title={q.isPending ? t('app.entity.loading') : t('app.library.growth.empty')} />
-          : <LineChart labels={labels} series={[added, first]} area={false} height={200} xEvery={Math.max(1, Math.ceil(points.length / 8))} />}
+      <SubQuery query={q} height={200} empty={empty ? <EmptyState title={t('app.library.growth.empty')} /> : null}>
+        <LineChart labels={labels} series={[added, first]} area={false} height={200} xEvery={Math.max(1, Math.ceil(points.length / 8))} />
+      </SubQuery>
     </ChartFrame>
   )
 }
@@ -76,13 +77,16 @@ function DecadesCard({ id }: { id: string }) {
       title={t('app.library.decades.title')} subtitle={t('app.library.decades.subtitle')} csvName={`library-${id}-decades`}
       legend={[{ label: t('app.library.decades.views'), color: 'var(--accent)' }, { label: t('app.library.decades.catalog'), color: 'var(--seq-2)' }]}
       table={{
-        columns: [t('app.library.decades.decade'), t('app.library.decades.views'), t('app.library.decades.catalog')],
-        rows: rows.map((r) => [t('app.library.decades.label', { decade: r.decade }), f.percent(r.views / views), f.percent(r.catalog / catalog)]),
+        columns: [
+          t('app.library.decades.decade'), t('app.library.decades.viewsCount'), t('app.library.decades.views'),
+          t('app.library.decades.catalogCount'), t('app.library.decades.catalog'),
+        ],
+        rows: rows.map((r) => [t('app.library.decades.label', { decade: r.decade }), r.views, f.percent(r.views / views), r.catalog, f.percent(r.catalog / catalog)]),
       }}
     >
-      {q.isError ? <EmptyState title={t('app.entity.error')} />
-        : rows.length === 0 ? <EmptyState title={q.isPending ? t('app.entity.loading') : t('app.library.decades.empty')} />
-          : <Decades rows={rows} />}
+      <SubQuery query={q} height={160} empty={rows.length === 0 ? <EmptyState title={t('app.library.decades.empty')} /> : null}>
+        <Decades rows={rows} />
+      </SubQuery>
     </ChartFrame>
   )
 }

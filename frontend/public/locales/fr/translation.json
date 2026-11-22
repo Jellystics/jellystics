@@ -853,10 +853,6 @@
       "description": "Cette page n'existe pas ou a été déplacée.",
       "home": "Retour à la vue d'ensemble"
     },
-    "comingSoon": {
-      "title": "Bientôt disponible",
-      "description": "Cette page fait partie de la refonte et n'est pas encore disponible."
-    },
     "error": {
       "generic": "Une erreur est survenue"
     },
@@ -1175,7 +1171,9 @@
         "catalog": "Part du catalogue",
         "decade": "Décennie",
         "label": "Années {{decade}}",
-        "empty": "Aucune année de sortie connue"
+        "empty": "Aucune année de sortie connue",
+        "viewsCount": "Vues",
+        "catalogCount": "Titres au catalogue"
       },
       "growth": {
         "title": "Croissance vs consommation",

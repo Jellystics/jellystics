@@ -35,13 +35,27 @@ it('clicking a track row opens the side panel bound to ?track=', async () => {
   expect(calls(spy, '/api/v2/tracks/t3')[0].searchParams.get('from')).toMatch(/^\d{4}-/)
   await userEvent.keyboard('{Escape}')
   await waitFor(() => expect(loc.current).toBe('/albums/al1?range=30d'))
+  // Opened by a row link: closing goes back instead of pushing a new entry.
+  expect(loc.type).toBe('POP')
   expect(screen.queryByRole('dialog')).toBeNull()
 })
 
-it('opens directly from the URL', async () => {
+it('opens directly from the URL; closing drops ?track= in place', async () => {
   api()
   open('/albums/al1?track=t3')
-  expect(await screen.findByRole('dialog', { name: 'Basse lumière' })).toBeInTheDocument()
+  const dialog = await screen.findByRole('dialog', { name: 'Basse lumière' })
+  expect(await within(dialog).findByText('96')).toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(loc.current).toBe('/albums/al1'))
+  expect(loc.type).toBe('REPLACE')
+})
+
+it('track panel names fall back to the track endpoint', async () => {
+  mockApi({ '/api/v2/albums/al1': { ...albumFixture, tracks: [] }, '/api/v2/albums/al1/full-listens': [], '/api/v2/tracks/t3': trackFixture })
+  open('/albums/al1?track=t3')
+  const dialog = await screen.findByRole('dialog', { name: 'Basse lumière' })
+  expect(within(dialog).getByRole('link', { name: 'Lune Pâle' })).toHaveAttribute('href', '/artists/ar1')
+  expect(within(dialog).getByRole('link', { name: 'Halo' })).toHaveAttribute('href', '/albums/al1')
 })
 
 it('empty full listens and not found', async () => {

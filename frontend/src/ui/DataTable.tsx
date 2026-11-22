@@ -17,6 +17,8 @@ export type DataTableProps<T> = {
   columns: ColumnDef<T, any>[] // eslint-disable-line @typescript-eslint/no-explicit-any
   data: T[]
   rowHref?: (row: T) => string
+  /** History state passed along with the row link navigation. */
+  rowState?: unknown
   pagination?: { page: number; pageSize: number; total: number; onPageChange(p: number): void }
   sort?: { id: string; desc: boolean; onChange(s: { id: string; desc: boolean }): void }
   dense?: boolean
@@ -24,7 +26,7 @@ export type DataTableProps<T> = {
   loading?: boolean
 }
 
-export function DataTable<T>({ columns, data, rowHref, pagination, sort, dense, empty, loading }: DataTableProps<T>) {
+export function DataTable<T>({ columns, data, rowHref, rowState, pagination, sort, dense, empty, loading }: DataTableProps<T>) {
   const { t } = useTranslation()
   const sorting: SortingState = sort ? [{ id: sort.id, desc: sort.desc }] : []
   const table = useReactTable({
@@ -81,7 +83,7 @@ export function DataTable<T>({ columns, data, rowHref, pagination, sort, dense, 
                       const content = flexRender(cell.column.columnDef.cell, cell.getContext())
                       return (
                         <td key={cell.id} className={cell.column.columnDef.meta?.numeric ? styles.num : undefined}>
-                          {href && i === 0 ? <Link to={href} className={styles.rowLink}>{content}</Link> : content}
+                          {href && i === 0 ? <Link to={href} state={rowState} className={styles.rowLink}>{content}</Link> : content}
                         </td>
                       )
                     })}

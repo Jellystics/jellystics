@@ -56,8 +56,8 @@ it('viewers and history tabs', async () => {
 
 it('helpers fill fixed buckets and flag specials', () => {
   expect(fixedBuckets(CADENCE, [{ bucket: 'nextDay', count: 3 }])).toEqual([0, 0, 0, 0, 3, 0, 0])
-  const v = seasonViews({ seasons: [{ number: 0, episodes: [] }, { number: 1, episodes: [] }], retention: [[1], { values: [4, 3], special: false }] as never })
-  expect(v.map((s) => [s.number, s.special, s.retention])).toEqual([[0, true, [1]], [1, false, [4, 3]]])
+  const v = seasonViews({ seasons: [{ number: 1, episodes: [] }, { number: 2, special: false, episodes: [] }, { number: 0, special: true, episodes: [] }], retention: [[4, 3], [2], [1]] })
+  expect(v.map((s) => [s.number, s.special, s.retention])).toEqual([[1, false, [4, 3]], [2, false, [2]], [0, true, [1]]])
 })
 
 it('not found', async () => {

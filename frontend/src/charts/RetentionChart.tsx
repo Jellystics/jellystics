@@ -5,9 +5,11 @@ import { useChartWidth } from './useChartWidth'
 import { linePath, niceMax, ticks as makeTicks } from './scale'
 import styles from './charts.module.css'
 
-export function RetentionChart({ seasons, onEpisodeClick, height = 200 }: {
+export function RetentionChart({ seasons, seasonNumbers, onEpisodeClick, height = 200 }: {
   seasons: number[][]
-  /** 1-based season and episode numbers. */
+  /** Display number of each season (labels); defaults to 1, 2, 3… */
+  seasonNumbers?: number[]
+  /** 1-based season index and episode number. */
   onEpisodeClick?: (season: number, episode: number) => void
   height?: number
 }) {
@@ -27,6 +29,7 @@ export function RetentionChart({ seasons, onEpisodeClick, height = 200 }: {
   const d = linePath(pts.map((p, i) => [x(i), y(p.v)]))
   const last = n - 1
   let idx = 0
+  const sn = (si: number) => seasonNumbers?.[si] ?? si + 1
 
   return (
     <div className={styles.chart} ref={ref}>
@@ -42,7 +45,7 @@ export function RetentionChart({ seasons, onEpisodeClick, height = 200 }: {
           const el = (
             <g key={si}>
               {si > 0 && <line x1={x0 - step / 2} x2={x0 - step / 2} y1={m.t} y2={y(0)} stroke="var(--axis)" />}
-              <text x={(x0 + x1) / 2} y={height - 8} textAnchor="middle">{`${t('app.chart.season')} ${si + 1}`}</text>
+              <text x={(x0 + x1) / 2} y={height - 8} textAnchor="middle">{`${t('app.chart.season')} ${sn(si)}`}</text>
             </g>
           )
           idx += s.length
@@ -60,10 +63,10 @@ export function RetentionChart({ seasons, onEpisodeClick, height = 200 }: {
             <circle className={styles.pt} cx={x(i)} cy={y(p.v)} r={4} fill={color} stroke="var(--surface)" strokeWidth={2} />
             <rect
               x={x(i) - step / 2} y={m.t} width={step} height={ih} fill="transparent"
-              aria-label={t('app.chart.episodeShort', { season: p.si + 1, episode: p.ei + 1 })}
+              aria-label={t('app.chart.episodeShort', { season: sn(p.si), episode: p.ei + 1 })}
               style={onEpisodeClick ? { cursor: 'pointer' } : undefined}
               onClick={onEpisodeClick ? () => onEpisodeClick(p.si + 1, p.ei + 1) : undefined}
-              {...tip.hit(t('app.chart.episodeShort', { season: p.si + 1, episode: p.ei + 1 }), [
+              {...tip.hit(t('app.chart.episodeShort', { season: sn(p.si), episode: p.ei + 1 }), [
                 { color, label: t('app.chart.viewers'), value: f.number(p.v) },
                 { label: t('app.chart.vsFirstEpisode'), value: f.percent(p.v / base) },
               ])}

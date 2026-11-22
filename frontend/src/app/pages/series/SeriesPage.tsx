@@ -2,15 +2,14 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, AvatarStack, Badge, Card, DataTable, EmptyState, EntityHeader, MediaTypeBadge, SegmentedControl, StatStrip, StatTile, Tabs, withPeriod } from '@/ui'
+import { AppLink, Art, AvatarStack, Badge, Card, DataTable, EmptyState, EntityHeader, ErrorState, SegmentedControl, StatStrip, StatTile, Tabs, withPeriod } from '@/ui'
 import { ChartFrame, Columns, RetentionChart } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { useSeries, type SeriesDetail, type SeriesEpisode } from '@/api'
 import { useSeriesHistory } from '@/api/entityExtras'
-import { useSetCrumbLabel } from '@/app/shell/crumbs'
-import { CompletionCell, EntitySkeleton, HistoryTable, QueryView, UserCell } from '../library/EntityParts'
-import { entityPath, formatWhen, itemArt, share } from '../library/entity'
+import { CompletionCell, EntitySkeleton, HistoryTable, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
+import { entityPath, formatWhen, itemArt, share, useEntityCrumbs } from '../library/entity'
 import { CADENCE, RELEASE_LAG, fixedBuckets, seasonViews } from './series'
 import styles from '../library/entity.module.css'
 
@@ -21,6 +20,8 @@ function SeriesHistoryTab({ id }: { id: string }) {
   const [page, setPage] = useSearchParam('page', '1')
   const p = Math.max(1, Number(page) || 1)
   const q = useSeriesHistory(id, { page: p, pageSize: PAGE_SIZE })
+  const { t } = useTranslation()
+  if (q.isError) return <ErrorState title={t('app.entity.error')} onRetry={() => { void q.refetch() }} />
   return (
     <HistoryTable
       rows={q.data?.rows ?? []} loading={q.isPending}
@@ -85,7 +86,7 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
     <div className={styles.stack}>
       <EntityHeader
         art={<Art title={item.name} kind="poster" size="lg" src={itemArt(item.id)} seed={item.id} />}
-        kicker={<MediaTypeBadge type="series" />}
+        kicker={<LibraryKicker type="series" library={item.library} />}
         title={item.name}
         meta={[
           years,
@@ -107,7 +108,7 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
         title={t('app.series.retentionTitle')} subtitle={t('app.series.retentionSub')} csvName={`series-${id}-retention`}
         table={{ columns: [t('app.series.col.episode'), t('app.series.col.title'), t('app.entity.col.viewers')], rows: retentionTable }}
       >
-        {charted.length ? <RetentionChart seasons={charted.map((s) => s.retention)} onEpisodeClick={openEpisode} /> : <EmptyState title={t('app.series.noEpisodes')} />}
+        {charted.length ? <RetentionChart seasons={charted.map((s) => s.retention)} seasonNumbers={charted.map((s) => s.number)} onEpisodeClick={openEpisode} /> : <EmptyState title={t('app.series.noEpisodes')} />}
       </ChartFrame>
       <Tabs value={tab ?? 'episodes'} onValueChange={setTab} items={[
         { value: 'episodes', label: t('app.series.tab.episodes'), count: item.episodes },
@@ -159,6 +160,6 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
 export default function SeriesPage() {
   const { id = '' } = useParams()
   const q = useSeries(id)
-  useSetCrumbLabel(q.data?.item.name)
+  useEntityCrumbs(q.data?.item.name, q.data?.item.library)
   return <QueryView query={q} skeleton={<EntitySkeleton tiles={5} />}>{(data) => <Series id={id} data={data} />}</QueryView>
 }

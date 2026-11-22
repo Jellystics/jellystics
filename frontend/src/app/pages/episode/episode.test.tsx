@@ -6,20 +6,33 @@ import { episodeFixture } from '../library/fixtures'
 afterEach(() => { vi.unstubAllGlobals() })
 const open = (path: string) => renderPage('/series/:id/episodes/:episodeId', path, <EpisodePage />)
 
-it('renders the trail, prev link, figures, charts and viewers', async () => {
+it('renders the kicker, prev link, figures, charts and viewers', async () => {
   const spy = mockApi({ '/api/v2/episodes/e5': episodeFixture })
   open('/series/s1/episodes/e5?range=7d')
   expect(await screen.findByRole('heading', { name: 'La Fracture' })).toBeInTheDocument()
-  const trail = screen.getByRole('navigation', { name: 'app.episode.trail' })
-  expect(trail.querySelector('a[href="/series/s1?range=7d"]')).toHaveTextContent('Station Nord')
-  expect(trail.querySelector('a[href="/series/s1?season=2&range=7d"]')).toHaveTextContent('app.series.season')
-  expect(screen.getByRole('link', { name: 'app.episode.prev' })).toHaveAttribute('href', '/series/s1/episodes/e4?range=7d')
+  expect(screen.getByRole('link', { name: 'Séries' })).toHaveAttribute('href', '/libraries/lib-s?range=7d')
+  expect(screen.getByRole('link', { name: 'Station Nord' })).toHaveAttribute('href', '/series/s1?range=7d')
+  // Season / episode live in the breadcrumb only.
+  expect(screen.queryByRole('link', { name: 'app.series.season' })).toBeNull()
+  const prev = screen.getByRole('link', { name: 'app.episode.prev' })
+  expect(prev).toHaveAttribute('href', '/series/s1/episodes/e4?range=7d')
+  expect(prev).toHaveTextContent('app.episode.short')
   expect(screen.queryByRole('link', { name: 'app.episode.next' })).toBeNull()
   expect(screen.getByText('86 %')).toBeInTheDocument()
   expect(screen.getByText('4 min')).toBeInTheDocument()
   expect(screen.getByRole('img', { name: 'app.chart.funnel' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Malik' })).toHaveAttribute('href', '/users/u4?range=7d')
   expect(calls(spy, '/api/v2/episodes/e5')).toHaveLength(1)
+})
+
+it('labels neighbours in another season with their season', async () => {
+  const item = { ...episodeFixture.item, season: 2, episode: 1, prev: { id: 'e3', season: 1, episode: 10 }, next: { id: 'e5', season: 2, episode: 2 } }
+  mockApi({ '/api/v2/episodes/e4': { ...episodeFixture, item: { ...item, id: 'e4' } } })
+  open('/series/s1/episodes/e4')
+  const prev = await screen.findByRole('link', { name: 'app.episode.prev' })
+  expect(prev).toHaveAttribute('href', '/series/s1/episodes/e3')
+  expect(prev).toHaveTextContent('app.entity.episodeCode')
+  expect(screen.getByRole('link', { name: 'app.episode.next' })).toHaveTextContent('app.episode.short')
 })
 
 it('error and not found states', async () => {

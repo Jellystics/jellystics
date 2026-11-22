@@ -3,6 +3,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { routes } from './routes'
+import { episodeFixture, seriesFixture } from './pages/library/fixtures'
 
 vi.mock('@/app/legacy/LegacyPage', () => ({ LegacyPage: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 vi.mock('@/lib/socket', () => ({ default: { connect: vi.fn(), disconnect: vi.fn() }, useSocketEvent: vi.fn() }))
@@ -121,6 +122,26 @@ function crumbTrail() {
 it('shows the breadcrumb trail for a user page', async () => {
   renderApp('/users/lea'); await screen.findByText('page-user')
   expect(crumbTrail()).toEqual([['app.nav.users', '/users'], ['app.crumb.user', null]])
+})
+it('episode breadcrumb names the library, series and season', async () => {
+  mockFetch({ '/api/v2/episodes/e5': episodeFixture })
+  renderApp('/series/s1/episodes/e5')
+  await screen.findByRole('heading', { name: 'La Fracture' })
+  await waitFor(() => expect(crumbTrail()).toEqual([
+    ['app.nav.libraries', '/libraries'], ['Séries', '/libraries/lib-s'], ['Station Nord', '/series/s1'],
+    ['app.series.season', '/series/s1?season=2'], ['app.episode.short · La Fracture', null],
+  ]))
+})
+it('entity breadcrumbs show the library and the entity name', async () => {
+  mockFetch({ '/api/v2/series/s1': seriesFixture })
+  renderApp('/series/s1')
+  await screen.findByRole('heading', { name: 'Station Nord' })
+  await waitFor(() => expect(crumbTrail()).toEqual([['app.nav.libraries', '/libraries'], ['Séries', '/libraries/lib-s'], ['Station Nord', null]]))
+})
+it('entity breadcrumbs fall back to static labels before the data loads', async () => {
+  renderApp('/series/zz/episodes/e0')
+  await screen.findByText('app.entity.notFound')
+  expect(crumbTrail()).toEqual([['app.nav.libraries', '/libraries'], ['app.crumb.series', '/series/zz'], ['app.crumb.episode', null]])
 })
 it('shows the breadcrumb trail for a settings section', async () => {
   renderApp('/settings/backup'); await screen.findByText('settings:backup')

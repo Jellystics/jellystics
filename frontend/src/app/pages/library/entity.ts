@@ -1,7 +1,20 @@
 // Helpers shared by the phase 4 entity pages (libraries, library, movie,
 // series, episode, artist, album).
 import { ApiError } from '@/lib/api'
-import type { HistoryItem, LibraryType } from '@/api'
+import type { HistoryItem, LibraryRef, LibraryType } from '@/api'
+import { useSetCrumbLabel, useSetCrumbLabels, type CrumbLabels } from '@/app/shell/crumbs'
+
+/**
+ * Breadcrumb of an entity page: the name replaces the last crumb and the
+ * library (plus any extra named label) refines the intermediate ones.
+ */
+export function useEntityCrumbs(name: string | undefined, library: LibraryRef | null | undefined, extra?: CrumbLabels) {
+  useSetCrumbLabel(name)
+  useSetCrumbLabels({ library: library?.name, libraryId: library?.id, ...extra })
+}
+
+/** History state of the row links opening a side panel (closing then goes back). */
+export const PANEL_STATE = { panel: true }
 
 /** Jellyfin primary image through the backend proxy. */
 export const itemArt = (id: string, width = 320) => `/proxy/Items/Images/Primary/?id=${encodeURIComponent(id)}&fillWidth=${width}&quality=90`

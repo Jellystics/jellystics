@@ -11,28 +11,16 @@ export function fixedBuckets<B extends string>(order: B[], rows: { bucket: B; co
 
 export interface SeasonView { number: number; special: boolean; episodes: SeriesEpisode[]; retention: number[] }
 
-type RetentionRow = unknown
-
-/** Viewers per episode of one retention row (plain numbers or tagged objects). */
-function retentionValues(row: RetentionRow): { values: number[]; special: boolean } {
-  const toNum = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'object' && v ? Number((v as { viewers?: number; value?: number }).viewers ?? (v as { value?: number }).value ?? 0) : 0)
-  if (Array.isArray(row)) return { values: row.map(toNum), special: false }
-  if (row && typeof row === 'object') {
-    const o = row as { values?: unknown[]; episodes?: unknown[]; special?: boolean }
-    return { values: (o.values ?? o.episodes ?? []).map(toNum), special: !!o.special }
-  }
-  return { values: [], special: false }
-}
-
 /**
- * Seasons aligned with their retention row. Specials (season 0 or tagged
- * `special: true`) are kept for the episode list but flagged so the
- * retention chart can leave them out.
+ * Seasons aligned with their retention row (viewers per episode). Specials
+ * (season 0 or `special: true`) are kept for the episode list but flagged so
+ * the retention chart can leave them out.
  */
 export function seasonViews(data: Pick<SeriesDetail, 'seasons' | 'retention'>): SeasonView[] {
-  return data.seasons.map((s, i) => {
-    const r = retentionValues((data.retention as RetentionRow[])[i])
-    const special = s.number === 0 || !!(s as { special?: boolean }).special || r.special
-    return { number: s.number, special, episodes: s.episodes, retention: r.values.length ? r.values : s.episodes.map((e) => e.viewers) }
-  })
+  return data.seasons.map((s, i) => ({
+    number: s.number,
+    special: s.number === 0 || !!s.special,
+    episodes: s.episodes,
+    retention: data.retention[i] ?? s.episodes.map((e) => e.viewers),
+  }))
 }

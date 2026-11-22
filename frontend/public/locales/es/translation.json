@@ -853,10 +853,6 @@
       "description": "Esta página no existe o se ha movido.",
       "home": "Volver al resumen"
     },
-    "comingSoon": {
-      "title": "Próximamente",
-      "description": "Esta página forma parte del rediseño y aún no está disponible."
-    },
     "error": {
       "generic": "Algo salió mal"
     },
@@ -1175,7 +1171,9 @@
         "catalog": "Parte del catálogo",
         "decade": "Década",
         "label": "Años {{decade}}",
-        "empty": "Ningún año de estreno conocido"
+        "empty": "Ningún año de estreno conocido",
+        "viewsCount": "Vistas",
+        "catalogCount": "Títulos en el catálogo"
       },
       "growth": {
         "title": "Crecimiento vs consumo",

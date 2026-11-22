@@ -853,10 +853,6 @@
       "description": "This page does not exist or has moved.",
       "home": "Back to overview"
     },
-    "comingSoon": {
-      "title": "Coming soon",
-      "description": "This page is part of the redesign and is not available yet."
-    },
     "error": {
       "generic": "Something went wrong"
     },
@@ -1175,7 +1171,9 @@
         "catalog": "Share of catalog",
         "decade": "Decade",
         "label": "{{decade}}s",
-        "empty": "No known release year"
+        "empty": "No known release year",
+        "viewsCount": "Views",
+        "catalogCount": "Catalog titles"
       },
       "growth": {
         "title": "Growth vs consumption",

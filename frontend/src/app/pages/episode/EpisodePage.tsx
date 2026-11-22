@@ -2,13 +2,12 @@ import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, ButtonLink, Card, CardHeader, DataTable, EmptyState, EntityHeader, MediaTypeBadge, StatStrip, StatTile } from '@/ui'
+import { AppLink, Art, ButtonLink, Card, CardHeader, DataTable, EmptyState, EntityHeader, StatStrip, StatTile } from '@/ui'
 import { useFormat } from '@/lib/format'
-import { useEpisode, type EpisodeDetail } from '@/api'
-import { useSetCrumbLabel } from '@/app/shell/crumbs'
-import { CompletionCell, EntitySkeleton, QueryView, UserCell } from '../library/EntityParts'
+import { useEpisode, type EpisodeDetail, type EpisodeRef } from '@/api'
+import { CompletionCell, EntitySkeleton, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
-import { entityPath, formatWhen, itemArt } from '../library/entity'
+import { entityPath, formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
 import styles from '../library/entity.module.css'
 
 type Viewer = EpisodeDetail['viewers'][number]
@@ -18,7 +17,12 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
   const f = useFormat()
   const { item, totals } = data
   const sid = item.seriesId || seriesId
-  const code = (n: number | null) => (n == null ? '' : t('app.episode.short', { n }))
+  // Neighbours may sit in another season (LAG/LEAD over the whole series).
+  const code = (ref: EpisodeRef) => {
+    if (ref.episode == null) return ''
+    if (ref.season != null && ref.season !== item.season) return t('app.entity.episodeCode', { season: ref.season, episode: ref.episode })
+    return t('app.episode.short', { n: ref.episode })
+  }
   const premiere = item.premiereDate ? new Intl.DateTimeFormat(f.locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(item.premiereDate)) : null
   const cols: ColumnDef<Viewer>[] = [
     { id: 'user', header: t('app.entity.col.user'), cell: ({ row }) => <UserCell user={row.original.user} /> },
@@ -27,25 +31,21 @@ function Episode({ seriesId, data }: { seriesId: string; data: EpisodeDetail }) 
     { id: 'completion', header: t('app.entity.col.completion'), cell: ({ row }) => <CompletionCell value={row.original.completion} width={72} /> },
     { id: 'device', header: t('app.entity.col.device'), cell: ({ row }) => <span className="ink2">{row.original.device || '—'}</span> },
   ]
-  const seasonTo = item.season != null ? `${entityPath('series', sid)}?season=${item.season}` : entityPath('series', sid)
   return (
     <div className={styles.stack}>
       <EntityHeader
         art={<Art title={item.name} kind="thumb" size="md" src={itemArt(item.id, 320)} seed={item.id} />}
         kicker={
-          <nav aria-label={t('app.episode.trail')} className={styles.row}>
-            <MediaTypeBadge type="series" />
+          <LibraryKicker type="series" library={item.library}>
             <AppLink to={entityPath('series', sid)} className={styles.subLink}>{item.seriesName}</AppLink>
-            {item.season != null && <><span aria-hidden="true">›</span><AppLink to={seasonTo} className={styles.subLink}>{t('app.series.season', { n: item.season })}</AppLink></>}
-            {item.episode != null && <><span aria-hidden="true">›</span><span aria-current="page">{t('app.episode.number', { n: item.episode })}</span></>}
-          </nav>
+          </LibraryKicker>
         }
         title={item.name}
         meta={[item.runtimeSeconds ? f.duration(item.runtimeSeconds) : null, premiere ? t('app.episode.aired', { date: premiere }) : null].filter(Boolean)}
         actions={
           <>
-            {item.prevId && <ButtonLink size="sm" to={entityPath('episode', item.prevId, sid)} aria-label={t('app.episode.prev')}><ChevronLeft size={14} aria-hidden="true" />{code(item.episode != null ? item.episode - 1 : null) || t('app.episode.prevShort')}</ButtonLink>}
-            {item.nextId && <ButtonLink size="sm" to={entityPath('episode', item.nextId, sid)} aria-label={t('app.episode.next')}>{code(item.episode != null ? item.episode + 1 : null) || t('app.episode.nextShort')}<ChevronRight size={14} aria-hidden="true" /></ButtonLink>}
+            {item.prev && <ButtonLink size="sm" to={entityPath('episode', item.prev.id, sid)} aria-label={t('app.episode.prev')}><ChevronLeft size={14} aria-hidden="true" />{code(item.prev) || t('app.episode.prevShort')}</ButtonLink>}
+            {item.next && <ButtonLink size="sm" to={entityPath('episode', item.next.id, sid)} aria-label={t('app.episode.next')}>{code(item.next) || t('app.episode.nextShort')}<ChevronRight size={14} aria-hidden="true" /></ButtonLink>}
           </>
         }
       />
@@ -74,6 +74,10 @@ export default function EpisodePage() {
   const q = useEpisode(episodeId)
   const it = q.data?.item
   const { t } = useTranslation()
-  useSetCrumbLabel(it ? (it.episode != null ? `${t('app.episode.short', { n: it.episode })} · ${it.name}` : it.name) : undefined)
+  useEntityCrumbs(it ? (it.episode != null ? `${t('app.episode.short', { n: it.episode })} · ${it.name}` : it.name) : undefined, it?.library, {
+    series: it?.seriesName || undefined,
+    season: it?.season != null ? (it.season === 0 ? t('app.series.specials') : t('app.series.season', { n: it.season })) : undefined,
+    seasonNumber: it?.season != null ? String(it.season) : undefined,
+  })
   return <QueryView query={q} skeleton={<EntitySkeleton />}>{(data) => <Episode seriesId={id} data={data} />}</QueryView>
 }
