@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	gosync "sync"
 	"time"
@@ -692,6 +693,10 @@ func (s *Service) SyncPlaybackPlugin(ctx context.Context) error {
 	if err := s.repos.PluginData.MergeIntoPlaybackActivity(ctx); err != nil {
 		return fmt.Errorf("merge into playback activity: %w", err)
 	}
+	// Overflowed or days-long plugin durations are capped like every import.
+	if err := s.repos.Playback.SanitizeImported(ctx); err != nil {
+		return fmt.Errorf("sanitize imported durations: %w", err)
+	}
 
 	// Refresh stats views
 	if err := s.repos.Stats.RefreshViews(ctx); err != nil {
@@ -900,6 +905,12 @@ func mapPluginRow(row jellyfin.PlaybackReportingRow) *models.JFPluginData {
 		case int:
 			i := int64(val)
 			return &i
+		case string:
+			// The plugin's custom query returns every cell as text ("3600").
+			if f, err := strconv.ParseFloat(strings.TrimSpace(val), 64); err == nil {
+				i := int64(f)
+				return &i
+			}
 		}
 		return nil
 	}

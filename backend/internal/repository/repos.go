@@ -542,7 +542,15 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 				 AND abs(COALESCE(a."PlaybackDuration", 0) - src.dur) <= GREATEST(60, 0.15 * GREATEST(COALESCE(a."PlaybackDuration", 0), src.dur)))
 			  )
 		  )
-		ON CONFLICT ("Id") DO NOTHING
+		-- A row merged while durations were lost (every cell of the plugin's
+		-- query is text and used to be read as 0) gets its real duration.
+		ON CONFLICT ("Id") DO UPDATE SET
+			"PlaybackDuration" = EXCLUDED."PlaybackDuration",
+			"EndedAt" = EXCLUDED."EndedAt",
+			"IsView" = EXCLUDED."IsView"
+		WHERE jf_playback_activity.source = 'plugin'
+		  AND COALESCE(jf_playback_activity."PlaybackDuration", 0) = 0
+		  AND EXCLUDED."PlaybackDuration" > 0
 	`, sql.Named("tz", displayTZ())).Error
 }
 
