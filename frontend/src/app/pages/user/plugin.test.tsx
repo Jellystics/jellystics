@@ -1,5 +1,5 @@
 // User page: logins and "played to the end" from the Jellystics plugin.
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import UserPage from './UserPage'
 import { historyFixture, sessionsFixture, userFixture, usersFixture } from '../overview/fixtures'
 import { renderPage, stubFetch } from '../overview/renderPage'
@@ -23,8 +23,8 @@ const open = (q = '') => renderPage(<UserPage />, { path: `/users/u2${q}`, route
 it('shows logins with failed attempts (admin view) and the measured finished-views foot', async () => {
   const api = stubFetch(base(LOGINS))
   open('?from=2026-11-01&to=2026-11-23')
-  expect(await screen.findByRole('heading', { name: 'app.plugin.logins.title' })).toBeInTheDocument()
-  expect(screen.getByText('14')).toBeInTheDocument()
+  const logins = (await screen.findByRole('heading', { name: 'app.plugin.logins.title' })).closest('section')!
+  expect(within(logins).getByText('14')).toBeInTheDocument()
   expect(screen.getByText('app.plugin.logins.failed')).toBeInTheDocument()
   expect(screen.getAllByText('Shield')).toHaveLength(2) // devices table + logins table
   expect(screen.getAllByText('app.analytics.collectedSince').length).toBeGreaterThanOrEqual(1)
