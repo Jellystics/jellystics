@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import OverviewPage from './OverviewPage'
-import { overviewFixture, sessionsFixture } from './fixtures'
+import { librariesDailyFixture, overviewFixture, playsFixture, sessionsFixture } from './fixtures'
 import { renderPage, stubFetch } from './renderPage'
 
 vi.mock('@/lib/socket', () => ({ default: { on: vi.fn(), off: vi.fn() }, useSocketEvent: vi.fn() }))
@@ -9,7 +9,7 @@ vi.mock('@/lib/socket', () => ({ default: { on: vi.fn(), off: vi.fn() }, useSock
 afterEach(() => { vi.unstubAllGlobals() })
 
 it('renders the tiles, the chart, top content and users with period-keeping links', async () => {
-  const api = stubFetch({ '/api/v2/overview': overviewFixture(), '/sessions/current': sessionsFixture() })
+  const api = stubFetch({ '/api/v2/overview': overviewFixture(), '/sessions/current': sessionsFixture(), '/api/v2/overview/plays': playsFixture(), '/api/v2/overview/libraries-daily': librariesDailyFixture() })
   renderPage(<OverviewPage />, { path: '/?range=7d&compare=1' })
   expect(await screen.findByText('3 412')).toBeInTheDocument()
   expect(screen.getByText('4 507')).toBeInTheDocument()
@@ -28,6 +28,10 @@ it('renders the tiles, the chart, top content and users with period-keeping link
   // On this day, concurrency peak.
   expect(screen.getByRole('link', { name: 'Les Héritiers' })).toHaveAttribute('href', '/series/s2?range=7d&compare=1')
   expect(screen.getByText('app.overview.peak.title')).toBeInTheDocument()
+  // Scatter cards right after the main chart.
+  expect(await screen.findByText('app.overview.plays.title')).toBeInTheDocument()
+  expect(await screen.findByText('app.overview.libraries.title')).toBeInTheDocument()
+  expect(api.calls('/api/v2/overview/plays')[0].searchParams.has('compare')).toBe(false)
 })
 
 it('selecting a tile drives the main chart and the ?metric= param', async () => {

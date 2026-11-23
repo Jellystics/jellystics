@@ -155,6 +155,31 @@
         "title": "Tal día como hoy",
         "subtitle": "lo que se veía en esta fecha en años anteriores",
         "empty": "Nada visto este día en años anteriores"
+      },
+      "plays": {
+        "title": "Todas las reproducciones",
+        "subtitle": "un punto por reproducción · clic = página del contenido",
+        "x": "Inicio de la reproducción",
+        "y": "Minutos vistos",
+        "capped": "{{value}} reproducciones más recientes",
+        "date": "Fecha",
+        "content": "Contenido",
+        "user": "Usuario",
+        "type": "Tipo",
+        "duration": "Duración",
+        "minutes": "Minutos",
+        "empty": "Ninguna reproducción en el periodo"
+      },
+      "libraries": {
+        "title": "Reproducciones por biblioteca",
+        "subtitle": "vistas por día y biblioteca",
+        "subtitleWeek": "vistas por semana y biblioteca",
+        "x": "Fecha",
+        "y": "Vistas",
+        "library": "Biblioteca",
+        "week": "Semana del {{date}}",
+        "other": "Otras",
+        "empty": "Ninguna vista en el periodo"
       }
     },
     "live": {

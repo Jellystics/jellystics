@@ -14,6 +14,7 @@ import { entityPath, familyOf, userPath } from '@/lib/routes'
 import { dateOf } from '../history/links'
 import { pointsDelta, ratioDelta } from './delta'
 import { LiveCard } from './LiveCard'
+import { LibrariesScatterCard, PlaysScatterCard } from './ScatterCards'
 import l from './layout.module.css'
 
 type Metric = 'time' | 'views' | 'clicks'
@@ -144,6 +145,11 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
           height={200}
         />
       </ChartFrame>
+
+      <div className={l.g2}>
+        <PlaysScatterCard />
+        <LibrariesScatterCard />
+      </div>
 
       <div className={l.wide}>
         <Card>

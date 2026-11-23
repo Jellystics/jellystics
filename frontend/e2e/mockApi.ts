@@ -88,9 +88,11 @@ const loginsFixture = {
   ],
 }
 // Realistic payloads for the core pages (/, /live, /history, /users, /users/:id).
-import { calendarFixture, concurrencyFixture, historyFixture, overviewFixture, retentionFixture, sessionsFixture, shareFixture, userFixture, usersFixture } from '../src/app/pages/overview/fixtures'
+import { calendarFixture, concurrencyFixture, historyFixture, librariesDailyFixture, overviewFixture, playsFixture, retentionFixture, sessionsFixture, shareFixture, userFixture, usersFixture } from '../src/app/pages/overview/fixtures'
 const PHASE3: Record<string, () => unknown> = {
   '/api/v2/overview': overviewFixture,
+  '/api/v2/overview/plays': () => playsFixture(),
+  '/api/v2/overview/libraries-daily': librariesDailyFixture,
   '/api/v2/history': historyFixture,
   '/api/v2/history/calendar': () => calendarFixture(),
   '/api/v2/users': usersFixture,

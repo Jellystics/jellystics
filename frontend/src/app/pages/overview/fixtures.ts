@@ -1,6 +1,6 @@
 // Realistic /api/v2 payloads for the phase 3 page tests and the e2e mock API.
 // Keep this file free of runtime imports (types only) so Playwright can import it.
-import type { CalendarDay, HistoryPage, Overview, UserDetail, UserRow } from '@/api'
+import type { CalendarDay, HistoryPage, LibrariesDaily, Overview, OverviewPlays, PlayPoint, UserDetail, UserRow } from '@/api'
 import type { JellyfinSession } from '@/api/live'
 import type { ConcurrencyDay, UserRetention, UserShare } from '@/api/usersExtra'
 
@@ -138,4 +138,40 @@ export function sessionsFixture(): JellyfinSession[] {
     },
     { Id: 'idle', UserId: 'u1', UserName: 'Céline', Client: 'Web', DeviceName: 'Firefox', NowPlayingItem: null },
   ]
+}
+
+/** /api/v2/overview/plays: deterministic plays over the last 30 days, newest first. */
+export function playsFixture(capped = false): OverviewPlays {
+  const items: { type: PlayPoint['type']; item: PlayPoint['item']; minutes: number }[] = [
+    { type: 'series', item: { id: 'e1', kind: 'episode', name: 'Le phare', parentId: 's1', parentName: 'Station Nord' }, minutes: 46 },
+    { type: 'series', item: { id: 'e5', kind: 'episode', name: 'La relève', parentId: 's2', parentName: 'Les Héritiers' }, minutes: 52 },
+    { type: 'movie', item: { id: 'm1', kind: 'movie', name: 'Les Rivages' }, minutes: 118 },
+    { type: 'movie', item: { id: 'm2', kind: 'movie', name: 'Orbital' }, minutes: 132 },
+    { type: 'music', item: { id: 't3', kind: 'track', name: 'Lueur', parentId: 'al1', parentName: 'Halo' }, minutes: 4 },
+  ]
+  const users = [{ id: 'u1', name: 'Céline' }, { id: 'u2', name: 'Léa' }, { id: 'u3', name: 'Hugo' }]
+  const now = Date.now()
+  const points = Array.from({ length: 240 }, (_, i): PlayPoint => {
+    const it = items[(i * 7) % items.length]
+    const frac = ((i * 37) % 100) / 100
+    return {
+      id: `p${i}`, startedAt: new Date(now - (i * 3 + (i % 5)) * 3_600_000).toISOString(), type: it.type, item: it.item, user: users[i % users.length],
+      watchSeconds: Math.round(it.minutes * 60 * (i % 4 === 0 ? frac : 0.85 + frac * 0.15)),
+    }
+  })
+  return { total: capped ? 5200 : points.length, limit: 5000, capped, points }
+}
+
+/** /api/v2/overview/libraries-daily: views per day for four libraries. */
+export function librariesDailyFixture(): LibrariesDaily {
+  const libs: { id: string; name: string; type: LibrariesDaily['libraries'][number]['type'] }[] = [
+    { id: 'lib-s', name: 'Séries', type: 'series' }, { id: 'lib-m', name: 'Films', type: 'movie' },
+    { id: 'lib-mu', name: 'Musique', type: 'music' }, { id: 'lib-k', name: 'Films enfants', type: 'movie' },
+  ]
+  const base = [9, 4, 6, 2]
+  const points = daysBack(30).flatMap((date, d) => libs.map((l, i) => ({ date, libraryId: l.id, views: Math.max(0, base[i] + ((d * (i + 3)) % 5) - 2) }))).filter((p) => p.views > 0)
+  const libraries = libs
+    .map((l) => ({ ...l, views: points.filter((p) => p.libraryId === l.id).reduce((a, p) => a + p.views, 0) }))
+    .sort((a, b) => b.views - a.views)
+  return { bucket: 'day', libraries, points }
 }
