@@ -537,13 +537,18 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 		  )
 		-- A row merged while durations were lost (every cell of the plugin's
 		-- query is text and used to be read as 0) gets its real duration.
+		-- Older versions stored these rows without a source (default
+		-- 'watchdog'), so any imported row of the same user and item counts.
 		ON CONFLICT ("Id") DO UPDATE SET
 			"PlaybackDuration" = EXCLUDED."PlaybackDuration",
-			"EndedAt" = EXCLUDED."EndedAt",
+			"EndedAt" = COALESCE(jf_playback_activity."StartedAt", EXCLUDED."StartedAt")
+				+ make_interval(secs => EXCLUDED."PlaybackDuration"),
 			"IsView" = EXCLUDED."IsView"
-		WHERE jf_playback_activity.source = 'plugin'
+		WHERE COALESCE(jf_playback_activity.imported, false)
 		  AND COALESCE(jf_playback_activity."PlaybackDuration", 0) = 0
 		  AND EXCLUDED."PlaybackDuration" > 0
+		  AND jf_playback_activity."UserId" = EXCLUDED."UserId"
+		  AND COALESCE(jf_playback_activity."ItemId", jf_playback_activity."EpisodeId", jf_playback_activity."NowPlayingItemId") = EXCLUDED."ItemId"
 	`, sql.Named("tz", displayTZ())).Error
 }
 
