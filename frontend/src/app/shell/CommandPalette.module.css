@@ -1,0 +1,8 @@
+.wrap { display: flex; flex-direction: column; gap: var(--s-2); }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
+.cmd { display: flex; align-items: center; gap: var(--s-2); width: 100%; height: 32px; padding: 0 var(--s-2); border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md); text-align: left; cursor: pointer; }
+.on { background: var(--surface-2); }
+.empty { padding: var(--s-3) var(--s-2); color: var(--ink-3); font-size: var(--fs-md); }
+.cmd { text-decoration: none; }
+.label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); font-size: var(--fs-sm); }

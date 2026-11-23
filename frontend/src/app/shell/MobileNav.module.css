@@ -1,0 +1,6 @@
+.trigger.trigger { display: none; }
+@media (max-width: 900px) { .trigger.trigger { display: inline-flex; } }
+.overlay { position: fixed; inset: 0; background: var(--scrim); z-index: 90; }
+.drawer { position: fixed; top: 0; bottom: 0; left: 0; width: min(280px, 85vw); z-index: 91; background: var(--surface); border-right: 1px solid var(--border); padding: var(--s-3); display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow-pop); overflow-y: auto; }
+.head { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--s-3); }
+.title { display: flex; align-items: center; gap: var(--s-2); margin: 0; font-size: var(--fs-base); font-weight: 650; }

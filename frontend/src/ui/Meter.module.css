@@ -1,0 +1,7 @@
+.meter { height: 6px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; position: relative; }
+.meter > span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-full); }
+.thin { height: 4px; }
+.accent { background: var(--accent); }
+.serious { background: var(--serious); }
+.muted { background: var(--ink-3); }
+.series { background: var(--t-series); }

@@ -35,3 +35,12 @@ Thumbs.db
 .direnv/
 
 dist/
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+
+# local planning docs (not versioned)
+docs/superpowers/
+
+# Local runtime data (backups, imports)
+backend/data/

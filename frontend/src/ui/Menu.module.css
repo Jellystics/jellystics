@@ -1,0 +1,10 @@
+.pop { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); padding: 4px; min-width: 200px; z-index: 50; max-height: min(420px, var(--radix-dropdown-menu-content-available-height, 420px)); overflow-y: auto; color: var(--ink); font-size: var(--fs-md); }
+.item { display: flex; align-items: center; gap: var(--s-2); height: 30px; padding: 0 var(--s-2); border-radius: var(--r-md); font-size: var(--fs-md); color: var(--ink); cursor: pointer; outline: none; user-select: none; }
+.item[data-highlighted], .item:hover { background: var(--surface-2); }
+.item[data-disabled] { opacity: .5; cursor: default; }
+.danger { color: var(--ink); }
+.danger svg { color: var(--critical-ink); }
+.check { width: 16px; display: inline-flex; justify-content: center; color: var(--accent); }
+.hint { margin-left: auto; color: var(--ink-3); font-size: var(--fs-sm); }
+.sep { height: 1px; background: var(--border); margin: 4px -4px; }
+.label { font-size: var(--fs-xs); color: var(--ink-3); padding: 6px var(--s-2) 2px; text-transform: uppercase; letter-spacing: .04em; }

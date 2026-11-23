@@ -1,0 +1,31 @@
+/* Shared layout of the analysis pages (insights, discover, playback, recap). */
+.page { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+.cell { min-width: 0; display: flex; flex-direction: column; }
+.cell > * { flex: 1; }
+.wide { grid-column: 1 / -1; min-width: 0; }
+@media (max-width: 900px) { .grid3 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Dense tables inside cards. */
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
+.table th { text-align: left; font-weight: 500; color: var(--ink-3); font-size: var(--fs-sm); padding: var(--s-2) var(--s-4); border-bottom: 1px solid var(--border); }
+.table td { padding: var(--s-2) var(--s-4); border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tr:last-child td { border-bottom: 0; }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table .meterCell { width: 120px; }
+/* Header row read by screen readers only (th content in .sr-only spans). */
+.table .srHead th { padding: 0; border: 0; height: 0; }
+.mono { font-family: var(--mono); font-size: var(--fs-sm); }
+.media { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.media > div { min-width: 0; }
+.title { font-weight: 550; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+a.title:hover { color: var(--accent); }
+.sub { color: var(--ink-3); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub a { color: var(--ink-2); }
+.sub a:hover { color: var(--accent); }
+.note { color: var(--ink-3); font-size: var(--fs-sm); margin-top: var(--s-3); }
+.gap { height: var(--s-4); }
+.muted { color: var(--ink-3); }
+.tilesSkeleton { padding-top: var(--s-4); }

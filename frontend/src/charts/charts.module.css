@@ -1,0 +1,29 @@
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; overflow: visible; }
+.chart text { font-family: var(--font); font-size: var(--fs-xs); fill: var(--ink-3); }
+.chart text.strong { fill: var(--ink); font-weight: 600; font-size: var(--fs-xs); }
+.chart rect[data-hit]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.actions { display: flex; align-items: center; gap: var(--s-2); }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--fs-sm); color: var(--ink-2); margin-bottom: var(--s-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: var(--r-sm); display: inline-block; }
+.legend i.line { height: 2px; border-radius: var(--r-sm); width: 14px; }
+.tip { position: fixed; z-index: 100; pointer-events: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-pop); border-radius: var(--r-md); padding: 8px 10px; font-size: var(--fs-sm); min-width: 140px; }
+.tipH { color: var(--ink-3); margin-bottom: 4px; }
+.tipR { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.tipR span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.tipR b { font-weight: 600; color: var(--ink); }
+.tipR i { width: 8px; height: 8px; border-radius: var(--r-sm); display: inline-block; }
+.chart circle[data-hit]:focus-visible, .chart path[data-hit]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hz .xhair, .hz .pt { opacity: 0; pointer-events: none; }
+.hz:hover .xhair, .hz:hover .pt, .hz:focus-within .xhair, .hz:focus-within .pt { opacity: 1; }
+.scale { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 6px; font-size: var(--fs-xs); color: var(--ink-3); }
+.scale span { width: 12px; height: 12px; border-radius: var(--r-sm); display: inline-block; }
+.multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--s-4); }
+.multiplesH { display: flex; justify-content: space-between; font-size: var(--fs-sm); margin-bottom: 4px; color: var(--ink-2); }
+.multiplesH span { display: inline-flex; align-items: center; gap: 6px; }
+.multiplesH i { width: 10px; height: 10px; border-radius: var(--r-sm); display: inline-block; }
+/* Matrix cell text: contrast follows the theme (from design .mx-t rules) */
+.chart text:global(.mx-t):global(.lo) { fill: var(--matrix-ink-lo); }
+.chart text:global(.mx-t):global(.hi) { fill: var(--matrix-ink-hi); }
+.chart tspan.light { fill: var(--ink-3); font-weight: 400; }

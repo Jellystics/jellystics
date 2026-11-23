@@ -1,0 +1,5 @@
+.stack { position: fixed; left: var(--s-4); bottom: var(--s-4); z-index: 120; display: flex; flex-direction: column; gap: var(--s-2); max-width: calc(100% - 2 * var(--s-4)); }
+.toast { display: flex; align-items: center; gap: var(--s-3); padding: 10px 12px; border-radius: var(--r-lg); background: var(--ink); color: var(--surface); font-size: var(--fs-md); box-shadow: var(--shadow-pop); width: max-content; max-width: 100%; }
+.ok { color: var(--good); display: inline-flex; }
+.err { color: var(--critical); display: inline-flex; }
+.action { background: none; border: 0; font: inherit; font-weight: 600; color: inherit; text-decoration: underline; cursor: pointer; padding: 0; }

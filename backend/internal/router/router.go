@@ -40,10 +40,8 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 	sessionsH  := handler.NewSessionsApiHandler(repos)
 	tasksH     := handler.NewTasksApiHandler(svcs, repos, db)
 	proxyH     := handler.NewProxyApiHandler(repos)
-	statsH     := handler.NewStatsFrontendHandler(db, repos)
 	webhookH   := handler.NewWebhookHandler(svcs)
 	syncH      := handler.NewSyncHandler(svcs)
-	libH       := handler.NewLibraryHandler(svcs, repos, db)
 	userH      := handler.NewUserHandler(repos)
 	backupH    := handler.NewBackupHandler(repos, hub, svcs)
 	logsH      := handler.NewLogsHandler(repos)
@@ -90,64 +88,6 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 
 	// Sessions
 	authed.GET("/sessions/current", sessionsH.Current)
-
-	// Stats (all frontend-compatible endpoints)
-	stats := authed.Group("/stats")
-	{
-		stats.GET("/getGlobalStats", statsH.GetGlobalStats)
-		stats.GET("/getMostPlayedItems", statsH.GetMostPlayedItems)
-		stats.GET("/getMostActiveUsers", statsH.GetMostActiveUsers)
-		stats.GET("/getWatchStatisticsOverTime", statsH.GetWatchStatisticsOverTime)
-		stats.GET("/getPopularHourOfDay", statsH.GetPopularHourOfDay)
-		stats.GET("/getPopularDayOfWeek", statsH.GetPopularDayOfWeek)
-		stats.GET("/getMostUsedPlaybackMethod", statsH.GetMostUsedPlaybackMethod)
-		stats.GET("/getMostUsedClients", statsH.GetMostUsedClients)
-		stats.GET("/getUserStats", statsH.GetUserStats)
-		stats.GET("/getUserActivity", statsH.GetUserActivity)
-		stats.GET("/getUserActivityByDate", statsH.GetUserActivityByDate)
-		stats.GET("/getUserGenreStats", statsH.GetUserGenreStats)
-		stats.GET("/getAllUserActivity", statsH.GetAllUserActivity)
-		stats.GET("/getLibraries", statsH.GetLibraries)
-		stats.GET("/getLibraryStats", statsH.GetLibraryStats)
-		stats.GET("/getLibraryItems", statsH.GetLibraryItems)
-		stats.GET("/getItemDetails", statsH.GetItemDetails)
-		stats.GET("/getGenreStats", statsH.GetGenreStats)
-		stats.GET("/getLibraryTracks", statsH.GetLibraryTracks)
-		stats.GET("/getLibraryAlbums", statsH.GetLibraryAlbums)
-		stats.GET("/getLibraryArtists", statsH.GetLibraryArtists)
-		stats.GET("/getArtistAlbums", statsH.GetArtistAlbums)
-		stats.GET("/getAlbumTracks", statsH.GetAlbumTracks)
-		stats.GET("/getActivityTimeline", statsH.GetActivityTimeline)
-		stats.GET("/getLibraryOverview", statsH.GetLibraryOverview)
-		stats.GET("/getLibraryCardStats", statsH.GetLibraryCardStatsGET)
-		stats.GET("/getLibraryMetadata", statsH.GetLibraryMetadata)
-		stats.GET("/getViewsByLibraryType", statsH.GetViewsByLibraryType)
-		stats.GET("/getGenreUserStats", statsH.GetGenreUserStats)
-		stats.GET("/getGenreLibraryStats", statsH.GetGenreLibraryStats)
-		stats.GET("/getPlaybackActivity", statsH.GetPlaybackActivity)
-		stats.POST("/getMostViewedLibraries", statsH.GetMostViewedLibraries)
-		stats.POST("/getLibraryCardStats", statsH.GetLibraryCardStatsPOST)
-		stats.POST("/getLibraryItemsWithStats", statsH.GetLibraryItemsWithStats)
-		stats.POST("/getLibraryItemsPlayMethodStats", statsH.GetLibraryItemsPlayMethodStats)
-		stats.GET("/getPlaybacksByLibraryOverTime", statsH.GetPlaybacksByLibraryOverTime)
-		stats.GET("/getPlaybacksScatter", statsH.GetPlaybacksScatter)
-		stats.POST("/getPlaybackMethodStats", statsH.GetPlaybackMethodStats)
-		stats.POST("/getUserLastPlayed", statsH.GetUserLastPlayed)
-		stats.POST("/getGlobalUserStats", statsH.GetGlobalUserStats)
-		stats.POST("/getLibraryLastPlayed", statsH.GetLibraryLastPlayed)
-		stats.GET("/getWatchHeatmap", statsH.GetWatchHeatmap)
-		stats.GET("/getTimeToWatch", statsH.GetTimeToWatch)
-		stats.GET("/getUnwatchedContent", statsH.GetUnwatchedContent)
-		stats.GET("/getBingeStats", statsH.GetBingeStats)
-		stats.GET("/getCompletionRate", statsH.GetCompletionRate)
-		stats.GET("/getViewingDiversity", statsH.GetViewingDiversity)
-	}
-
-	// Utils
-	utils := authed.Group("/utils")
-	{
-		utils.POST("/geolocateIp", handler.NewUtilsHandler().GeolocateIP)
-	}
 
 	// Webhooks – note: fixed paths (/event-status, /toggle-event/:eventType)
 	// must be registered before the /:id wildcard.
@@ -220,45 +160,18 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 		api.GET("/getTasks", tasksH.List)
 		api.POST("/runTask/:name", tasksH.Run)
 		api.GET("/stopTask", configH.StopTask)
-		// Security
-		// Admin library/item queries
-		api.GET("/getLibraries", adminH.GetLibraries)
-		api.POST("/getLibrary", adminH.GetLibrary)
-		api.POST("/getLibraryItems", adminH.GetLibraryItems)
-		api.POST("/getSeasons", adminH.GetSeasons)
-		api.POST("/getEpisodes", adminH.GetEpisodes)
-		api.POST("/getItemDetails", adminH.GetItemDetails)
-		api.POST("/getUserDetails", adminH.GetUserDetails)
-		api.GET("/getRecentlyAdded", adminH.GetRecentlyAdded)
 		// Purge
 		api.DELETE("/item/purge", adminH.PurgeItem)
 		api.DELETE("/library/purge", adminH.PurgeLibrary)
 		api.DELETE("/libraryItems/purge", adminH.PurgeLibraryItems)
-		// History / activity
-		api.GET("/getHistory", adminH.GetHistory)
-		api.POST("/getLibraryHistory", adminH.GetLibraryHistory)
-		api.POST("/getItemHistory", adminH.GetItemHistory)
-		api.POST("/getUserHistory", adminH.GetUserHistory)
+		// Activity
 		api.POST("/deletePlaybackActivity", adminH.DeletePlaybackActivity)
-		api.POST("/getActivityTimeLine", adminH.GetActivityTimeLine)
 		// Backup table config
 		api.GET("/getBackupTables", adminH.GetBackupTables)
 		api.POST("/setExcludedBackupTable", adminH.SetExcludedBackupTable)
 	}
 
-	// Libraries (for direct library browsing)
-	libs := authed.Group("/api/libraries")
-	{
-		libs.GET("", libH.List)
-		libs.GET("/:id", libH.Get)
-		libs.GET("/:id/items", libH.Items)
-		libs.GET("/:id/seasons", libH.Seasons)
-		libs.GET("/:id/episodes", libH.Episodes)
-		libs.GET("/:id/artists", libH.Artists)
-		libs.GET("/:id/tracks", libH.Tracks)
-		libs.GET("/:id/albums/:albumId/tracks", libH.AlbumTracks)
-	}
-	authed.GET("/api/items/:id", libH.GetItem)
+	handler.NewV2Handler(db).Register(authed)
 
 	// Users
 	users := authed.Group("/api/users")

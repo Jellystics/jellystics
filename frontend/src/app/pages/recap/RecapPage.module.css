@@ -1,0 +1,12 @@
+.hero { padding: var(--s-8) var(--s-6); text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--s-1); }
+.hero a { color: var(--ink-2); font-weight: 550; }
+.hero a:hover { color: var(--accent); }
+.heroValue { font-size: var(--fs-hero); font-weight: 600; letter-spacing: -.03em; line-height: var(--lh-tight); margin: var(--s-2) 0 2px; }
+.heroSub { color: var(--ink-2); }
+.heroSkeleton { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); padding: var(--s-6) 0 var(--s-2); }
+.switch { display: flex; gap: var(--s-1); flex-wrap: wrap; justify-content: center; margin-top: var(--s-4); }
+.delta { display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-sm); font-weight: 550; white-space: nowrap; }
+.up { color: var(--good-ink); }
+.down { color: var(--critical-ink); }
+.flat, .new { color: var(--ink-3); }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

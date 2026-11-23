@@ -1,0 +1,4 @@
+.seg { display: inline-flex; padding: 2px; gap: 2px; background: var(--surface-2); border-radius: var(--r-md); border: 1px solid var(--border); }
+.item { height: 26px; padding: 0 10px; border: 0; background: transparent; border-radius: var(--r-sm); font: inherit; font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+.item[data-state="on"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--border), var(--shadow-xs); }
+.item:focus-visible { outline: none; box-shadow: var(--focus); }

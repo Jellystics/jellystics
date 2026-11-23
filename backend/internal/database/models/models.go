@@ -206,6 +206,18 @@ type JFPlaybackActivity struct {
 	StartedAt          *time.Time `gorm:"column:StartedAt"`
 	EndedAt            *time.Time `gorm:"column:EndedAt"`
 	IsView             bool       `gorm:"column:IsView;not null;default:false"` // PlaybackDuration >= 30 s
+
+	// Playback capture fields (migration 011).
+	AudioStreamIndex    *int           `gorm:"column:AudioStreamIndex"`
+	AudioLanguage       *string        `gorm:"column:AudioLanguage"`
+	SubtitleStreamIndex *int           `gorm:"column:SubtitleStreamIndex"` // nil = none
+	SubtitleLanguage    *string        `gorm:"column:SubtitleLanguage"`
+	TranscodeReasons    datatypes.JSON `gorm:"column:TranscodeReasons"` // JSON array of strings
+	Bitrate             *int64         `gorm:"column:Bitrate"`
+	HwAccel             *string        `gorm:"column:HwAccel"`
+	VideoRange          *string        `gorm:"column:VideoRange"`
+	PauseCount          int            `gorm:"column:PauseCount;not null;default:0"`
+	IsRemote            *bool          `gorm:"column:IsRemote"`
 }
 
 func (JFPlaybackActivity) TableName() string { return "jf_playback_activity" }
@@ -249,6 +261,18 @@ type JFActivityWatchdog struct {
 	LastCheckIn        *time.Time `gorm:"column:LastCheckIn"`
 	PeriodicReporter   bool       `gorm:"column:PeriodicReporter;not null;default:false"`
 	LastServerActivity *time.Time `gorm:"column:LastServerActivity"` // Jellyfin LastActivityDate at the last poll
+
+	// Playback capture fields (migration 011).
+	AudioStreamIndex    *int           `gorm:"column:AudioStreamIndex"`
+	AudioLanguage       *string        `gorm:"column:AudioLanguage"`
+	SubtitleStreamIndex *int           `gorm:"column:SubtitleStreamIndex"` // nil = none
+	SubtitleLanguage    *string        `gorm:"column:SubtitleLanguage"`
+	TranscodeReasons    datatypes.JSON `gorm:"column:TranscodeReasons"` // JSON array of strings
+	Bitrate             *int64         `gorm:"column:Bitrate"`
+	HwAccel             *string        `gorm:"column:HwAccel"`
+	VideoRange          *string        `gorm:"column:VideoRange"`
+	PauseCount          int            `gorm:"column:PauseCount;not null;default:0"`
+	IsRemote            *bool          `gorm:"column:IsRemote"`
 }
 
 func (JFActivityWatchdog) TableName() string { return "jf_activity_watchdog" }

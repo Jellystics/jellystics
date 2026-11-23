@@ -20,37 +20,6 @@ type TimeRange struct {
 	AllTime bool
 }
 
-// parseRange builds a TimeRange from from/to strings. Plain dates
-// (YYYY-MM-DD) are interpreted as calendar days in the display time zone:
-// From = local midnight of `from`, To = local midnight of the day after `to`
-// (end-exclusive). RFC 3339 values are used verbatim. "all" or "0" as `from`
-// means all time. Defaults: the last 30 days up to the end of today.
-func parseRange(fromStr, toStr string) TimeRange {
-	if fromStr == "all" || fromStr == "0" {
-		return TimeRange{AllTime: true}
-	}
-	loc := statsql.Location()
-	today := statsql.StartOfDay(time.Now(), loc)
-	to := today.AddDate(0, 0, 1)
-	from := today.AddDate(0, 0, -30)
-
-	if fromStr != "" {
-		if t, err := time.ParseInLocation("2006-01-02", fromStr, loc); err == nil {
-			from = t
-		} else if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
-			from = t
-		}
-	}
-	if toStr != "" {
-		if t, err := time.ParseInLocation("2006-01-02", toStr, loc); err == nil {
-			to = t.AddDate(0, 0, 1)
-		} else if t, err := time.Parse(time.RFC3339, toStr); err == nil {
-			to = t
-		}
-	}
-	return TimeRange{From: from, To: to}
-}
-
 // ---------------------------------------------------------------------------
 // The `acts` CTE: one normalised row per counted playback attempt
 // ---------------------------------------------------------------------------
@@ -68,7 +37,8 @@ const catalogJoins = `
 //	item_name, library_id, genres (NULL when the item is not in the catalog),
 //	started_at, ended_at (timestamptz), local_ts (display-zone wall time),
 //	duration (s), is_view, play_method, client, device_name, runtime_ticks,
-//	pos_end, now_playing_item_id, now_playing_item_name, series_name
+//	pos_end, now_playing_item_id, now_playing_item_name, series_name,
+//	paused_seconds, app_version, pos_start
 func actsSelect() string {
 	started := statsql.StartedAt("a")
 	return `
@@ -109,7 +79,10 @@ func actsSelect() string {
 	  a."PositionTicksEnd" AS pos_end,
 	  a."NowPlayingItemId" AS now_playing_item_id,
 	  a."NowPlayingItemName" AS now_playing_item_name,
-	  a."SeriesName" AS series_name
+	  a."SeriesName" AS series_name,
+	  COALESCE(a."PausedSeconds", 0)::bigint AS paused_seconds,
+	  a."ApplicationVersion" AS app_version,
+	  a."PositionTicksStart" AS pos_start
 	FROM jf_playback_activity a` + catalogJoins + `
 	WHERE ` + statsql.MediaFilter("a")
 }
@@ -197,23 +170,30 @@ completion AS (
 )
 `
 
+// libraryIdExpr resolves the library of a playback row inside the acts CTE
+// WHERE clause (catalog join aliases are in scope there).
+const libraryIdExpr = statsql.LibraryID
+
+// genreLateral expands acts.genres into one `genre` row per genre; catalog
+// items without genres yield "No Genre". Rows whose item is not in the
+// catalog (genres IS NULL) must be filtered out by the caller.
+const genreLateral = `
+	CROSS JOIN LATERAL jsonb_array_elements_text(
+	  CASE WHEN jsonb_typeof(acts.genres) <> 'array' OR jsonb_array_length(acts.genres) = 0
+	       THEN '["No Genre"]'::jsonb ELSE acts.genres END
+	) AS genre`
+
+func strOrEmpty(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
 // completedCond is the shared "completed" predicate on completion_ratio.
 var completedCond = fmt.Sprintf(`completion_ratio >= %g`, statsql.CompletionThreshold)
 
 // inPlaceholders returns "?,?,?" for n values.
 func inPlaceholders(n int) string {
 	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
-}
-
-// mediaTypeParam maps a frontend type filter to a MediaType value.
-func mediaTypeParam(t string) string {
-	switch strings.ToLower(t) {
-	case "movie", "video":
-		return "Movie"
-	case "series", "episode", "tv":
-		return "Episode"
-	case "audio", "music", "musicalbum", "track":
-		return "Audio"
-	}
-	return ""
 }

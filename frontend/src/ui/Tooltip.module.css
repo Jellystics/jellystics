@@ -1,0 +1,1 @@
+.tip { z-index: 100; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-pop); border-radius: var(--r-md); padding: 6px 10px; font-size: var(--fs-sm); color: var(--ink); max-width: 280px; }

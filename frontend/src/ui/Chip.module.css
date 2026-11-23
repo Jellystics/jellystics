@@ -1,0 +1,7 @@
+.wrap { display: inline-flex; align-items: center; position: relative; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-full); border: 1px solid var(--border-strong); font-family: inherit; font-size: var(--fs-sm); color: var(--ink-2); background: var(--surface); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.chip:focus-visible, .x:focus-visible { outline: none; box-shadow: var(--focus); }
+.wrap:has(.x) .chip { padding-right: 26px; }
+.x { position: absolute; right: 6px; display: grid; place-items: center; width: 16px; height: 16px; padding: 0; border: 0; background: transparent; color: inherit; opacity: .6; cursor: pointer; border-radius: var(--r-full); }
+.x:hover { opacity: 1; }

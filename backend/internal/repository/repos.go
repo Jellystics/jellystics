@@ -340,6 +340,8 @@ func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActiv
 				"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
 				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
 				"PausedSeconds", "StartedAt", "EndedAt", "IsView",
+				"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
+				"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
 			}),
 		}).
 		CreateInBatches(acts, 500).Error
@@ -382,6 +384,8 @@ func (r *watchdogRepo) Upsert(ctx context.Context, entries []models.JFActivityWa
 				"WatchedSeconds", "LastTickAt",
 				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "WatchedMs", "PausedMs",
 				"StartedAt", "LastCheckIn", "PeriodicReporter", "LastServerActivity",
+				"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
+				"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
 			}),
 		}).
 		CreateInBatches(entries, 500).Error
@@ -573,11 +577,45 @@ func (r *playbackRepo) BackfillTracking(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).Exec(`
+	if err := r.db.WithContext(ctx).Exec(`
 		UPDATE jf_playback_activity
 		SET "EndedAt" = "StartedAt" + make_interval(secs => COALESCE("PlaybackDuration", 0))
 		WHERE "EndedAt" IS NULL AND "StartedAt" IS NOT NULL
-	`).Error
+	`).Error; err != nil {
+		return err
+	}
+	return r.sanitizeImported(ctx)
+}
+
+// Longest believable imported play when the item's runtime is unknown.
+const maxImportedPlaySeconds = 12 * 3600
+
+// sanitizeImported repairs impossible durations coming from imported
+// Playback Reporting data (the plugin can store a negative / int32-overflowed
+// PlayDuration, or keep a session open for days): negative → 0, more than
+// 1.5× the item's runtime → the runtime, more than 12 h with no known runtime
+// → 12 h. EndedAt and IsView follow the repaired duration. Tracked rows are
+// never touched (the tracker already clamps to wall time).
+func (r *playbackRepo) sanitizeImported(ctx context.Context) error {
+	return r.db.WithContext(ctx).Exec(`
+		WITH fixed AS (
+			SELECT "Id",
+				CASE
+					WHEN "PlaybackDuration" < 0 THEN 0
+					WHEN COALESCE("RunTimeTicks", 0) > 0 AND "PlaybackDuration" > ("RunTimeTicks" / 10000000.0) * 1.5
+						THEN CEIL("RunTimeTicks" / 10000000.0)::bigint
+					WHEN COALESCE("RunTimeTicks", 0) <= 0 AND "PlaybackDuration" > @max THEN @max
+				END AS dur
+			FROM jf_playback_activity
+			WHERE imported AND "PlaybackDuration" IS NOT NULL
+		)
+		UPDATE jf_playback_activity a SET
+			"PlaybackDuration" = f.dur,
+			"EndedAt" = CASE WHEN a."StartedAt" IS NULL THEN a."EndedAt" ELSE a."StartedAt" + make_interval(secs => f.dur) END,
+			"IsView" = f.dur >= 30
+		FROM fixed f
+		WHERE f."Id" = a."Id" AND f.dur IS NOT NULL
+	`, sql.Named("max", maxImportedPlaySeconds)).Error
 }
 
 // ---- logging ----

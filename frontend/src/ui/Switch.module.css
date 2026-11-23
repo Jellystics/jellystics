@@ -1,0 +1,6 @@
+.row { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--fs-md); color: var(--ink); cursor: pointer; }
+.switch { width: 32px; height: 18px; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--border-strong); position: relative; cursor: pointer; flex: none; padding: 0; }
+.thumb { display: block; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: var(--r-full); background: var(--surface); box-shadow: var(--shadow-sm); transition: left var(--dur); }
+.switch[data-state="checked"] { background: var(--accent); border-color: var(--accent); }
+.switch[data-state="checked"] .thumb { left: 16px; }
+.switch:focus-visible { outline: none; box-shadow: var(--focus); }

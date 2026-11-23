@@ -36,11 +36,12 @@ func MediaFilter(alias string) string {
 }
 
 // StartedAt returns the authoritative start timestamp (timestamptz) of a
-// playback row. Legacy rows whose StartedAt has not been backfilled yet fall
-// back to the text ActivityDateInserted column (COALESCE short-circuits, so
-// the cast only runs for those rows).
+// playback row: the plain indexed "StartedAt" column, so range predicates can
+// use idx_playback_started_at. Legacy rows get it from
+// playbackRepo.BackfillTracking (run at startup and after every import); rows
+// it cannot date (unparseable ActivityDateInserted) stay excluded from stats.
 func StartedAt(alias string) string {
-	return `COALESCE(` + col(alias, "StartedAt") + `, ` + col(alias, "ActivityDateInserted") + `::timestamptz)`
+	return col(alias, "StartedAt")
 }
 
 // LocalTS returns the start timestamp converted to wall-clock time in the

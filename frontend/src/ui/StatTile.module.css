@@ -1,0 +1,14 @@
+.stat { padding: var(--s-4); display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; text-align: left; background: none; border: 0; border-bottom: 2px solid transparent; color: inherit; font: inherit; }
+.label { font-size: var(--fs-sm); color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.value { font-size: var(--fs-2xl); font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.value small { font-size: var(--fs-md); font-weight: 500; color: var(--ink-3); margin-left: 2px; letter-spacing: 0; }
+.foot { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--ink-3); white-space: nowrap; min-width: 0; }
+.foot > span:not(.delta) { overflow: hidden; text-overflow: ellipsis; }
+.spark { margin-left: auto; flex: none; }
+.delta { white-space: nowrap; flex: none; display: inline-flex; align-items: center; gap: 2px; font-weight: 550; font-size: var(--fs-sm); }
+.good { color: var(--good-ink); }
+.bad { color: var(--critical-ink); }
+.flat { color: var(--ink-3); }
+.selectable { cursor: pointer; }
+.selectable:hover { background: var(--surface-2); }
+.selected { border-bottom-color: var(--accent); }
