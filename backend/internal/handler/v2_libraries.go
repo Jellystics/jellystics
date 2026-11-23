@@ -45,7 +45,7 @@ func (h *V2Handler) libraryTotals(c *gin.Context, f *actFilter) (map[string]Tota
 	q, args := f.sql(`,
 		lu AS (
 		  SELECT library_id, ` + statsqlCompletion + ` AS r
-		  FROM acts WHERE is_view AND runtime_ticks > 0 GROUP BY library_id, user_id, item_id, local_ts::date
+		  FROM acts WHERE is_view AND runtime_ticks > 0 AND NOT plugin_open GROUP BY library_id, user_id, item_id, local_ts::date
 		),
 		lc AS (SELECT library_id, AVG(r)::float8 AS completion FROM lu GROUP BY library_id)
 		SELECT acts.library_id, ` + aggSeconds + ` AS watch_seconds, ` + aggPlays + ` AS views, ` + aggClicks + ` AS clicks,

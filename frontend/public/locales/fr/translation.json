@@ -669,6 +669,105 @@
         "links": "Liens",
         "github": "Dépôt GitHub",
         "openIssue": "Ouvrir un ticket"
+      },
+      "plugin": {
+        "title": "Plugin Jellystics",
+        "hint": "Enregistre chaque lecture directement sur le serveur Jellyfin : la source la plus précise des statistiques.",
+        "state": {
+          "healthy": "Actif",
+          "unhealthy": "Ne synchronise plus",
+          "absent": "Non détecté"
+        },
+        "version": "Version",
+        "schema": "Schéma d'API",
+        "schemaValue": "{{version}} (pris en charge : {{supported}})",
+        "lastSync": "Dernière synchro",
+        "never": "Jamais",
+        "playsSynced": "Lectures synchronisées",
+        "unhealthyHint": "Le plugin n'a pas synchronisé depuis plus de 2 minutes : le suivi de Jellystics enregistre les lectures en attendant.",
+        "push": {
+          "title": "Sauvegarder l'historique dans le plugin",
+          "hint": "Envoie au plugin les lectures enregistrées par Jellystics lui-même (suivi, imports), pour que sa base contienne tout votre historique. Relançable sans risque : les lectures déjà présentes sont ignorées.",
+          "start": "Sauvegarder l'historique dans le plugin",
+          "resume": "Reprendre la sauvegarde",
+          "started": "Sauvegarde de l'historique lancée",
+          "running": "Sauvegarde en cours…",
+          "progress": "{{sent}} / {{total}} lectures envoyées",
+          "done": "Dernière sauvegarde : {{sent}} / {{total}} lectures envoyées ; {{imported}} ajoutées, {{skipped}} déjà présentes, {{rejected}} rejetées.",
+          "doneToast": "Historique sauvegardé dans le plugin",
+          "failed": "Sauvegarde arrêtée : {{error}}. Elle reprendra là où elle s'est arrêtée.",
+          "interrupted": "Sauvegarde interrompue par un redémarrage de Jellystics. Elle reprendra là où elle s'est arrêtée.",
+          "error": "Impossible de lancer la sauvegarde",
+          "doneNoCounts": "Dernière sauvegarde : {{sent}} / {{total}} lectures envoyées (le plugin n’a pas indiqué ce qu’il a ajouté)."
+        },
+        "resync": {
+          "title": "Resynchroniser depuis le plugin",
+          "hint": "Relit toutes les lectures et tous les événements enregistrés par le plugin, par exemple après la restauration d'une sauvegarde.",
+          "confirmTitle": "Resynchroniser depuis le plugin ?",
+          "confirmText": "Jellystics va relire tout ce que le plugin a enregistré. Rien n’est perdu : les lectures déjà synchronisées sont mises à jour, et une lecture enregistrée deux fois (par le suivi ou un import et par le plugin) est remplacée par la version du plugin.",
+          "confirm": "Resynchroniser",
+          "started": "Resynchronisation lancée"
+        },
+        "absent": {
+          "lead": "Installez le plugin Jellystics sur votre serveur Jellyfin pour des statistiques exactes :",
+          "b1": "Temps de visionnage exact, issu des événements de lecture de Jellyfin (pauses, sauts, temps sauté), au lieu d’un relevé toutes les 5 secondes.",
+          "b2": "Rien n'est perdu quand Jellystics est arrêté ou redémarre : les lectures sont enregistrées sur le serveur.",
+          "b3": "Changements de piste audio et de sous-titres, détails du transcodage, ajouts réels aux bibliothèques, connexions et marquages « vu » manuels.",
+          "steps": "Dans Jellyfin : Tableau de bord → Extensions → Dépôts, ajoutez cette URL, puis installez « Jellystics » depuis le catalogue et redémarrez Jellyfin.",
+          "manifest": "URL du dépôt du plugin",
+          "copy": "Copier l'URL",
+          "copied": "URL copiée"
+        },
+        "lastErrorValue": "Dernière erreur : {{error}}"
+      },
+      "quality": {
+        "title": "Qualité des données",
+        "hint": "D'où viennent les lectures de la période, et quelle est la précision de chaque source.",
+        "empty": "Aucune lecture sur la période",
+        "watchShare": "{{share}} du temps de visionnage · {{time}}",
+        "sources": {
+          "plugin": {
+            "label": "Plugin Jellystics",
+            "precision": "Exact : événements de lecture de Jellyfin (début, pauses, sauts, arrêt)."
+          },
+          "tracker": {
+            "label": "Suivi Jellystics",
+            "precision": "Sessions Jellyfin relevées toutes les 5 s : temps de visionnage précis à quelques secondes près."
+          },
+          "playbackReporting": {
+            "label": "Imports Playback Reporting",
+            "precision": "Estimé par le plugin Playback Reporting : heure de début approximative, pas de pauses ; les durées impossibles sont réparées."
+          },
+          "otherImports": {
+            "label": "Autres imports",
+            "precision": "Historique importé (par ex. l'historique Jellystics revenant du plugin) : au mieux la précision du suivi."
+          },
+          "restore": {
+            "label": "Sauvegarde restaurée",
+            "precision": "Lignes restaurées sans leur origine : précision inconnue."
+          },
+          "other": {
+            "label": "Autre",
+            "precision": "Origine inconnue."
+          }
+        },
+        "details": {
+          "title": "Détails enregistrés",
+          "positions": "Position d'arrêt (complétion exacte)",
+          "streams": "Piste audio / sous-titres lue",
+          "captured": "Détails de lecture (débit, réseau, pauses)",
+          "transcode": "Détails du transcodage (codecs, raisons)"
+        },
+        "pluginSince": "Données du plugin depuis le {{date}}",
+        "noPlugin": "Aucune lecture enregistrée par le plugin Jellystics pour l’instant.",
+        "undated_one": "{{count}} lecture sans date exploitable est exclue de toutes les statistiques.",
+        "undated_other": "{{count}} lectures sans date exploitable sont exclues de toutes les statistiques.",
+        "views_one": "{{count}} vue",
+        "views_other": "{{count}} vues",
+        "clicks_one": "{{count}} clic",
+        "clicks_other": "{{count}} clics",
+        "repairedAtLeast_one": "Au moins {{count}} durée importée réparée (négative, plus de 1,5× la durée du média ou plus de 12 h).",
+        "repairedAtLeast_other": "Au moins {{count}} durées importées réparées (négatives, plus de 1,5× la durée du média ou plus de 12 h)."
       }
     },
     "sidePanel": {
@@ -1205,6 +1304,100 @@
     "picker": {
       "search": "Rechercher…",
       "empty": "Aucun résultat"
+    },
+    "plugin": {
+      "playedToEnd": {
+        "footMeasured_one": "mesuré par le plugin · {{count}} vue",
+        "footMeasured_other": "mesuré par le plugin · {{count}} vues",
+        "footMixed": "{{measured}} mesurées · {{estimated}} estimées",
+        "tip": "Fin de lecture selon Jellyfin (≥ 90 % par défaut), mesurée par le plugin Jellystics pour les films et épisodes de 5 min ou plus. Les autres vues sont estimées : arrêt à 90 % de la durée ou plus. Les lectures en cours ne comptent pas."
+      },
+      "skips": {
+        "title": "Sauts en avant",
+        "plays_one": "{{count}} lecture mesurée par le plugin Jellystics",
+        "plays_other": "{{count}} lectures mesurées par le plugin Jellystics",
+        "intro": "Saut court en début de lecture (générique probable)",
+        "skipRate": "Lectures avec un saut",
+        "skipFoot_one": "{{count}} lecture",
+        "skipFoot_other": "{{count}} lectures",
+        "avgSkipped": "Temps sauté moyen",
+        "avgSkippedFoot": "par lecture avec saut",
+        "estimate": "Saut court : 10 s à 15 % de la durée (3 min au plus) dans une lecture commencée au début ; le taux porte sur ces lectures. Le plugin mesure le temps sauté, pas l’endroit du saut : c’est une estimation. Les lectures en cours ne comptent pas.",
+        "cellTip_one": "{{count}} lecture mesurée · temps sauté moyen {{avg}}",
+        "cellTip_other": "{{count}} lectures mesurées · temps sauté moyen {{avg}}",
+        "introFoot_one": "{{intro}} / {{count}} lecture depuis le début",
+        "introFoot_other": "{{intro}} / {{count}} lectures depuis le début"
+      },
+      "insights": {
+        "title": "Génériques les plus passés",
+        "subtitle_one": "séries · {{count}} lecture d’épisode mesurée par le plugin",
+        "subtitle_other": "séries · {{count}} lectures d’épisodes mesurées par le plugin",
+        "series": "Série",
+        "plays": "Lectures mesurées",
+        "playsCount_one": "{{count}} lecture",
+        "playsCount_other": "{{count}} lectures"
+      },
+      "marks": {
+        "title": "Marqué vu",
+        "subtitle": "dernier marquage enregistré par utilisateur depuis le {{date}}",
+        "manualLabel": "À la main",
+        "automaticLabel": "Fin de lecture",
+        "otherLabel": "Autre",
+        "manual_one": "Marqué vu manuellement par {{count}} utilisateur",
+        "manual_other": "Marqué vu manuellement par {{count}} utilisateurs",
+        "manualWithoutView_one": "dont {{count}} sans aucune vue enregistrée",
+        "manualWithoutView_other": "dont {{count}} sans aucune vue enregistrée",
+        "automatic_one": "Marqué vu en fin de lecture pour {{count}} utilisateur",
+        "automatic_other": "Marqué vu en fin de lecture pour {{count}} utilisateurs",
+        "other_one": "Marqué vu autrement (import, application tierce) pour {{count}} utilisateur",
+        "other_other": "Marqué vu autrement (import, application tierce) pour {{count}} utilisateurs",
+        "unplayed_one": "Remis à « non vu » par {{count}} utilisateur",
+        "unplayed_other": "Remis à « non vu » par {{count}} utilisateurs",
+        "watched_one": "{{count}} utilisateur a une vue enregistrée",
+        "watched_other": "{{count}} utilisateurs ont une vue enregistrée"
+      },
+      "logins": {
+        "title": "Connexions",
+        "subtitle": "collectées par le plugin Jellystics",
+        "count": "Connexions",
+        "lastLogin": "Dernière connexion",
+        "lastAt": "Dernière",
+        "never": "jamais",
+        "failed": "Échecs",
+        "failedFoot": "visible des admins",
+        "empty": "Aucune connexion sur la période"
+      },
+      "growth": {
+        "removed": "Retirés",
+        "source": "Source des ajouts",
+        "sourceEvents": "plugin (dates réelles)",
+        "sourceCatalog": "catalogue (approximation)",
+        "precise": "Ajouts et retraits réels enregistrés par le plugin Jellystics.",
+        "partial": "Ajouts réels (plugin Jellystics) à partir du {{date}} ; avant : dates d’ajout du catalogue, éléments encore présents (approximation).",
+        "catalog": "Dates d’ajout du catalogue, éléments encore présents (approximation). Le plugin Jellystics enregistre les ajouts réels.",
+        "marker": "ajouts réels"
+      },
+      "firstView": {
+        "title": "Délai ajout → premier visionnage",
+        "subtitle": "ajouts réels de la période (plugin Jellystics)",
+        "delay": "Délai",
+        "count": "Éléments",
+        "empty": "Aucun ajout sur la période",
+        "summary": "{{viewed}} vus sur {{added}} ajoutés",
+        "median": "médiane {{value}}",
+        "notViewed_one": "{{count}} pas encore vu",
+        "notViewed_other": "{{count}} pas encore vus",
+        "b": {
+          "<1h": "< 1 h",
+          "1-24h": "1–24 h",
+          "1-7d": "1–7 j",
+          "1-4w": "1–4 sem.",
+          ">4w": "> 4 sem."
+        }
+      },
+      "funnel": {
+        "ofViews": "{{pct}} des vues · {{done}}/{{views}}"
+      }
     }
   }
 }

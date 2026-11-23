@@ -9,6 +9,8 @@ import { usePeriod } from '@/lib/useUrlState'
 import { AppLink, Art, Badge, Card, CardBody, CardHeader, DataTable, EmptyState, Meter, StatStrip, StatTile } from '@/ui'
 import { ratioDelta, pointsDelta } from '../overview/delta'
 import { LanguagesCard } from '@/app/widgets/LanguagesCard'
+import { FinishedFoot, LoginsCard } from '@/app/widgets/PluginWidgets'
+import { hasPlayedToEnd } from '@/app/widgets/plugin'
 import { ComparePanel } from './ComparePanel'
 import { StreakCard } from './StreakCard'
 import { activeDays, outdated, peakIndex } from './stats'
@@ -27,6 +29,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
   const hours = user.hours?.length === 24 ? user.hours : Array<number>(24).fill(0)
   const peak = peakIndex(hours)
   const old = outdated(user.devices ?? [])
+  const showPte = hasPlayedToEnd(user.playedToEnd)
 
   const deviceCols: ColumnDef<Device>[] = [
     { id: 'device', header: t('app.userPage.devices.device'), cell: ({ row: { original: d } }) => d.device || '—' },
@@ -117,7 +120,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
                 <div key={k} className={s.score}>
                   <div className={s.scoreHead}><span>{scoreLabel(k)}</span><b className="num">{v === null ? '—' : f.percent(v)}</b></div>
                   <Meter value={v ?? 0} label={scoreLabel(k)} />
-                  <div className={s.scoreSub}>{t(`app.userPage.profile.${k}Hint`)}</div>
+                  <div className={s.scoreSub}>{k === 'completion' && showPte ? <FinishedFoot data={user.playedToEnd} /> : t(`app.userPage.profile.${k}Hint`)}</div>
                 </div>
               ))}
             </div>
@@ -136,7 +139,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
         <ComparePanel user={user} />
       </div>
 
-      <div className={l.g2}><LanguagesCard userId={user.id} /></div>
+      <div className={l.g2}><LanguagesCard userId={user.id} /><LoginsCard userId={user.id} /></div>
     </div>
   )
 }

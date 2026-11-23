@@ -170,7 +170,7 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 	scanner := bufio.NewScanner(f)
 	var activities []models.JFPlaybackActivity
 	lineNum := 0
-	imported := 0
+	imported, skipped := 0, 0
 
 	for scanner.Scan() {
 		lineNum++
@@ -200,8 +200,9 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 		// Negative values (an int32 overflow in the plugin) become 0; overlong
 		// ones are capped against the runtime by BackfillTracking below.
 		playDurationSecs, _ := strconv.ParseInt(playDurationStr, 10, 64)
+		repaired := false
 		if playDurationSecs < 0 {
-			playDurationSecs = 0
+			playDurationSecs, repaired = 0, true
 		}
 
 		// Generate an ID based on content
@@ -219,6 +220,7 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 			ActivityDateInserted: &dateCreated,
 			Imported:             true,
 			Source:               "import",
+			DurationRepaired:     repaired,
 		}
 		activities = append(activities, activity)
 		imported++
@@ -243,10 +245,23 @@ func (h *TasksApiHandler) ImportBackup(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to backfill imported rows: " + err.Error()})
 			return
 		}
+		// One play = one row: plays already recorded by another source
+		// (tracker, Jellystics plugin, plugin PBR import...) are dropped.
+		ids := make([]string, len(deduped))
+		for i, a := range deduped {
+			ids[i] = a.Id
+		}
+		n, err := h.repos.Playback.DeleteCoveredTSVImports(c.Request.Context(), ids)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to drop already recorded plays: " + err.Error()})
+			return
+		}
+		skipped = int(n)
+		imported = len(deduped) - skipped
 		ResetStatsCaches()
 	}
 
-	c.JSON(http.StatusOK, gin.H{"imported": imported, "total": lineNum})
+	c.JSON(http.StatusOK, gin.H{"imported": imported, "skipped": skipped, "total": lineNum})
 }
 
 // ptr returns a pointer to a string literal.

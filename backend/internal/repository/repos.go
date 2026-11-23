@@ -323,6 +323,21 @@ func (r *itemInfoRepo) RemoveOrphaned(ctx context.Context) error {
 
 // ---- playback ----
 
+// playbackUpsertColumns are the columns refreshed when a play is upserted.
+var playbackUpsertColumns = []string{
+	"IsPaused", "UserId", "UserName", "Client", "DeviceName", "DeviceId",
+	"ApplicationVersion", "NowPlayingItemId", "NowPlayingItemName",
+	"EpisodeId", "SeasonId", "SeriesName", "PlaybackDuration", "PlayMethod",
+	"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
+	"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
+	"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
+	"PausedSeconds", "StartedAt", "EndedAt", "IsView",
+	"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
+	"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
+	"PlaySessionId", "SeekCount", "SkippedSeconds", "PlayedToCompletion", "PluginOpen",
+	"DurationRepaired",
+}
+
 type playbackRepo struct{ db *gorm.DB }
 
 func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActivity) error {
@@ -332,17 +347,7 @@ func (r *playbackRepo) Upsert(ctx context.Context, acts []models.JFPlaybackActiv
 	return r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "Id"}},
-			DoUpdates: clause.AssignmentColumns([]string{
-				"IsPaused", "UserId", "UserName", "Client", "DeviceName", "DeviceId",
-				"ApplicationVersion", "NowPlayingItemId", "NowPlayingItemName",
-				"EpisodeId", "SeasonId", "SeriesName", "PlaybackDuration", "PlayMethod",
-				"ActivityDateInserted", "MediaStreams", "TranscodingInfo", "PlayState",
-				"OriginalContainer", "RemoteEndPoint", "ServerId", "source", "imported",
-				"ItemId", "MediaType", "RunTimeTicks", "PositionTicksStart", "PositionTicksEnd",
-				"PausedSeconds", "StartedAt", "EndedAt", "IsView",
-				"AudioStreamIndex", "AudioLanguage", "SubtitleStreamIndex", "SubtitleLanguage",
-				"TranscodeReasons", "Bitrate", "HwAccel", "VideoRange", "PauseCount", "IsRemote",
-			}),
+			DoUpdates: clause.AssignmentColumns(playbackUpsertColumns),
 		}).
 		CreateInBatches(acts, 500).Error
 }
@@ -458,6 +463,10 @@ func displayTZ() string {
 //     Jellystics tracker (or is being tracked right now): same user and item,
 //     and either overlapping in time (TZ-interpreted), or — robust to a
 //     missing/wrong TZ setting — starting within ±14 h with a similar duration.
+// samePlaySrc: existing row a is the same play as staged PBR row src.
+var samePlaySrc = SamePlayCond(`a."UserId"`, `a."ItemId"`, `a."StartedAt"`, `a."PlaybackDuration"`,
+	`src."UserId"`, `src."ItemId"`, `src.started_at`, `src.dur`)
+
 func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`
 		WITH src AS (
@@ -522,16 +531,22 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 			SELECT 1 FROM jf_activity_watchdog w
 			WHERE w."UserId" = src."UserId" AND w."ItemId" = src."ItemId"
 		  )
+		  -- One play = one row (shared same-play rule): skipped when a row
+		  -- recorded by the tracker / the Jellystics plugin, or imported from
+		  -- another origin (plugin PBR import, Jellystics history, TSV), is the
+		  -- same play. Tracker / plugin rows also match when shifted by a whole
+		  -- time-zone offset (missing or wrong TZ setting) with a similar
+		  -- duration.
 		  AND NOT EXISTS (
 			SELECT 1 FROM jf_playback_activity a
-			WHERE COALESCE(a.imported, false) = false
-			  AND a."UserId" = src."UserId"
-			  AND a."ItemId" = src."ItemId"
+			WHERE (COALESCE(a.imported, false) = false OR a.source IN ('import-pbr', 'import-jellystics', 'import'))
 			  AND (
-				(a."StartedAt" <= src.started_at + make_interval(secs => src.dur) + interval '2 minutes'
-				 AND COALESCE(a."EndedAt", a."StartedAt") >= src.started_at - interval '2 minutes')
-				OR
-				(a."StartedAt" BETWEEN src.started_at - interval '14 hours' AND src.started_at + interval '14 hours'
+				`+samePlaySrc+`
+				OR (COALESCE(a.imported, false) = false
+				 AND a."UserId" = src."UserId" AND a."ItemId" = src."ItemId"
+				 AND a."StartedAt" BETWEEN src.started_at - interval '14 hours' AND src.started_at + interval '14 hours'
+				 AND abs(extract(epoch FROM a."StartedAt" - src.started_at)) >= 1680
+				 AND mod(abs(extract(epoch FROM a."StartedAt" - src.started_at))::numeric + 120, 1800) <= 240
 				 AND abs(COALESCE(a."PlaybackDuration", 0) - src.dur) <= GREATEST(60, 0.15 * GREATEST(COALESCE(a."PlaybackDuration", 0), src.dur)))
 			  )
 		  )
@@ -608,6 +623,9 @@ func (r *playbackRepo) BackfillTracking(ctx context.Context) error {
 	return r.sanitizeImported(ctx)
 }
 
+// SanitizeImported repairs impossible durations of imported rows (see sanitizeImported).
+func (r *playbackRepo) SanitizeImported(ctx context.Context) error { return r.sanitizeImported(ctx) }
+
 // Longest believable imported play when the item's runtime is unknown.
 const maxImportedPlaySeconds = 12 * 3600
 
@@ -615,8 +633,9 @@ const maxImportedPlaySeconds = 12 * 3600
 // Playback Reporting data (the plugin can store a negative / int32-overflowed
 // PlayDuration, or keep a session open for days): negative → 0, more than
 // 1.5× the item's runtime → the runtime, more than 12 h with no known runtime
-// → 12 h. EndedAt and IsView follow the repaired duration. Tracked rows are
-// never touched (the tracker already clamps to wall time).
+// → 12 h. EndedAt and IsView follow the repaired duration and the row is
+// flagged DurationRepaired (data quality). Tracked rows are never touched
+// (the tracker already clamps to wall time).
 func (r *playbackRepo) sanitizeImported(ctx context.Context) error {
 	return r.db.WithContext(ctx).Exec(`
 		WITH fixed AS (
@@ -633,7 +652,8 @@ func (r *playbackRepo) sanitizeImported(ctx context.Context) error {
 		UPDATE jf_playback_activity a SET
 			"PlaybackDuration" = f.dur,
 			"EndedAt" = CASE WHEN a."StartedAt" IS NULL THEN a."EndedAt" ELSE a."StartedAt" + make_interval(secs => f.dur) END,
-			"IsView" = f.dur >= 30
+			"IsView" = f.dur >= 30,
+			"DurationRepaired" = true
 		FROM fixed f
 		WHERE f."Id" = a."Id" AND f.dur IS NOT NULL
 	`, sql.Named("max", maxImportedPlaySeconds)).Error

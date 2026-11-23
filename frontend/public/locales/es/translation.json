@@ -669,6 +669,105 @@
         "links": "Enlaces",
         "github": "Repositorio de GitHub",
         "openIssue": "Abrir una incidencia"
+      },
+      "plugin": {
+        "title": "Plugin Jellystics",
+        "hint": "Registra cada reproducción en el propio servidor Jellyfin: la fuente más precisa de estadísticas.",
+        "state": {
+          "healthy": "Activo",
+          "unhealthy": "Sin sincronizar",
+          "absent": "No detectado"
+        },
+        "version": "Versión",
+        "schema": "Esquema de API",
+        "schemaValue": "{{version}} (compatible: {{supported}})",
+        "lastSync": "Última sincronización",
+        "never": "Nunca",
+        "playsSynced": "Reproducciones sincronizadas",
+        "unhealthyHint": "El plugin no sincroniza desde hace más de 2 minutos: mientras tanto, el seguimiento de Jellystics registra las reproducciones.",
+        "push": {
+          "title": "Guardar el historial en el plugin",
+          "hint": "Envía al plugin las reproducciones registradas por el propio Jellystics (seguimiento, importaciones), para que su base contenga todo tu historial. Se puede repetir sin riesgo: las reproducciones ya presentes se omiten.",
+          "start": "Guardar el historial en el plugin",
+          "resume": "Reanudar el guardado",
+          "started": "Guardado del historial iniciado",
+          "running": "Guardando…",
+          "progress": "{{sent}} / {{total}} reproducciones enviadas",
+          "done": "Último guardado: {{sent}} / {{total}} reproducciones enviadas; {{imported}} añadidas, {{skipped}} ya presentes, {{rejected}} rechazadas.",
+          "doneToast": "Historial guardado en el plugin",
+          "failed": "Guardado detenido: {{error}}. Se reanudará donde se detuvo.",
+          "interrupted": "Guardado interrumpido por un reinicio de Jellystics. Se reanudará donde se detuvo.",
+          "error": "No se pudo iniciar el guardado",
+          "doneNoCounts": "Último guardado: {{sent}} / {{total}} reproducciones enviadas (el plugin no indicó lo que añadió)."
+        },
+        "resync": {
+          "title": "Resincronizar desde el plugin",
+          "hint": "Vuelve a leer todas las reproducciones y eventos registrados por el plugin, por ejemplo tras restaurar una copia de seguridad.",
+          "confirmTitle": "¿Resincronizar desde el plugin?",
+          "confirmText": "Jellystics volverá a leer todo lo que el plugin ha registrado. No se pierde nada: las reproducciones ya sincronizadas se actualizan y una reproducción registrada dos veces (por el seguimiento o una importación y por el plugin) se sustituye por la versión del plugin.",
+          "confirm": "Resincronizar",
+          "started": "Resincronización iniciada"
+        },
+        "absent": {
+          "lead": "Instala el plugin Jellystics en tu servidor Jellyfin para obtener estadísticas exactas:",
+          "b1": "Tiempo de visualización exacto a partir de los eventos de reproducción de Jellyfin (pausas, saltos, tiempo saltado) en lugar de un sondeo cada 5 segundos.",
+          "b2": "No se pierde nada mientras Jellystics está detenido o reiniciándose: las reproducciones se registran en el servidor.",
+          "b3": "Cambios de pista de audio y subtítulos, detalles de transcodificación, altas reales en las bibliotecas, inicios de sesión y marcas de visto manuales.",
+          "steps": "En Jellyfin: Panel de control → Complementos → Repositorios, añade esta URL, instala « Jellystics » desde el catálogo y reinicia Jellyfin.",
+          "manifest": "URL del repositorio del plugin",
+          "copy": "Copiar la URL",
+          "copied": "URL copiada"
+        },
+        "lastErrorValue": "Último error: {{error}}"
+      },
+      "quality": {
+        "title": "Calidad de los datos",
+        "hint": "De dónde vienen las reproducciones del periodo y qué precisión tiene cada fuente.",
+        "empty": "No hay reproducciones en este periodo",
+        "watchShare": "{{share}} del tiempo de visualización · {{time}}",
+        "sources": {
+          "plugin": {
+            "label": "Plugin Jellystics",
+            "precision": "Exacto: eventos de reproducción de Jellyfin (inicio, pausas, saltos, parada)."
+          },
+          "tracker": {
+            "label": "Seguimiento Jellystics",
+            "precision": "Sesiones de Jellyfin consultadas cada 5 s: tiempo de visualización preciso a unos segundos."
+          },
+          "playbackReporting": {
+            "label": "Importaciones Playback Reporting",
+            "precision": "Estimado por el plugin Playback Reporting: hora de inicio aproximada, sin pausas; las duraciones imposibles se reparan."
+          },
+          "otherImports": {
+            "label": "Otras importaciones",
+            "precision": "Historial importado (p. ej. el historial de Jellystics que vuelve del plugin): como mucho, la precisión del seguimiento."
+          },
+          "restore": {
+            "label": "Copia restaurada",
+            "precision": "Filas restauradas sin su origen: precisión desconocida."
+          },
+          "other": {
+            "label": "Otro",
+            "precision": "Origen desconocido."
+          }
+        },
+        "details": {
+          "title": "Detalles registrados",
+          "positions": "Posición de parada (finalización exacta)",
+          "streams": "Pista de audio / subtítulos reproducida",
+          "captured": "Detalles de reproducción (tasa de bits, red, pausas)",
+          "transcode": "Detalles de transcodificación (códecs, motivos)"
+        },
+        "pluginSince": "Datos del plugin desde el {{date}}",
+        "noPlugin": "El plugin Jellystics aún no ha registrado ninguna reproducción.",
+        "undated_one": "{{count}} reproducción sin fecha utilizable queda excluida de todas las estadísticas.",
+        "undated_other": "{{count}} reproducciones sin fecha utilizable quedan excluidas de todas las estadísticas.",
+        "views_one": "{{count}} visualización",
+        "views_other": "{{count}} visualizaciones",
+        "clicks_one": "{{count}} clic",
+        "clicks_other": "{{count}} clics",
+        "repairedAtLeast_one": "Al menos {{count}} duración importada reparada (negativa, más de 1,5× la duración del medio o más de 12 h).",
+        "repairedAtLeast_other": "Al menos {{count}} duraciones importadas reparadas (negativas, más de 1,5× la duración del medio o más de 12 h)."
       }
     },
     "sidePanel": {
@@ -1205,6 +1304,100 @@
     "picker": {
       "search": "Buscar…",
       "empty": "Sin resultados"
+    },
+    "plugin": {
+      "playedToEnd": {
+        "footMeasured_one": "medido por el plugin · {{count}} vista",
+        "footMeasured_other": "medido por el plugin · {{count}} vistas",
+        "footMixed": "{{measured}} medidas · {{estimated}} estimadas",
+        "tip": "Fin de reproducción según Jellyfin (≥ 90 % por defecto), medido por el plugin Jellystics en películas y episodios de 5 min o más. Las demás vistas se estiman: detenidas al 90 % de la duración o más. Las reproducciones en curso no cuentan."
+      },
+      "skips": {
+        "title": "Saltos hacia delante",
+        "plays_one": "{{count}} reproducción medida por el plugin Jellystics",
+        "plays_other": "{{count}} reproducciones medidas por el plugin Jellystics",
+        "intro": "Salto corto al inicio (probablemente la intro)",
+        "skipRate": "Reproducciones con un salto",
+        "skipFoot_one": "{{count}} reproducción",
+        "skipFoot_other": "{{count}} reproducciones",
+        "avgSkipped": "Tiempo saltado medio",
+        "avgSkippedFoot": "por reproducción con salto",
+        "estimate": "Salto corto: de 10 s al 15 % de la duración (3 min como máximo) en una reproducción empezada desde el principio; la tasa se calcula sobre esas reproducciones. El plugin mide cuánto se saltó, no dónde: es una estimación. Las reproducciones en curso no cuentan.",
+        "cellTip_one": "{{count}} reproducción medida · tiempo saltado medio {{avg}}",
+        "cellTip_other": "{{count}} reproducciones medidas · tiempo saltado medio {{avg}}",
+        "introFoot_one": "{{intro}} / {{count}} desde el inicio",
+        "introFoot_other": "{{intro}} / {{count}} desde el inicio"
+      },
+      "insights": {
+        "title": "Intros más saltadas",
+        "subtitle_one": "series · {{count}} reproducción de episodio medida por el plugin",
+        "subtitle_other": "series · {{count}} reproducciones de episodios medidas por el plugin",
+        "series": "Serie",
+        "plays": "Reproducciones medidas",
+        "playsCount_one": "{{count}} reproducción",
+        "playsCount_other": "{{count}} reproducciones"
+      },
+      "marks": {
+        "title": "Marcado como visto",
+        "subtitle": "último marcado registrado por usuario desde el {{date}}",
+        "manualLabel": "A mano",
+        "automaticLabel": "Fin de reproducción",
+        "otherLabel": "Otro",
+        "manual_one": "Marcado como visto a mano por {{count}} usuario",
+        "manual_other": "Marcado como visto a mano por {{count}} usuarios",
+        "manualWithoutView_one": "de ellos {{count}} sin ninguna vista registrada",
+        "manualWithoutView_other": "de ellos {{count}} sin ninguna vista registrada",
+        "automatic_one": "Marcado como visto al terminar la reproducción para {{count}} usuario",
+        "automatic_other": "Marcado como visto al terminar la reproducción para {{count}} usuarios",
+        "other_one": "Marcado como visto de otra forma (importación, aplicación externa) para {{count}} usuario",
+        "other_other": "Marcado como visto de otra forma (importación, aplicación externa) para {{count}} usuarios",
+        "unplayed_one": "Vuelto a «no visto» por {{count}} usuario",
+        "unplayed_other": "Vuelto a «no visto» por {{count}} usuarios",
+        "watched_one": "{{count}} usuario tiene una vista registrada",
+        "watched_other": "{{count}} usuarios tienen una vista registrada"
+      },
+      "logins": {
+        "title": "Inicios de sesión",
+        "subtitle": "recopilados por el plugin Jellystics",
+        "count": "Inicios de sesión",
+        "lastLogin": "Último inicio de sesión",
+        "lastAt": "Último",
+        "never": "nunca",
+        "failed": "Fallidos",
+        "failedFoot": "visible para los administradores",
+        "empty": "Ningún inicio de sesión en el periodo"
+      },
+      "growth": {
+        "removed": "Retirados",
+        "source": "Origen de las incorporaciones",
+        "sourceEvents": "plugin (fechas reales)",
+        "sourceCatalog": "catálogo (aproximación)",
+        "precise": "Incorporaciones y retiradas reales registradas por el plugin Jellystics.",
+        "partial": "Incorporaciones reales (plugin Jellystics) desde el {{date}}; antes: fechas de alta en el catálogo de los elementos aún presentes (aproximación).",
+        "catalog": "Fechas de alta en el catálogo de los elementos aún presentes (aproximación). El plugin Jellystics registra las incorporaciones reales.",
+        "marker": "incorporaciones reales"
+      },
+      "firstView": {
+        "title": "Plazo incorporación → primera vista",
+        "subtitle": "incorporaciones reales del periodo (plugin Jellystics)",
+        "delay": "Plazo",
+        "count": "Elementos",
+        "empty": "Ninguna incorporación en el periodo",
+        "summary": "{{viewed}} vistos de {{added}} incorporados",
+        "median": "mediana {{value}}",
+        "notViewed_one": "{{count}} aún sin ver",
+        "notViewed_other": "{{count}} aún sin ver",
+        "b": {
+          "<1h": "< 1 h",
+          "1-24h": "1–24 h",
+          "1-7d": "1–7 d",
+          "1-4w": "1–4 sem.",
+          ">4w": "> 4 sem."
+        }
+      },
+      "funnel": {
+        "ofViews": "{{pct}} de las vistas · {{done}}/{{views}}"
+      }
     }
   }
 }

@@ -183,7 +183,7 @@ func (h *V2Handler) Album(c *gin.Context) {
 		  GROUP BY 1, 2
 		)
 		SELECT `+aggPlays+` AS listens,
-		       (COUNT(*) FILTER (WHERE is_view AND `+ratioExpr+` >= ?)::float8 / NULLIF(COUNT(*) FILTER (WHERE is_view), 0)) AS full_listen_ratio,
+		       (COUNT(*) FILTER (WHERE is_view AND `+ratioExpr+` >= ?)::float8 / NULLIF(COUNT(*) FILTER (WHERE is_view AND NOT plugin_open), 0)) AS full_listen_ratio,
 		       (SELECT COUNT(*) FROM ud WHERE ? > 0 AND n >= ?)::int AS full_album_listens,
 		       COUNT(DISTINCT user_id) FILTER (WHERE is_view)::int AS listeners, `+aggSkipRate+` AS skip_rate
 		FROM acts`, id, completionThreshold(), item.Tracks, item.Tracks)

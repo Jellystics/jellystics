@@ -7,6 +7,9 @@ import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { useMovie, type MovieDetail } from '@/api'
 import { useMovieSittings } from '@/api/entityExtras'
+import { useItemMarks } from '@/api/pluginData'
+import { FinishedTile, MarksCard } from '@/app/widgets/PluginWidgets'
+import { hasMarks } from '@/app/widgets/plugin'
 import { CompletionCell, EntitySkeleton, HistoryTable, LibraryKicker, QueryView, SubQuery, UserCell } from '../library/EntityParts'
 import { FunnelCard, StopsCard } from '../library/charts'
 import { formatWhen, itemArt, useEntityCrumbs } from '../library/entity'
@@ -39,6 +42,8 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
   const f = useFormat()
   const [tab, setTab] = useSearchParam('tab', 'viewers')
   const { item, totals, funnel } = data
+  const marks = useItemMarks(id).data
+  const showMarks = hasMarks(marks)
   const meta = [
     item.year ? String(item.year) : null,
     item.runtimeSeconds ? f.duration(item.runtimeSeconds) : null,
@@ -63,7 +68,7 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
         <StatStrip columns={4}>
           <StatTile label={t('app.entity.views')} value={f.number(totals.views)} foot={t('app.entity.clicksFoot', { count: totals.clicks })} />
           <StatTile label={t('app.entity.viewers')} value={f.number(totals.viewers)} foot={f.duration(totals.watchSeconds)} />
-          <StatTile label={t('app.metric.finishedViews')} value={totals.completedRatio == null ? '—' : f.percent(totals.completedRatio)} foot={t('app.movie.completedFoot', { done: f.number(funnel.completed), count: funnel.views })} />
+          <FinishedTile data={data.playedToEnd} foot={t('app.movie.completedFoot', { done: f.number(funnel.completed), count: funnel.views })} />
           <StatTile label={t('app.movie.transcoded')} value={totals.transcodeRatio == null ? '—' : f.percent(totals.transcodeRatio)} />
         </StatStrip>
       </Card>
@@ -71,7 +76,9 @@ function Movie({ id, data }: { id: string; data: MovieDetail }) {
         <FunnelCard funnel={funnel} title={t('app.movie.funnel')} subtitle={t('app.entity.funnelSub')}csvName={`movie-${id}-funnel`} />
         <StopsCard bins={data.stopPositions} runtimeSeconds={item.runtimeSeconds} title={t('app.movie.stops')} subtitle={t('app.movie.stopsSub')} csvName={`movie-${id}-stops`} />
       </div>
-      <Sittings id={id} />
+      {showMarks
+        ? <div className={styles.g2}><Sittings id={id} /><MarksCard data={marks} /></div>
+        : <Sittings id={id} />}
       <Tabs value={tab ?? 'viewers'} onValueChange={setTab} items={[
         { value: 'viewers', label: t('app.entity.tab.viewers'), count: data.viewers.length },
         { value: 'history', label: t('app.entity.tab.history'), count: data.history.length },

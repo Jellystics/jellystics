@@ -2,13 +2,14 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { AppLink, Art, AvatarStack, Badge, Card, DataTable, EmptyState, EntityHeader, ErrorState, SegmentedControl, StatStrip, StatTile, Tabs, withPeriod } from '@/ui'
+import { AppLink, Art, AvatarStack, Badge, Card, DataTable, EmptyState, EntityHeader, ErrorState, SegmentedControl, StatStrip, StatTile, Tabs, Tooltip, withPeriod } from '@/ui'
 import { ChartFrame, Columns, RetentionChart } from '@/charts'
 import { useFormat } from '@/lib/format'
 import { useSearchParam } from '@/lib/useUrlState'
 import { useSeries, type SeriesDetail, type SeriesEpisode } from '@/api'
 import { useSeriesHistory } from '@/api/entityExtras'
-import { CompletionCell, EntitySkeleton, HistoryTable, LibraryKicker, QueryView, UserCell } from '../library/EntityParts'
+import { CompletionCell, EntitySkeleton, HistoryTable, LibraryKicker, QueryView, RatioCell, UserCell } from '../library/EntityParts'
+import { SkipsCard } from '@/app/widgets/PluginWidgets'
 import { entityPath } from '@/lib/routes'
 import { formatWhen, itemArt, share, useEntityCrumbs } from '../library/entity'
 import { CADENCE, RELEASE_LAG, fixedBuckets, seasonViews } from './series'
@@ -66,6 +67,18 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
         ? <Badge tone="serious" icon={<AlertTriangle size={12} strokeWidth={1.6} />}>{f.number(row.original.abandons)}</Badge>
         : <span className="muted">—</span>,
     },
+    ...((data.skips?.plays ?? 0) > 0 ? [{
+      id: 'intro', header: t('app.plugin.skips.intro'),
+      cell: ({ row }) => row.original.skipPlays > 0
+        ? (
+          <Tooltip content={t('app.plugin.skips.cellTip', { count: row.original.skipPlays, avg: row.original.avgSkippedSeconds == null ? '—' : f.duration(row.original.avgSkippedSeconds) })}>
+            <span tabIndex={0} className={styles.tipTrigger}>
+              <RatioCell value={row.original.introRate} width={64} tone="muted" label={t('app.plugin.skips.intro')} />
+            </span>
+          </Tooltip>
+        )
+        : <span className="muted">—</span>,
+    } satisfies ColumnDef<SeriesEpisode>] : []),
   ]
   const viewerCols: ColumnDef<Viewer>[] = [
     { id: 'user', header: t('app.entity.col.user'), cell: ({ row }) => <UserCell user={row.original.user} /> },
@@ -111,6 +124,7 @@ function Series({ id, data }: { id: string; data: SeriesDetail }) {
       >
         {charted.length ? <RetentionChart seasons={charted.map((s) => s.retention)} seasonNumbers={charted.map((s) => s.number)} onEpisodeClick={openEpisode} /> : <EmptyState title={t('app.series.noEpisodes')} />}
       </ChartFrame>
+      <SkipsCard skips={data.skips} since={data.pluginSince} />
       <Tabs value={tab ?? 'episodes'} onValueChange={setTab} items={[
         { value: 'episodes', label: t('app.series.tab.episodes'), count: item.episodes },
         { value: 'viewers', label: t('app.entity.tab.viewers'), count: data.viewers.length },

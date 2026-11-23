@@ -20,6 +20,7 @@ import (
 	"github.com/Jellystics/Jellystics/internal/service"
 	authsvc "github.com/Jellystics/Jellystics/internal/service/auth"
 	geosvc "github.com/Jellystics/Jellystics/internal/service/geo"
+	"github.com/Jellystics/Jellystics/internal/service/pluginsync"
 	"github.com/Jellystics/Jellystics/internal/service/scheduler"
 	statssvc "github.com/Jellystics/Jellystics/internal/service/stats"
 	syncsvc "github.com/Jellystics/Jellystics/internal/service/sync"
@@ -50,6 +51,13 @@ func main() {
 	repos := repository.New(db)
 	if tz, _ := statsql.Timezone(); tz == "UTC" {
 		log.Printf("TZ is not set: days, hours and plugin import dates are computed in UTC (set TZ, e.g. TZ=Europe/Paris)")
+	}
+	// JF_HOST / JF_API_KEY: initial Jellyfin config when none is stored yet
+	// (a config saved from the UI is never overwritten).
+	if host, key, err := repository.SeedJellyfinConfig(context.Background(), repos.Config, cfg.JFHost, cfg.JFApiKey); err != nil {
+		log.Printf("warning: could not apply JF_HOST / JF_API_KEY: %v", err)
+	} else if host || key {
+		log.Printf("Jellyfin config initialised from the environment (JF_HOST: %t, JF_API_KEY: %t)", host, key)
 	}
 	if err := repos.Playback.BackfillTracking(context.Background()); err != nil {
 		log.Printf("backfill tracking columns: %v", err)
@@ -87,12 +95,15 @@ func main() {
 	taskSvc := tasksvc.New(repos, hub)
 
 	webhookSvc := webhooksvc.New(repos)
+	pluginSvc := pluginsync.New(repos)
+	pluginSvc.OnDataChanged = handler.ResetStatsCaches
 	svcs := &service.Container{
-		Auth:    authsvc.New(repos, jfClient, cfg),
-		Sync:    syncSvc,
-		Stats:   statssvc.New(repos),
-		Task:    taskSvc,
-		Webhook: webhookSvc,
+		Auth:       authsvc.New(repos, jfClient, cfg),
+		Sync:       syncSvc,
+		Stats:      statssvc.New(repos),
+		Task:       taskSvc,
+		Webhook:    webhookSvc,
+		PluginSync: pluginSvc,
 	}
 
 	taskSvc.SetFireFunc(func(ctx context.Context, eventType string, data map[string]any) {
@@ -129,6 +140,8 @@ func main() {
 	}
 	runner := scheduler.NewRunner(taskSvc, dispatch)
 	sched := scheduler.New(repos, runner)
+	// Jellystics plugin sync: every 30 s, enabled by default, no-op without the plugin.
+	sched.AddBackground(pluginsync.TaskName, pluginsync.CronSpec, pluginSvc.Tick)
 	sched.Start(context.Background())
 
 	// Daily: revoke and delete browser sessions unused for 30 days.

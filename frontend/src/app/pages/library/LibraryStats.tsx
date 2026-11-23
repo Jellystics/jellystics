@@ -1,9 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { AppLink, BarList, Card, CardBody, CardHeader, EmptyState, SegBar, StatStrip, StatTile } from '@/ui'
-import { ChartFrame, LineChart } from '@/charts'
+import { ChartFrame, Columns, LineChart } from '@/charts'
 import { useFormat } from '@/lib/format'
 import type { LibraryDetail } from '@/api'
 import { useLibraryDecades, useLibraryGrowth, type DecadeRow, type GrowthBucket } from '@/api/entityExtras'
+import { useLibraryFirstViewDelay, type FirstViewBucket } from '@/api/pluginData'
+import { PluginSinceNote } from '@/app/widgets/PluginWidgets'
+import { usePeriod } from '@/lib/useUrlState'
 import { entityPath } from '@/lib/routes'
 import { SubQuery } from './EntityParts'
 import styles from './entity.module.css'
@@ -45,22 +48,71 @@ function useBucketLabel(bucket: GrowthBucket) {
 
 function Growth({ id }: { id: string }) {
   const { t } = useTranslation()
+  const f = useFormat()
+  const [period] = usePeriod()
   const q = useLibraryGrowth(id)
   const label = useBucketLabel(q.data?.bucket ?? 'day')
   const points = q.data?.points ?? []
   const labels = points.map((p) => label(p.date))
+  const events = q.data?.source === 'events'
   const added = { name: t('app.library.growth.added'), color: 'var(--accent)', values: points.map((p) => p.added) }
   const first = { name: t('app.library.growth.firstViews'), color: 'var(--t-music)', values: points.map((p) => p.firstViews) }
-  const empty = points.every((p) => p.added === 0 && p.firstViews === 0)
+  // Removals are only known from the plugin's library events.
+  const removed = { name: t('app.plugin.growth.removed'), color: 'var(--serious)', values: points.map((p) => p.removed ?? 0) }
+  const showRemoved = events && removed.values.some((v) => v > 0)
+  const series = showRemoved ? [added, removed, first] : [added, first]
+  const empty = points.every((p) => p.added === 0 && p.firstViews === 0 && !(p.removed > 0))
+  const since = q.data?.preciseFrom ?? null
+  // Estimated buckets (catalog dates) are dashed; precise ones solid.
+  const firstPrecise = events && points.some((p) => p.precise) ? points.findIndex((p) => p.precise) : points.length
+  const note = !events
+    ? t('app.plugin.growth.catalog')
+    : since && since > period.from
+      ? t('app.plugin.growth.partial', { date: f.day(new Date(`${since}T12:00:00`)) })
+      : t('app.plugin.growth.precise')
   return (
     <ChartFrame
       title={t('app.library.growth.title')} subtitle={t('app.library.growth.subtitle')} csvName={`library-${id}-growth`}
-      legend={[{ label: added.name, color: added.color, line: true }, { label: first.name, color: first.color, line: true }]}
-      table={{ columns: [t('app.library.growth.date'), added.name, first.name], rows: points.map((p, i) => [labels[i], p.added, p.firstViews]) }}
+      legend={series.map((s) => ({ label: s.name, color: s.color, line: true }))}
+      table={{
+        columns: [t('app.library.growth.date'), ...series.map((s) => s.name), t('app.plugin.growth.source')],
+        rows: points.map((p, i) => [labels[i], ...series.map((s) => s.values[i]), p.precise ? t('app.plugin.growth.sourceEvents') : t('app.plugin.growth.sourceCatalog')]),
+      }}
     >
       <SubQuery query={q} height={200} empty={empty ? <EmptyState title={t('app.library.growth.empty')} /> : null}>
-        <LineChart labels={labels} series={[added, first]} area={false} height={200} xEvery={Math.max(1, Math.ceil(points.length / 8))} />
+        <LineChart labels={labels} series={series} area={false} height={200} preciseFrom={{ index: firstPrecise, label: t('app.plugin.growth.marker') }} xEvery={Math.max(1, Math.ceil(points.length / 8))} />
+        <p className={local.note}>{note}</p>
       </SubQuery>
+    </ChartFrame>
+  )
+}
+
+const FIRST_VIEW_BUCKETS: FirstViewBucket[] = ['<1h', '1-24h', '1-7d', '1-4w', '>4w']
+
+/** Delay between a real addition (plugin library events) and the first view. Hidden without events for the library. */
+function FirstViewDelayCard({ id }: { id: string }) {
+  const { t } = useTranslation()
+  const f = useFormat()
+  const d = useLibraryFirstViewDelay(id).data
+  if (!d?.collectedSince) return null
+  const counts = FIRST_VIEW_BUCKETS.map((b) => d.buckets.find((x) => x.bucket === b)?.count ?? 0)
+  const labels = FIRST_VIEW_BUCKETS.map((b) => t(`app.plugin.firstView.b.${b}`))
+  return (
+    <ChartFrame
+      title={t('app.plugin.firstView.title')} subtitle={t('app.plugin.firstView.subtitle')} csvName={`library-${id}-first-view-delay`}
+      table={{ columns: [t('app.plugin.firstView.delay'), t('app.plugin.firstView.count')], rows: counts.map((n, i) => [labels[i], n]) }}
+    >
+      {d.added === 0 ? <EmptyState title={t('app.plugin.firstView.empty')} /> : (
+        <>
+          <Columns labels={labels} values={counts} name={t('app.plugin.firstView.count')} emphasis={counts.indexOf(Math.max(...counts))} height={150} />
+          <p className={local.note}>
+            {t('app.plugin.firstView.summary', { added: f.number(d.added), viewed: f.number(d.viewed) })}
+            {d.medianSeconds != null && ` · ${t('app.plugin.firstView.median', { value: f.duration(d.medianSeconds) })}`}
+            {d.notViewed > 0 && ` · ${t('app.plugin.firstView.notViewed', { count: d.notViewed })}`}
+          </p>
+        </>
+      )}
+      <PluginSinceNote since={d.collectedSince} />
     </ChartFrame>
   )
 }
@@ -132,6 +184,7 @@ export function LibraryStats({ id, data }: { id: string; data: LibraryDetail }) 
               <StatTile label={t('app.library.ttwCount')} value={f.number(ttw.count)} />
             </StatStrip>
           </Card>
+          <FirstViewDelayCard id={id} />
         </div>
       </div>
       <div className={styles.g2}>

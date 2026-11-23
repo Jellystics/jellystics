@@ -218,9 +218,112 @@ type JFPlaybackActivity struct {
 	VideoRange          *string        `gorm:"column:VideoRange"`
 	PauseCount          int            `gorm:"column:PauseCount;not null;default:0"`
 	IsRemote            *bool          `gorm:"column:IsRemote"`
+
+	// Jellystics plugin fields (migration 013).
+	PlaySessionId      *string `gorm:"column:PlaySessionId"`
+	SeekCount          *int    `gorm:"column:SeekCount"`
+	SkippedSeconds     *int    `gorm:"column:SkippedSeconds"`
+	PlayedToCompletion *bool   `gorm:"column:PlayedToCompletion"`
+	PluginOpen         *bool   `gorm:"column:PluginOpen"` // Jellystics-plugin play in progress; nil = not a plugin row
+
+	// DurationRepaired (migration 015): Jellystics replaced an impossible
+	// imported duration (see playbackRepo.sanitizeImported).
+	DurationRepaired bool `gorm:"column:DurationRepaired;not null;default:false"`
 }
 
 func (JFPlaybackActivity) TableName() string { return "jf_playback_activity" }
+
+// JFLibraryEvent mirrors jf_library_events (Jellystics plugin LibraryEvents).
+type JFLibraryEvent struct {
+	Id           string    `gorm:"column:Id;primaryKey"`
+	Kind         string    `gorm:"column:Kind"`
+	At           time.Time `gorm:"column:At"`
+	ItemId       *string   `gorm:"column:ItemId"`
+	ItemType     *string   `gorm:"column:ItemType"`
+	ItemName     *string   `gorm:"column:ItemName"`
+	SeriesId     *string   `gorm:"column:SeriesId"`
+	AlbumId      *string   `gorm:"column:AlbumId"`
+	LibraryId    *string   `gorm:"column:LibraryId"`
+	RunTimeTicks *int64    `gorm:"column:RunTimeTicks"`
+	SizeBytes    *int64    `gorm:"column:SizeBytes"`
+	DateCreated  *time.Time `gorm:"column:DateCreated"` // Jellyfin item DateCreated (added / present)
+	Version      int64     `gorm:"column:Version"`
+}
+
+func (JFLibraryEvent) TableName() string { return "jf_library_events" }
+
+// JFUserDataEvent mirrors jf_user_data_events (Jellystics plugin UserDataEvents).
+type JFUserDataEvent struct {
+	Id      string    `gorm:"column:Id;primaryKey"`
+	At      time.Time `gorm:"column:At"`
+	UserId  *string   `gorm:"column:UserId"`
+	ItemId  *string   `gorm:"column:ItemId"`
+	Kind    string    `gorm:"column:Kind"`
+	Reason  *string   `gorm:"column:Reason"`
+	Version int64     `gorm:"column:Version"`
+}
+
+func (JFUserDataEvent) TableName() string { return "jf_user_data_events" }
+
+// JFUserLogin mirrors jf_user_logins (Jellystics plugin Logins).
+type JFUserLogin struct {
+	Id                 string    `gorm:"column:Id;primaryKey"`
+	At                 time.Time `gorm:"column:At"`
+	UserId             *string   `gorm:"column:UserId"`
+	UserName           *string   `gorm:"column:UserName"`
+	DeviceId           *string   `gorm:"column:DeviceId"`
+	DeviceName         *string   `gorm:"column:DeviceName"`
+	Client             *string   `gorm:"column:Client"`
+	ApplicationVersion *string   `gorm:"column:ApplicationVersion"`
+	RemoteEndPoint     *string   `gorm:"column:RemoteEndPoint"`
+	Success            bool      `gorm:"column:Success"`
+	Version            int64     `gorm:"column:Version"`
+}
+
+func (JFUserLogin) TableName() string { return "jf_user_logins" }
+
+// PluginSyncState is the single-row state of the Jellystics plugin sync.
+type PluginSyncState struct {
+	ID                   int        `gorm:"column:id;primaryKey"           json:"-"`
+	Detected             bool       `gorm:"column:detected"                json:"detected"`
+	PluginVersion        *string    `gorm:"column:plugin_version"          json:"pluginVersion"`
+	SchemaVersion        *int       `gorm:"column:schema_version"          json:"schemaVersion"`
+	// PluginDatabaseId identifies the plugin database the cursors refer to:
+	// a new id means the plugin data was reset (cursors restart at 0).
+	PluginDatabaseId     *string    `gorm:"column:plugin_database_id"      json:"pluginDatabaseId"`
+	CursorPlays          int64      `gorm:"column:cursor_plays"            json:"cursorPlays"`
+	CursorLibraryEvents  int64      `gorm:"column:cursor_library_events"   json:"cursorLibraryEvents"`
+	CursorUserDataEvents int64      `gorm:"column:cursor_user_data_events" json:"cursorUserDataEvents"`
+	CursorLogins         int64      `gorm:"column:cursor_logins"           json:"cursorLogins"`
+	LastCheckedAt        *time.Time `gorm:"column:last_checked_at"         json:"lastCheckedAt"`
+	LastSuccessAt        *time.Time `gorm:"column:last_success_at"         json:"lastSuccessAt"`
+	LastError            *string    `gorm:"column:last_error"              json:"lastError"`
+
+	// History push to the plugin (migration 015), served by the push status.
+	PushState      string     `gorm:"column:push_state;not null;default:idle" json:"-"` // idle | running | done | error
+	PushCursor     string     `gorm:"column:push_cursor;not null;default:''"  json:"-"` // last pushed play Id
+	PushCursorAt   *time.Time `gorm:"column:push_cursor_at"                   json:"-"` // its StartedAt
+	PushTotal      int64      `gorm:"column:push_total"                       json:"-"`
+	PushSent       int64      `gorm:"column:push_sent"                        json:"-"`
+	PushImported   int64      `gorm:"column:push_imported"                    json:"-"`
+	PushSkipped    int64      `gorm:"column:push_skipped"                     json:"-"`
+	PushRejected   int64      `gorm:"column:push_rejected"                    json:"-"`
+	PushStartedAt  *time.Time `gorm:"column:push_started_at"                  json:"-"`
+	PushFinishedAt *time.Time `gorm:"column:push_finished_at"                 json:"-"`
+	PushError      *string    `gorm:"column:push_error"                       json:"-"`
+}
+
+func (PluginSyncState) TableName() string { return "plugin_sync_state" }
+
+// PluginHealthyWindow: the plugin is the source of truth for plays while its
+// last successful sync is younger than this; the tracker writes otherwise.
+const PluginHealthyWindow = 2 * time.Minute
+
+// Healthy reports whether the plugin synced successfully within
+// PluginHealthyWindow before now.
+func (s *PluginSyncState) Healthy(now time.Time) bool {
+	return s != nil && s.Detected && s.LastSuccessAt != nil && now.Sub(*s.LastSuccessAt) < PluginHealthyWindow
+}
 
 // JFActivityWatchdog mirrors jf_activity_watchdog.
 type JFActivityWatchdog struct {

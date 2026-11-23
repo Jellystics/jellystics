@@ -49,12 +49,13 @@ type funnelStats struct {
 }
 
 // funnel: clicks/views are rows; half/completed count the (user, item, day)
-// view units reaching 50 % / the completion threshold.
+// view units reaching 50 % (or finished, so the funnel stays monotone) /
+// finished (completionCTE).
 func (h *V2Handler) funnel(c *gin.Context, f *actFilter) (funnelStats, error) {
 	var out funnelStats
 	q, args := f.sql(completionCTE + `
 		SELECT ` + aggClicks + ` AS clicks, ` + aggPlays + ` AS views,
-		       (SELECT COUNT(*) FROM completion WHERE completion_ratio >= 0.5)::int AS half,
+		       (SELECT COUNT(*) FROM completion WHERE completion_ratio >= 0.5 OR finished)::int AS half,
 		       (SELECT COUNT(*) FROM completion WHERE ` + completedCond + `)::int AS completed
 		FROM acts`)
 	err := h.raw(c, &out, q, args...)
@@ -71,7 +72,7 @@ func (h *V2Handler) stopPositions(c *gin.Context, f *actFilter, bins int) ([]int
 		units AS (
 		  SELECT LEAST(GREATEST(MAX(COALESCE(pos_end, COALESCE(pos_start, 0) + duration * 10000000))::float8
 		                        / NULLIF(MAX(runtime_ticks), 0)::float8, 0), 1) AS r
-		  FROM acts WHERE is_view AND runtime_ticks > 0
+		  FROM acts WHERE is_view AND runtime_ticks > 0 AND NOT plugin_open
 		  GROUP BY user_id, item_id, local_ts::date
 		)
 		SELECT LEAST(FLOOR(r * %d), %d)::int AS bin, COUNT(*)::int AS n
@@ -216,6 +217,14 @@ func (h *V2Handler) Movie(c *gin.Context) {
 	if v2Fail(c, err) {
 		return
 	}
+	pte, err := h.playedToEnd(c, f)
+	if v2Fail(c, err) {
+		return
+	}
+	since, err := h.pluginSince(c, "plays")
+	if v2Fail(c, err) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"item": gin.H{
 			"id": item.ID, "name": strOrEmpty(item.Name), "year": item.Year, "runtimeSeconds": ticksToSeconds(item.RunTimeTicks),
@@ -227,6 +236,8 @@ func (h *V2Handler) Movie(c *gin.Context) {
 		"stopPositions": stops,
 		"viewers":       viewers,
 		"history":       hist,
+		"playedToEnd":   pte,
+		"pluginSince":   since,
 	})
 }
 
@@ -242,6 +253,11 @@ type seriesEpisode struct {
 	Viewers       int      `json:"viewers"`
 	AvgCompletion *float64 `json:"avgCompletion"`
 	Abandons      int      `json:"abandons"`
+	// Skips of the closed plugin views (SkipPlays = 0: not measured).
+	SkipPlays         int      `json:"skipPlays"`
+	IntroRate         *float64 `json:"introRate"`
+	SkipRate          *float64 `json:"skipRate"`
+	AvgSkippedSeconds *float64 `json:"avgSkippedSeconds"`
 }
 
 type seriesSeason struct {
@@ -322,29 +338,30 @@ func (h *V2Handler) Series(c *gin.Context) {
 		Viewers       int
 		AvgCompletion *float64
 		Abandons      int
+		SkipCounts
 	}
 	q, args := f.sql(`,
-		units AS (
-		  SELECT user_id, item_id, `+statsqlCompletion+` AS r
-		  FROM acts WHERE is_view GROUP BY user_id, item_id, local_ts::date
-		),
+		`+strings.TrimPrefix(completionCTE, ",")+`,
 		ep AS (
 		  SELECT item_id, COUNT(*) FILTER (WHERE is_view)::int AS views,
 		         COUNT(DISTINCT user_id) FILTER (WHERE is_view)::int AS viewers
 		  FROM acts GROUP BY item_id
 		),
 		comp AS (
-		  SELECT item_id, AVG(r)::float8 AS avg_completion, COUNT(*) FILTER (WHERE r < ?)::int AS abandons
-		  FROM units GROUP BY item_id
-		)
+		  SELECT item_id, AVG(completion_ratio)::float8 AS avg_completion, COUNT(*) FILTER (WHERE NOT finished)::int AS abandons
+		  FROM completion GROUP BY item_id
+		),
+		sk AS (SELECT item_id, `+skipCols+` FROM acts GROUP BY item_id)
 		SELECT e."Id" AS id, COALESCE(e."ParentIndexNumber", 0) AS season, COALESCE(e."ParentIndexNumber" = 0, false) AS special, e."IndexNumber" AS number, e."Name" AS name,
 		       COALESCE(ep.views, 0) AS views, COALESCE(ep.viewers, 0) AS viewers,
-		       comp.avg_completion, COALESCE(comp.abandons, 0) AS abandons
+		       comp.avg_completion, COALESCE(comp.abandons, 0) AS abandons,
+		       COALESCE(sk.skip_plays, 0) AS skip_plays, COALESCE(sk.skipped, 0) AS skipped, COALESCE(sk.intro_plays, 0) AS intro_plays, COALESCE(sk.intro, 0) AS intro, sk.avg_skipped_seconds
 		FROM jf_library_episodes e
 		LEFT JOIN ep ON ep.item_id = e."Id"
 		LEFT JOIN comp ON comp.item_id = e."Id"
+		LEFT JOIN sk ON sk.item_id = e."Id"
 		WHERE e."SeriesId" = ? AND NOT e.archived
-		ORDER BY `+episodeOrder, completionThreshold(), id)
+		ORDER BY `+episodeOrder, id)
 	if v2Fail(c, h.raw(c, &eps, q, args...)) {
 		return
 	}
@@ -356,7 +373,8 @@ func (h *V2Handler) Series(c *gin.Context) {
 			retention = append(retention, []int{})
 		}
 		s := &seasons[len(seasons)-1]
-		s.Episodes = append(s.Episodes, seriesEpisode{ID: e.ID, Number: e.Number, Name: strOrEmpty(e.Name), Views: e.Views, Viewers: e.Viewers, AvgCompletion: e.AvgCompletion, Abandons: e.Abandons})
+		s.Episodes = append(s.Episodes, seriesEpisode{ID: e.ID, Number: e.Number, Name: strOrEmpty(e.Name), Views: e.Views, Viewers: e.Viewers, AvgCompletion: e.AvgCompletion, Abandons: e.Abandons,
+			SkipPlays: e.SkipPlays, IntroRate: ratioOf(e.Intro, e.IntroPlays), SkipRate: ratioOf(e.Skipped, e.SkipPlays), AvgSkippedSeconds: e.AvgSkippedSeconds})
 		retention[len(retention)-1] = append(retention[len(retention)-1], e.Viewers)
 	}
 	// Retention: viewers of the last regular episode / viewers of the first
@@ -469,8 +487,18 @@ func (h *V2Handler) Series(c *gin.Context) {
 	if v2Fail(c, h.raw(c, &lag, q, args...)) {
 		return
 	}
+	skips, err := h.skips(c, f)
+	if v2Fail(c, err) {
+		return
+	}
+	since, err := h.pluginSince(c, "plays")
+	if v2Fail(c, err) {
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
+		"skips":       skips,
+		"pluginSince": since,
 		"item": gin.H{
 			"id": item.ID, "name": strOrEmpty(item.Name), "years": gin.H{"from": item.YearFrom, "to": yearTo},
 			"seasons": item.Seasons, "episodes": item.Episodes, "genres": strs(item.Genres),
@@ -594,7 +622,22 @@ func (h *V2Handler) Episode(c *gin.Context) {
 	for i, v := range vrows {
 		viewers[i] = epViewer{refUser{v.UserID, v.UserName}, localTime(v.StartedAt), v.WatchSeconds, v.Completion, strOrEmpty(v.Device)}
 	}
+	pte, err := h.playedToEnd(c, f)
+	if v2Fail(c, err) {
+		return
+	}
+	skips, err := h.skips(c, f)
+	if v2Fail(c, err) {
+		return
+	}
+	since, err := h.pluginSince(c, "plays")
+	if v2Fail(c, err) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
+		"playedToEnd": pte,
+		"skips":       skips,
+		"pluginSince": since,
 		"item": gin.H{
 			"id": item.ID, "name": strOrEmpty(item.Name), "seriesId": strOrEmpty(item.SeriesID), "seriesName": strOrEmpty(item.SeriesName),
 			"season": item.Season, "episode": item.Episode, "runtimeSeconds": ticksToSeconds(item.RunTimeTicks),

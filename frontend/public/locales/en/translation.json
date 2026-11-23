@@ -669,6 +669,105 @@
         "links": "Links",
         "github": "GitHub repository",
         "openIssue": "Open an issue"
+      },
+      "plugin": {
+        "title": "Jellystics plugin",
+        "hint": "Records every playback on the Jellyfin server itself: the most precise source of statistics.",
+        "state": {
+          "healthy": "Active",
+          "unhealthy": "Not syncing",
+          "absent": "Not detected"
+        },
+        "version": "Version",
+        "schema": "API schema",
+        "schemaValue": "{{version}} (supported: {{supported}})",
+        "lastSync": "Last sync",
+        "never": "Never",
+        "playsSynced": "Plays synced",
+        "unhealthyHint": "The plugin has not synced for more than 2 minutes: the Jellystics tracker records plays in the meantime.",
+        "push": {
+          "title": "Save the history to the plugin",
+          "hint": "Sends the plays Jellystics recorded itself (tracker, imports) to the plugin, so its database holds your whole history. Safe to run again: plays already present are skipped.",
+          "start": "Save the history to the plugin",
+          "resume": "Resume the save",
+          "started": "History save started",
+          "running": "Saving…",
+          "progress": "{{sent}} / {{total}} plays sent",
+          "done": "Last save: {{sent}} / {{total}} plays sent; {{imported}} added, {{skipped}} already present, {{rejected}} rejected.",
+          "doneToast": "History saved to the plugin",
+          "failed": "Save stopped: {{error}}. It resumes where it stopped.",
+          "interrupted": "Save interrupted by a restart of Jellystics. It resumes where it stopped.",
+          "error": "Could not start the save",
+          "doneNoCounts": "Last save: {{sent}} / {{total}} plays sent (the plugin did not report what it added)."
+        },
+        "resync": {
+          "title": "Resync from the plugin",
+          "hint": "Re-reads every play and event recorded by the plugin, for instance after restoring a backup.",
+          "confirmTitle": "Resync from the plugin?",
+          "confirmText": "Jellystics will re-read everything the plugin recorded. Nothing is lost: plays already synced are updated, and a play recorded twice (by the tracker or an import and by the plugin) is replaced by the plugin version.",
+          "confirm": "Resync",
+          "started": "Resync started"
+        },
+        "absent": {
+          "lead": "Install the Jellystics plugin on your Jellyfin server for exact statistics:",
+          "b1": "Exact watch time from Jellyfin playback events (pauses, seeks, skipped time) instead of polling every 5 seconds.",
+          "b2": "Nothing missed while Jellystics is stopped or restarting: plays are recorded on the server.",
+          "b3": "Audio and subtitle changes, transcode details, real library additions, logins and manual played marks.",
+          "steps": "In Jellyfin: Dashboard → Plugins → Repositories, add this URL, then install « Jellystics » from the catalog and restart Jellyfin.",
+          "manifest": "Plugin repository URL",
+          "copy": "Copy the URL",
+          "copied": "URL copied"
+        },
+        "lastErrorValue": "Last error: {{error}}"
+      },
+      "quality": {
+        "title": "Data quality",
+        "hint": "Where the plays of the period come from, and how precise each source is.",
+        "empty": "No plays in this period",
+        "watchShare": "{{share}} of watch time · {{time}}",
+        "sources": {
+          "plugin": {
+            "label": "Jellystics plugin",
+            "precision": "Exact: Jellyfin playback events (start, pauses, seeks, stop)."
+          },
+          "tracker": {
+            "label": "Jellystics tracker",
+            "precision": "Jellyfin sessions polled every 5 s: watch time accurate to a few seconds."
+          },
+          "playbackReporting": {
+            "label": "Playback Reporting imports",
+            "precision": "Estimated by the Playback Reporting plugin: approximate start time, no pauses; impossible durations are repaired."
+          },
+          "otherImports": {
+            "label": "Other imports",
+            "precision": "Imported history (e.g. Jellystics history coming back from the plugin): tracker precision at best."
+          },
+          "restore": {
+            "label": "Restored backup",
+            "precision": "Rows restored without their origin: precision unknown."
+          },
+          "other": {
+            "label": "Other",
+            "precision": "Unknown origin."
+          }
+        },
+        "details": {
+          "title": "Details captured",
+          "positions": "Stop position (exact completion)",
+          "streams": "Audio / subtitle track played",
+          "captured": "Playback details (bitrate, network, pauses)",
+          "transcode": "Transcode details (codecs, reasons)"
+        },
+        "pluginSince": "Plugin data since {{date}}",
+        "noPlugin": "No play recorded by the Jellystics plugin yet.",
+        "undated_one": "{{count}} play without a usable date is excluded from every statistic.",
+        "undated_other": "{{count}} plays without a usable date are excluded from every statistic.",
+        "views_one": "{{count}} view",
+        "views_other": "{{count}} views",
+        "clicks_one": "{{count}} click",
+        "clicks_other": "{{count}} clicks",
+        "repairedAtLeast_one": "At least {{count}} imported duration repaired (negative, longer than 1.5× the media or than 12 h).",
+        "repairedAtLeast_other": "At least {{count}} imported durations repaired (negative, longer than 1.5× the media or than 12 h)."
       }
     },
     "sidePanel": {
@@ -1205,6 +1304,100 @@
     "picker": {
       "search": "Search…",
       "empty": "No results"
+    },
+    "plugin": {
+      "playedToEnd": {
+        "footMeasured_one": "measured by the plugin · {{count}} view",
+        "footMeasured_other": "measured by the plugin · {{count}} views",
+        "footMixed": "{{measured}} measured · {{estimated}} estimated",
+        "tip": "End of playback according to Jellyfin (≥ 90 % by default), measured by the Jellystics plugin for movies and episodes of 5 min or more. Other views are estimated: stopped at 90 % of the runtime or later. Plays in progress do not count."
+      },
+      "skips": {
+        "title": "Forward skips",
+        "plays_one": "{{count}} play measured by the Jellystics plugin",
+        "plays_other": "{{count}} plays measured by the Jellystics plugin",
+        "intro": "Short skip at the start (probably the intro)",
+        "skipRate": "Plays with a skip",
+        "skipFoot_one": "{{count}} play",
+        "skipFoot_other": "{{count}} plays",
+        "avgSkipped": "Average time skipped",
+        "avgSkippedFoot": "per play with a skip",
+        "estimate": "Short skip: 10 s to 15 % of the runtime (3 min at most) in a play started from the beginning; the rate is over those plays. The plugin measures how much was skipped, not where: this is an estimate. Plays in progress do not count.",
+        "cellTip_one": "{{count}} measured play · average skipped {{avg}}",
+        "cellTip_other": "{{count}} measured plays · average skipped {{avg}}",
+        "introFoot_one": "{{intro}} / {{count}} play from the start",
+        "introFoot_other": "{{intro}} / {{count}} plays from the start"
+      },
+      "insights": {
+        "title": "Most skipped intros",
+        "subtitle_one": "series · {{count}} episode play measured by the plugin",
+        "subtitle_other": "series · {{count}} episode plays measured by the plugin",
+        "series": "Series",
+        "plays": "Measured plays",
+        "playsCount_one": "{{count}} play",
+        "playsCount_other": "{{count}} plays"
+      },
+      "marks": {
+        "title": "Marked as played",
+        "subtitle": "latest recorded mark per user since {{date}}",
+        "manualLabel": "By hand",
+        "automaticLabel": "End of playback",
+        "otherLabel": "Other",
+        "manual_one": "Marked as played by hand by {{count}} user",
+        "manual_other": "Marked as played by hand by {{count}} users",
+        "manualWithoutView_one": "including {{count}} without any recorded view",
+        "manualWithoutView_other": "including {{count}} without any recorded view",
+        "automatic_one": "Marked as played at the end of playback for {{count}} user",
+        "automatic_other": "Marked as played at the end of playback for {{count}} users",
+        "other_one": "Marked as played otherwise (import, third-party app) for {{count}} user",
+        "other_other": "Marked as played otherwise (import, third-party app) for {{count}} users",
+        "unplayed_one": "Set back to “unplayed” by {{count}} user",
+        "unplayed_other": "Set back to “unplayed” by {{count}} users",
+        "watched_one": "{{count}} user has a recorded view",
+        "watched_other": "{{count}} users have a recorded view"
+      },
+      "logins": {
+        "title": "Logins",
+        "subtitle": "collected by the Jellystics plugin",
+        "count": "Logins",
+        "lastLogin": "Last login",
+        "lastAt": "Last",
+        "never": "never",
+        "failed": "Failed",
+        "failedFoot": "visible to admins",
+        "empty": "No login in the period"
+      },
+      "growth": {
+        "removed": "Removed",
+        "source": "Additions source",
+        "sourceEvents": "plugin (real dates)",
+        "sourceCatalog": "catalog (approximation)",
+        "precise": "Real additions and removals recorded by the Jellystics plugin.",
+        "partial": "Real additions (Jellystics plugin) from {{date}}; before: catalog creation dates of the items still present (approximation).",
+        "catalog": "Catalog creation dates of the items still present (approximation). The Jellystics plugin records the real additions.",
+        "marker": "real additions"
+      },
+      "firstView": {
+        "title": "Delay from addition to first view",
+        "subtitle": "real additions in the period (Jellystics plugin)",
+        "delay": "Delay",
+        "count": "Items",
+        "empty": "No addition in the period",
+        "summary": "{{viewed}} viewed out of {{added}} added",
+        "median": "median {{value}}",
+        "notViewed_one": "{{count}} not viewed yet",
+        "notViewed_other": "{{count}} not viewed yet",
+        "b": {
+          "<1h": "< 1 h",
+          "1-24h": "1–24 h",
+          "1-7d": "1–7 d",
+          "1-4w": "1–4 wk",
+          ">4w": "> 4 wk"
+        }
+      },
+      "funnel": {
+        "ofViews": "{{pct}} of views · {{done}}/{{views}}"
+      }
     }
   }
 }

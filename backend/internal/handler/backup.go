@@ -379,7 +379,17 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 	h.emitLog("Starting restore...")
 	for _, tableEntry := range tables {
 		for tableName, rawRows := range tableEntry {
-			count, err := restoreTableData(ctx, h.repos, tableName, rawRows)
+			var count, skipped int
+			var err error
+			if tableName == "jf_playback_activity" {
+				count, skipped, err = restorePlays(ctx, h.repos, rawRows)
+			} else {
+				count, err = restoreTableData(ctx, h.repos, tableName, rawRows)
+			}
+			if skipped > 0 {
+				restored[tableName+"_skipped"] = skipped
+				h.emitLog(fmt.Sprintf("Skipped %d %s rows: the same plays are already recorded by another source", skipped, tableName))
+			}
 			if err != nil {
 				h.emitLog(fmt.Sprintf("ERROR restoring %s: %s", tableName, err.Error()))
 				c.JSON(http.StatusInternalServerError, gin.H{
@@ -400,6 +410,13 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 	}
 	h.emitLog(fmt.Sprintf("Successfully restored %d rows", total))
 	ResetStatsCaches()
+	// Restored rows replace local plays: re-pull everything from the
+	// Jellystics plugin (idempotent upserts, dedupe runs again).
+	if h.repos.PluginSync != nil {
+		if err := h.repos.PluginSync.ResetCursors(c.Request.Context()); err != nil {
+			h.emitLog("WARNING: reset plugin sync cursors: " + err.Error())
+		}
+	}
 
 	go func() {
 		bgCtx := context.Background()
@@ -424,26 +441,29 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Restore completed successfully", "restored": restored})
 }
 
+// restorePlays restores jf_playback_activity rows: upsert by Id, skipping new
+// rows that are the same play as an existing row of another source (one
+// play = one row). Returns the restored and skipped counts.
+func restorePlays(ctx context.Context, repos *repository.Container, rawRows json.RawMessage) (int, int, error) {
+	var rows []models.JFPlaybackActivity
+	if err := unmarshalBackupRows(rawRows, &rows); err != nil {
+		return 0, 0, err
+	}
+	for i := range rows {
+		if rows[i].Source == "" {
+			rows[i].Source = "restore"
+		}
+	}
+	return repos.Playback.RestorePlays(ctx, rows)
+}
+
 // restoreTableData restores rows for a specific table using typed repositories.
 // Tables not handled here are counted but not re-inserted.
 func restoreTableData(ctx context.Context, repos *repository.Container, tableName string, rawRows json.RawMessage) (int, error) {
 	switch tableName {
 	case "jf_playback_activity":
-		var rows []models.JFPlaybackActivity
-		if err := unmarshalBackupRows(rawRows, &rows); err != nil {
-			return 0, err
-		}
-		for i := range rows {
-			if rows[i].Source == "" {
-				rows[i].Source = "restore"
-			}
-		}
-		if len(rows) > 0 {
-			if err := repos.Playback.Upsert(ctx, rows); err != nil {
-				return 0, err
-			}
-		}
-		return len(rows), nil
+		n, _, err := restorePlays(ctx, repos, rawRows)
+		return n, err
 
 	case "jf_users":
 		var rows []models.JFUser

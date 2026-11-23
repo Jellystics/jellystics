@@ -53,12 +53,40 @@ const OBJECTS: Record<string, unknown> = {
   '/api/getTaskSettings': {},
   '/api/CheckForUpdates': { current_version: '1.0.0', latest_version: 'v1.0.0', update_available: false, message: 'Up to date' },
   // --- end phase 7 settings ---
+  // --- plugin / data quality ---
+  '/api/plugin/status': {
+    detected: true, pluginVersion: '1.0.0.0', schemaVersion: 1, supportedSchemaVersion: 1, pluginDatabaseId: 'db1', cursorPlays: 1840,
+    cursorLibraryEvents: 0, cursorUserDataEvents: 0, cursorLogins: 0, lastCheckedAt: '2026-11-22T20:00:00Z', lastSuccessAt: '2026-11-22T20:00:00Z',
+    lastError: null, healthy: true, playsSynced: 1520,
+  },
+  '/api/plugin/push-history/status': { state: 'done', total: 3204, sent: 3204, imported: 3150, skipped: 54, rejected: 0, startedAt: '2026-11-21T10:00:00Z', finishedAt: '2026-11-21T10:02:00Z', error: null, resumable: false },
+  '/api/v2/data-quality': {
+    totals: { views: 300, clicks: 360, watchSeconds: 1_080_000, repaired: 12, captured: 240, positions: 300, streams: 230, transcodes: 60, transcodeDetailed: 48 },
+    sources: [
+      { key: 'plugin', views: 170, clicks: 200, watchSeconds: 648_000, viewShare: 0.556, watchShare: 0.6, repaired: 0, captured: 200, positions: 200, streams: 200, transcodes: 30, transcodeDetailed: 30 },
+      { key: 'tracker', views: 85, clicks: 100, watchSeconds: 324_000, viewShare: 0.278, watchShare: 0.3, repaired: 0, captured: 40, positions: 100, streams: 30, transcodes: 20, transcodeDetailed: 18 },
+      { key: 'playbackReporting', views: 45, clicks: 60, watchSeconds: 108_000, viewShare: 0.167, watchShare: 0.1, repaired: 12, captured: 0, positions: 0, streams: 0, transcodes: 10, transcodeDetailed: 0 },
+      { key: 'otherImports', views: 0, clicks: 0, watchSeconds: 0, viewShare: 0, watchShare: 0, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0 },
+      { key: 'restore', views: 0, clicks: 0, watchSeconds: 0, viewShare: 0, watchShare: 0, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0 },
+      { key: 'other', views: 0, clicks: 0, watchSeconds: 0, viewShare: 0, watchShare: 0, repaired: 0, captured: 0, positions: 0, streams: 0, transcodes: 0, transcodeDetailed: 0 },
+    ],
+    pluginCollectedSince: '2026-10-01', collectedSince: '2026-06-01', undated: 3,
+  },
+  // --- end plugin / data quality ---
   // --- phase 5 ---
   ...PHASE5,
   // --- end phase 5 ---
 }
 
 // --- phase 3 ---
+// Logins collected by the Jellystics plugin (user page).
+const loginsFixture = {
+  collectedSince: '2026-11-10', count: 14, lastLogin: '2026-11-22T20:41:00+01:00', failed: 2,
+  devices: [
+    { device: 'Shield', client: 'Android TV', version: '0.18.3', count: 9, lastAt: '2026-11-22T20:41:00+01:00' },
+    { device: 'Chrome', client: 'Jellyfin Web', version: '10.11.0', count: 5, lastAt: '2026-11-20T18:02:00+01:00' },
+  ],
+}
 // Realistic payloads for the core pages (/, /live, /history, /users, /users/:id).
 import { calendarFixture, concurrencyFixture, historyFixture, librariesDailyFixture, overviewFixture, playsFixture, retentionFixture, sessionsFixture, shareFixture, userFixture, usersFixture } from '../src/app/pages/overview/fixtures'
 const PHASE3: Record<string, () => unknown> = {
@@ -74,6 +102,8 @@ const PHASE3: Record<string, () => unknown> = {
   '/api/v2/users/u2': () => userFixture(),
   '/api/v2/users/u1/languages': () => ({ collectedSince: '2026-11-01', captured: 12, split: { originalSubtitled: 6, original: 2, dubbed: 3, unknown: 1 }, audio: [{ label: 'eng', views: 8 }, { label: 'fra', views: 4 }], subtitles: [{ label: 'fra', views: 6 }], subtitleOff: 6 }),
   '/api/v2/users/u2/languages': () => ({ collectedSince: '2026-11-01', captured: 12, split: { originalSubtitled: 6, original: 2, dubbed: 3, unknown: 1 }, audio: [{ label: 'eng', views: 8 }, { label: 'fra', views: 4 }], subtitles: [{ label: 'fra', views: 6 }], subtitleOff: 6 }),
+  '/api/v2/users/u1/logins': () => loginsFixture,
+  '/api/v2/users/u2/logins': () => loginsFixture,
   '/api/v2/concurrency': concurrencyFixture,
   '/sessions/current': sessionsFixture,
 }

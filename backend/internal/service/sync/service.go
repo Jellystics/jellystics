@@ -618,6 +618,14 @@ func (s *Service) SyncPlaybackPlugin(ctx context.Context) error {
 	}
 	s.log("Starting PlaybackReporting plugin sync...")
 
+	// The Jellystics plugin imports the Playback Reporting history itself
+	// (repaired durations, exact times) and its plays are synced every 30 s:
+	// importing it here as well would create duplicates.
+	if s.jellysticsPluginDetected(ctx) {
+		s.log("Jellystics plugin detected: skipping the Playback Reporting sync (its history is imported by the Jellystics plugin).")
+		return nil
+	}
+
 	// Check if plugin is installed
 	plugins, err := s.jf.GetInstalledPlugins(ctx)
 	if err != nil {
@@ -711,6 +719,22 @@ func (s *Service) SyncPlaybackPlugin(ctx context.Context) error {
 
 	s.log("PlaybackReporting plugin sync complete.")
 	return nil
+}
+
+// jellysticsPluginDetected asks Jellyfin whether a compatible Jellystics
+// plugin is installed (an incompatible one is ignored by the plugin sync, so
+// the legacy import must keep running); if Jellyfin cannot tell (error), the last plugin sync state
+// decides.
+func (s *Service) jellysticsPluginDetected(ctx context.Context) bool {
+	info, err := s.jf.GetJellysticsInfo(ctx)
+	if err == nil {
+		return info != nil && info.SchemaVersion == jellyfin.JellysticsSchemaVersion
+	}
+	if s.repos.PluginSync == nil {
+		return false
+	}
+	st, serr := s.repos.PluginSync.GetState(ctx)
+	return serr == nil && st.Detected && st.SchemaVersion != nil && *st.SchemaVersion == jellyfin.JellysticsSchemaVersion
 }
 
 // --- helpers ---

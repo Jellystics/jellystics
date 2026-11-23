@@ -30,9 +30,25 @@ var optionalDefaultCron = map[string]string{
 
 // Scheduler reads cron expressions from app_config and schedules tasks accordingly.
 type Scheduler struct {
-	repos  *repository.Container
-	runner TaskRunner
-	c      *cron.Cron
+	repos      *repository.Container
+	runner     TaskRunner
+	c          *cron.Cron
+	background []backgroundJob
+}
+
+// backgroundJob is a lightweight recurring job (e.g. the Jellystics plugin
+// sync every 30 s). Unlike tasks it does not go through the task runner (no
+// jf_logging entry, never blocked by a running task). It is enabled by
+// default; settings Tasks[name].enabled = false disables it.
+type backgroundJob struct {
+	name, spec string
+	fn         func(context.Context)
+}
+
+// AddBackground registers a background job, scheduled on the next Start /
+// Reload. spec is a cron spec such as "@every 30s".
+func (s *Scheduler) AddBackground(name, spec string, fn func(context.Context)) {
+	s.background = append(s.background, backgroundJob{name: name, spec: spec, fn: fn})
 }
 
 func New(repos *repository.Container, runner TaskRunner) *Scheduler {
@@ -44,10 +60,12 @@ func New(repos *repository.Container, runner TaskRunner) *Scheduler {
 func (s *Scheduler) Start(ctx context.Context) {
 	s.stop()
 	s.c = cron.New()
+	s.scheduleBackground(ctx)
 
 	settings, err := s.loadTaskSettings(ctx)
 	if err != nil {
 		log.Printf("[scheduler] failed to load task settings: %v", err)
+		s.c.Start() // background jobs still run
 		return
 	}
 
@@ -81,6 +99,42 @@ func (s *Scheduler) stop() {
 	if s.c != nil {
 		s.c.Stop()
 	}
+}
+
+func (s *Scheduler) scheduleBackground(ctx context.Context) {
+	for _, j := range s.background {
+		if s.backgroundDisabled(ctx, j.name) {
+			log.Printf("[scheduler] background job %q disabled in settings", j.name)
+			continue
+		}
+		fn := j.fn
+		// SkipIfStillRunning: a slow run (initial catch-up) never piles up.
+		job := cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			fn(context.Background())
+		}))
+		if _, err := s.c.AddJob(j.spec, job); err != nil {
+			log.Printf("[scheduler] invalid spec %q for background job %q: %v", j.spec, j.name, err)
+		}
+	}
+}
+
+// backgroundDisabled reports whether settings.Tasks[name].enabled is
+// explicitly false.
+func (s *Scheduler) backgroundDisabled(ctx context.Context, name string) bool {
+	cfg, err := s.repos.Config.Get(ctx)
+	if err != nil || len(cfg.Settings) == 0 {
+		return false
+	}
+	var settings struct {
+		Tasks map[string]struct {
+			Enabled *bool `json:"enabled"`
+		} `json:"Tasks"`
+	}
+	if json.Unmarshal(cfg.Settings, &settings) != nil {
+		return false
+	}
+	e, ok := settings.Tasks[name]
+	return ok && e.Enabled != nil && !*e.Enabled
 }
 
 func (s *Scheduler) loadTaskSettings(ctx context.Context) (map[string]string, error) {

@@ -30,6 +30,14 @@ type mockJF struct {
 	items map[string][]jellyfin.Item
 	// userData maps item id -> user data returned by GET /Items/{id}.
 	userData map[string]jellyfin.UserItemData
+
+	// Plugins: jellysticsPlugin answers /Jellystics/Info (else 404);
+	// pbrRows is what the Playback Reporting custom query returns (the
+	// official plugin is listed in /Plugins when non-nil).
+	jellysticsPlugin bool
+	jellysticsSchema int // 0 = 1
+	pbrRows          [][]any
+	pbrQueries       int
 }
 
 func newMockJF(t *testing.T) *mockJF {
@@ -76,6 +84,31 @@ func newMockJF(t *testing.T) *mockJF {
 			return
 		}
 		writeJSON(w, map[string]any{"UserData": ud})
+	})
+
+	mux.HandleFunc("/Jellystics/Info", func(w http.ResponseWriter, r *http.Request) {
+		if !m.jellysticsPlugin {
+			http.NotFound(w, r)
+			return
+		}
+		schema := m.jellysticsSchema
+		if schema == 0 {
+			schema = 1
+		}
+		writeJSON(w, map[string]any{"pluginVersion": "1.0.0.0", "schemaVersion": schema})
+	})
+
+	mux.HandleFunc("/Plugins", func(w http.ResponseWriter, r *http.Request) {
+		out := []jellyfin.Plugin{}
+		if m.pbrRows != nil {
+			out = append(out, jellyfin.Plugin{Name: "Playback Reporting", ConfigurationFileName: sp("Jellyfin.Plugin.PlaybackReporting.xml")})
+		}
+		writeJSON(w, out)
+	})
+
+	mux.HandleFunc("/user_usage_stats/submit_custom_query", func(w http.ResponseWriter, r *http.Request) {
+		m.pbrQueries++
+		writeJSON(w, map[string]any{"results": m.pbrRows})
 	})
 
 	m.server = httptest.NewServer(mux)

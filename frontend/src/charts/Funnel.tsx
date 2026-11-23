@@ -7,7 +7,8 @@ import styles from './charts.module.css'
 
 const RAMP = ['var(--seq-6)', 'var(--seq-5)', 'var(--seq-4)', 'var(--seq-3)']
 
-export function Funnel({ stages }: { stages: { label: string; value: number }[] }) {
+/** `note` replaces the share of the first stage (e.g. "80 % of views · 4/5"). */
+export function Funnel({ stages }: { stages: { label: string; value: number; note?: string }[] }) {
   const { t } = useTranslation()
   const f = useFormat()
   const [ref, width] = useChartWidth()
@@ -33,7 +34,7 @@ export function Funnel({ stages }: { stages: { label: string; value: number }[] 
               />
               <text className={styles.strong} x={lw + Math.max(2, w) + 8} y={yy + 15}>
                 {f.number(s.value)}
-                {i > 0 && <tspan className={styles.light} dx={8}>{share}</tspan>}
+                {i > 0 && <tspan className={styles.light} dx={8}>{s.note ?? share}</tspan>}
               </text>
             </g>
           )
