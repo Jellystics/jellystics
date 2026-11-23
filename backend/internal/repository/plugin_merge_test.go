@@ -235,3 +235,40 @@ func TestPluginMerge_RepairsZeroDurations(t *testing.T) {
 		t.Errorf("row 2 want 900, got %d", *a2.PlaybackDuration)
 	}
 }
+
+// Rows merged by older versions carry no source (default 'watchdog') and
+// may lack ItemId: they are repaired too, but only for the same user and item.
+func TestPluginMerge_RepairsLegacyZeroDurations(t *testing.T) {
+	t.Setenv("TZ", "UTC")
+	db := setupTestDB(t)
+	repos := repository.New(db)
+	ctx := context.Background()
+	p := func(s string) *string { return &s }
+	d := func(v int64) *int64 { return &v }
+
+	_ = repos.Item.Upsert(ctx, []models.JFLibraryItem{{Id: "mov-1", Name: p("Film"), Type: p("Movie"), Genres: datatypes.JSON("[]")}})
+	if err := db.Exec(`INSERT INTO jf_playback_activity ("Id","UserId","NowPlayingItemId","PlaybackDuration","ActivityDateInserted","StartedAt",imported) VALUES
+		('7', 'u1', 'mov-1', 0, '2026-01-05 20:00:20', '2026-01-05 20:00:00+00', true),
+		('8', 'u2', 'mov-1', 0, '2026-01-06 20:00:20', '2026-01-06 20:00:00+00', true)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := repos.PluginData.Upsert(ctx, []models.JFPluginData{
+		{RowId: "7", ItemId: p("mov-1"), UserId: p("u1"), ItemType: p("Movie"), PlayDuration: d(4000), DateCreated: p("2026-01-05 20:00:20")},
+		{RowId: "8", ItemId: p("mov-1"), UserId: p("u1"), ItemType: p("Movie"), PlayDuration: d(4000), DateCreated: p("2026-01-06 20:00:20")}, // other user
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repos.PluginData.MergeIntoPlaybackActivity(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var a7, a8 models.JFPlaybackActivity
+	db.Where(`"Id" = '7'`).First(&a7)
+	db.Where(`"Id" = '8'`).First(&a8)
+	if *a7.PlaybackDuration != 4000 || !a7.IsView || a7.Source != "watchdog" ||
+		!a7.EndedAt.Equal(time.Date(2026, 1, 5, 21, 6, 40, 0, time.UTC)) {
+		t.Errorf("legacy row not repaired: dur %d view %v source %q ended %v", *a7.PlaybackDuration, a7.IsView, a7.Source, a7.EndedAt)
+	}
+	if *a8.PlaybackDuration != 0 {
+		t.Errorf("row of another user must not change, got %d", *a8.PlaybackDuration)
+	}
+}

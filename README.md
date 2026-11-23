@@ -2,11 +2,11 @@
 
 A modern and lightweight statistics tracker for your [Jellyfin](https://jellyfin.org) server.
 
-<img width="3504" height="2092" alt="image" src="https://github.com/user-attachments/assets/52d0101b-545e-4da3-8781-95a42945f1fb" />
+<img width="3478" height="2048" alt="image" src="https://github.com/user-attachments/assets/63c06d8f-23a4-412a-83b7-a08fcf0245d2" />
 
-<img width="3504" height="2092" alt="image" src="https://github.com/user-attachments/assets/e54e2dd6-5dbe-4f93-93c5-6e3e5b610b1c" />
+<img width="3478" height="2048" alt="image" src="https://github.com/user-attachments/assets/d75bf2fc-1c79-40b1-aeef-3b2f9b976d7d" />
 
-<img width="3504" height="2092" alt="image" src="https://github.com/user-attachments/assets/a6be3a2f-79e0-4eb4-946a-bbbf98af85c0" />
+<img width="3478" height="2048" alt="image" src="https://github.com/user-attachments/assets/2c817106-a2e8-47e0-a9fe-e70236e15be8" />
 
 ---
 

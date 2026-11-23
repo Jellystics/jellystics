@@ -552,13 +552,18 @@ func (r *pluginDataRepo) MergeIntoPlaybackActivity(ctx context.Context) error {
 		  )
 		-- A row merged while durations were lost (every cell of the plugin's
 		-- query is text and used to be read as 0) gets its real duration.
+		-- Older versions stored these rows without a source (default
+		-- 'watchdog'), so any imported row of the same user and item counts.
 		ON CONFLICT ("Id") DO UPDATE SET
 			"PlaybackDuration" = EXCLUDED."PlaybackDuration",
-			"EndedAt" = EXCLUDED."EndedAt",
+			"EndedAt" = COALESCE(jf_playback_activity."StartedAt", EXCLUDED."StartedAt")
+				+ make_interval(secs => EXCLUDED."PlaybackDuration"),
 			"IsView" = EXCLUDED."IsView"
-		WHERE jf_playback_activity.source = 'plugin'
+		WHERE COALESCE(jf_playback_activity.imported, false)
 		  AND COALESCE(jf_playback_activity."PlaybackDuration", 0) = 0
 		  AND EXCLUDED."PlaybackDuration" > 0
+		  AND jf_playback_activity."UserId" = EXCLUDED."UserId"
+		  AND COALESCE(jf_playback_activity."ItemId", jf_playback_activity."EpisodeId", jf_playback_activity."NowPlayingItemId") = EXCLUDED."ItemId"
 	`, sql.Named("tz", displayTZ())).Error
 }
 
@@ -716,7 +721,21 @@ func (r *webhookRepo) Delete(ctx context.Context, id int) error {
 type statsRepo struct{ db *gorm.DB }
 
 func (r *statsRepo) RefreshViews(ctx context.Context) error {
-	return r.db.WithContext(ctx).Exec(`CALL ju_update_library_stats_data()`).Error
+	return RefreshStatsViews(r.db.WithContext(ctx))
+}
+
+// RefreshStatsViews refreshes the legacy materialized views. It skips
+// js_library_stats_overview, which nothing reads and whose joins (items ×
+// episodes × tracks × plays) take minutes on a real library — the stored
+// procedure ju_update_library_stats_data() refreshed it and made every sync
+// and purge hang that long.
+func RefreshStatsViews(db *gorm.DB) error {
+	for _, v := range []string{"js_latest_playback_activity", "js_library_items_with_playcount_playtime"} {
+		if err := db.Exec(`REFRESH MATERIALIZED VIEW ` + v).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *statsRepo) GetGlobalStats(ctx context.Context) (*GlobalStats, error) {
