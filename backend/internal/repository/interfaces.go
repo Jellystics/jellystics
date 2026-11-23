@@ -105,6 +105,8 @@ type PluginDataRepository interface {
 	ListUnimported(ctx context.Context) ([]models.JFPluginData, error)
 	// GetMaxRowId returns the highest rowid already staged (0 if table is empty).
 	GetMaxRowId(ctx context.Context) (int64, error)
+	// HasDurations reports whether a staged row has a positive PlayDuration.
+	HasDurations(ctx context.Context) (bool, error)
 	// MergeIntoPlaybackActivity inserts unimported plugin rows into jf_playback_activity.
 	MergeIntoPlaybackActivity(ctx context.Context) error
 }

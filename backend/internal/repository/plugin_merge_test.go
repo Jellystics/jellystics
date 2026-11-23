@@ -189,3 +189,49 @@ func TestBackfillTracking_DatesAndDeletedItems(t *testing.T) {
 		}
 	}
 }
+
+// Plays merged while durations were lost (read as 0) get their real duration
+// when the staged rows are re-read; other rows keep theirs.
+func TestPluginMerge_RepairsZeroDurations(t *testing.T) {
+	t.Setenv("TZ", "UTC")
+	db := setupTestDB(t)
+	repos := repository.New(db)
+	ctx := context.Background()
+	p := func(s string) *string { return &s }
+	d := func(v int64) *int64 { return &v }
+
+	_ = repos.Item.Upsert(ctx, []models.JFLibraryItem{{Id: "mov-1", Name: p("Film"), Type: p("Movie"), Genres: datatypes.JSON("[]")}})
+	stage := func(dur1, dur2 int64) {
+		t.Helper()
+		if err := repos.PluginData.Upsert(ctx, []models.JFPluginData{
+			{RowId: "1", ItemId: p("mov-1"), UserId: p("u1"), ItemType: p("Movie"), PlayDuration: d(dur1), DateCreated: p("2026-01-05 20:00:20")},
+			{RowId: "2", ItemId: p("mov-1"), UserId: p("u1"), ItemType: p("Movie"), PlayDuration: d(dur2), DateCreated: p("2026-01-06 20:00:20")},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := repos.PluginData.MergeIntoPlaybackActivity(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stage(0, 0)
+	if ok, err := repos.PluginData.HasDurations(ctx); err != nil || ok {
+		t.Fatalf("HasDurations = %v, %v; want false with only zero durations", ok, err)
+	}
+	stage(0, 900)    // row 2 recovers its duration
+	stage(5400, 100) // row 1 too; row 2 keeps its first real duration
+	if ok, _ := repos.PluginData.HasDurations(ctx); !ok {
+		t.Fatal("HasDurations = false, want true")
+	}
+	get := func(id string) models.JFPlaybackActivity {
+		var a models.JFPlaybackActivity
+		db.Where(`"Id" = ?`, id).First(&a)
+		return a
+	}
+	a1, a2 := get("1"), get("2")
+	if *a1.PlaybackDuration != 5400 || !a1.IsView || !a1.EndedAt.Equal(a1.StartedAt.Add(5400*time.Second)) {
+		t.Errorf("row 1 not repaired: dur %d view %v ended %v", *a1.PlaybackDuration, a1.IsView, a1.EndedAt)
+	}
+	if *a2.PlaybackDuration != 900 {
+		t.Errorf("row 2 want 900, got %d", *a2.PlaybackDuration)
+	}
+}

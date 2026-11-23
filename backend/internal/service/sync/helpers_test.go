@@ -67,6 +67,20 @@ func TestMapPluginRow(t *testing.T) {
 		}
 	})
 
+	t.Run("text cells (what the plugin really returns)", func(t *testing.T) {
+		row := jellyfin.PlaybackReportingRow{
+			"42", "2026-07-12 10:00:00", "user-1", "item-1", "Movie",
+			"Big Buck Bunny", "DirectPlay", "Jellyfin Web", "Chrome", "3600",
+		}
+		got := mapPluginRow(row)
+		if got == nil || got.PlayDuration == nil || *got.PlayDuration != 3600 {
+			t.Fatalf("PlayDuration = %v, want 3600 parsed from text", got)
+		}
+		if got := mapPluginRow(jellyfin.PlaybackReportingRow{"9", "d", "u", "i", "t", "n", "m", "c", "dev", "-5"}); *got.PlayDuration != 0 {
+			t.Fatalf("negative text duration should clamp to 0, got %d", *got.PlayDuration)
+		}
+	})
+
 	t.Run("short row rejected", func(t *testing.T) {
 		if got := mapPluginRow(jellyfin.PlaybackReportingRow{"1", "2", "3"}); got != nil {
 			t.Fatalf("short row should be nil, got %+v", got)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	gosync "sync"
 	"time"
@@ -654,6 +655,20 @@ func (s *Service) SyncPlaybackPlugin(ctx context.Context) error {
 		return fmt.Errorf("get max rowid: %w", err)
 	}
 
+	// Durations used to be read as 0 (the plugin returns text cells): when no
+	// staged row has one, re-read the whole history so the plays already
+	// merged get their real duration.
+	if rows > 0 {
+		hasDur, err := s.repos.PluginData.HasDurations(ctx)
+		if err != nil {
+			return fmt.Errorf("check staged durations: %w", err)
+		}
+		if !hasDur {
+			s.log("Staged plugin rows have no durations: re-reading the whole history.")
+			rows = 0
+		}
+	}
+
 	query := "SELECT rowid, * FROM PlaybackActivity"
 	if rows > 0 {
 		// Also re-read the last 2 days: the plugin keeps updating PlayDuration
@@ -691,6 +706,10 @@ func (s *Service) SyncPlaybackPlugin(ctx context.Context) error {
 	// Merge plugin data into jf_playback_activity
 	if err := s.repos.PluginData.MergeIntoPlaybackActivity(ctx); err != nil {
 		return fmt.Errorf("merge into playback activity: %w", err)
+	}
+	// Caps overflowed or days-long plugin durations like every import.
+	if err := s.repos.Playback.BackfillTracking(ctx); err != nil {
+		return fmt.Errorf("sanitize imported durations: %w", err)
 	}
 
 	// Refresh stats views
@@ -900,6 +919,12 @@ func mapPluginRow(row jellyfin.PlaybackReportingRow) *models.JFPluginData {
 		case int:
 			i := int64(val)
 			return &i
+		case string:
+			// The plugin's custom query returns every cell as text ("3600").
+			if f, err := strconv.ParseFloat(strings.TrimSpace(val), 64); err == nil {
+				i := int64(f)
+				return &i
+			}
 		}
 		return nil
 	}
