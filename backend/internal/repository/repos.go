@@ -696,7 +696,21 @@ func (r *webhookRepo) Delete(ctx context.Context, id int) error {
 type statsRepo struct{ db *gorm.DB }
 
 func (r *statsRepo) RefreshViews(ctx context.Context) error {
-	return r.db.WithContext(ctx).Exec(`CALL ju_update_library_stats_data()`).Error
+	return RefreshStatsViews(r.db.WithContext(ctx))
+}
+
+// RefreshStatsViews refreshes the legacy materialized views. It skips
+// js_library_stats_overview, which nothing reads and whose joins (items ×
+// episodes × tracks × plays) take minutes on a real library — the stored
+// procedure ju_update_library_stats_data() refreshed it and made every sync
+// and purge hang that long.
+func RefreshStatsViews(db *gorm.DB) error {
+	for _, v := range []string{"js_latest_playback_activity", "js_library_items_with_playcount_playtime"} {
+		if err := db.Exec(`REFRESH MATERIALIZED VIEW ` + v).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *statsRepo) GetGlobalStats(ctx context.Context) (*GlobalStats, error) {

@@ -123,7 +123,7 @@ func (h *AdminApiHandler) PurgeItem(c *gin.Context) {
 	}
 
 	// Refresh materialized views.
-	db.Exec("CALL ju_update_library_stats_data()")
+	_ = repository.RefreshStatsViews(db)
 	c.JSON(http.StatusOK, gin.H{"message": "item purged successfully"})
 }
 
@@ -141,7 +141,7 @@ func (h *AdminApiHandler) PurgeLibrary(c *gin.Context) {
 
 	h.purgeLibraryItems(body.Id, body.WithActivity, true)
 	h.db.Exec(`DELETE FROM jf_libraries WHERE "Id" = ?`, body.Id)
-	h.db.Exec("CALL ju_update_library_stats_data()")
+	_ = repository.RefreshStatsViews(h.db)
 	c.JSON(http.StatusOK, gin.H{"message": "library purged successfully"})
 }
 
@@ -158,7 +158,7 @@ func (h *AdminApiHandler) PurgeLibraryItems(c *gin.Context) {
 	}
 
 	h.purgeLibraryItems(body.Id, body.WithActivity, false)
-	h.db.Exec("CALL ju_update_library_stats_data()")
+	_ = repository.RefreshStatsViews(h.db)
 	c.JSON(http.StatusOK, gin.H{"message": "library items purged successfully"})
 }
 
@@ -270,7 +270,7 @@ func (h *AdminApiHandler) DeletePlaybackActivity(c *gin.Context) {
 	}
 	ResetStatsCaches()
 	// Refresh materialized views.
-	h.db.Exec("CALL ju_update_library_stats_data()")
+	_ = repository.RefreshStatsViews(h.db)
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("%d records deleted", len(body.Ids))})
 }
 
