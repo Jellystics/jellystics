@@ -1,4 +1,4 @@
-import { formatDuration, formatPosition, formatNumber, formatCompact, formatPercent, formatHour, formatDay, formatRelative, formatDelta, weekdayLabels, formatBytes, formatHoursAxis } from './format'
+import { formatDuration, formatPosition, formatNumber, formatCompact, formatPercent, formatHour, formatDay, formatRelative, formatDelta, weekdayLabels, formatBytes, formatHoursAxis, formatAxisValue, formatWatchKpi } from './format'
 import { niceMax, ticks } from '@/charts/scale'
 
 const nb = (s: string) => s.replace(/[\u{a0}\u{202f}]/gu, ' ') // normalise fr spaces (NBSP, narrow NBSP)
@@ -85,5 +85,24 @@ describe('formatHoursAxis', () => {
       const labels = ticks(niceMax(max)).map((v) => formatHoursAxis(v, 'fr'))
       labels.slice(1).forEach((l, i) => expect(l, `max ${max}: ${labels.join(' | ')}`).not.toBe(labels[i]))
     }
+  })
+})
+
+describe('formatAxisValue / formatWatchKpi', () => {
+  it('keeps adjacent scatter ticks distinct for any nice maximum', () => {
+    for (const p of [0.001, 0.01, 0.1, 1, 10, 100, 1000]) {
+      for (const n of [1, 2, 2.5, 5, 10]) {
+        const labels = ticks(n * p, 5).map((v) => formatAxisValue(v, 'fr'))
+        expect(new Set(labels).size, labels.join(' | ')).toBe(labels.length)
+      }
+    }
+  })
+  it('reads short plays with decimals', () => expect(ticks(1, 5).map((v) => formatAxisValue(v, 'en'))).toEqual(['0', '0.2', '0.4', '0.6', '0.8', '1']))
+  it('shows small watch totals as a duration, large ones as hours', () => {
+    expect(formatWatchKpi(100, 'h', 'fr')).toEqual({ value: '2 min' })
+    expect(formatWatchKpi(40, 'h', 'fr')).toEqual({ value: '40 s' })
+    expect(formatWatchKpi(0, 'h', 'fr')).toEqual({ value: '0', unit: 'h' })
+    expect(formatWatchKpi(7200, 'h', 'fr')).toEqual({ value: '2', unit: 'h' })
+    expect(formatWatchKpi(3600 * 1234, 'h', 'en')).toEqual({ value: '1,234', unit: 'h' })
   })
 })

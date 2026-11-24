@@ -89,7 +89,7 @@ export function KpiStrip({ session, range, profile }: Props & { profile: MeProfi
   return (
     <Card>
       <StatStrip columns={6}>
-        <StatTile label={t('app.me.kpi.time')} value={f.number(totals.watchSeconds / 3600)} unit={t('app.me.kpi.hoursUnit')} delta={delta('time')} />
+        <StatTile label={t('app.me.kpi.time')} {...f.watchKpi(totals.watchSeconds, t('app.me.kpi.hoursUnit'))} delta={delta('time')} />
         <StatTile label={t('app.me.kpi.views')} value={f.number(totals.views)} delta={delta('views')} />
         <StatTile label={t('app.me.kpi.clicks')} value={f.number(totals.clicks)} delta={delta('clicks')} />
         <FinishedTile data={d.playedToEnd} foot={finishedFoot(d.playedToEnd)} />
@@ -322,7 +322,7 @@ export function PlaysCard({ session, range }: Props) {
           >
             {plays.length === 0 ? <EmptyState title={t('app.me.plays.empty')} /> : (
               <>
-                <Scatter points={points} timeAxis radius={4} xLabel={t('app.me.plays.x')} yLabel={t('app.me.plays.y')} yFormat={f.compact} />
+                <Scatter points={points} timeAxis radius={4} xLabel={t('app.me.plays.x')} yLabel={t('app.me.plays.y')} yFormat={f.axis} />
                 {d.capped && <div className={l.note}>{t('app.me.plays.capped', { value: f.number(d.limit) })}</div>}
               </>
             )}

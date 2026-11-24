@@ -94,6 +94,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
   const weekHour = data.weekHour?.length === 7 ? data.weekHour : Array.from({ length: 7 }, () => Array<number>(24).fill(0))
   const weekdays = f.weekdays()
 
+  const watch = f.watchKpi(totals.watchSeconds, t('app.overview.hoursUnit'))
   const tile = (m: Metric, value: string, unit?: string) => (
     <StatTile
       key={m}
@@ -111,7 +112,7 @@ function OverviewBody({ data, metric, setMetric }: { data: Overview; metric: Met
     <>
       <Card>
         <StatStrip columns={5}>
-          {tile('time', f.number(totals.watchSeconds / 3600), t('app.overview.hoursUnit'))}
+          {tile('time', watch.value, watch.unit)}
           {tile('views', f.number(totals.views))}
           {tile('clicks', f.number(totals.clicks))}
           <StatTile label={t('app.overview.activeUsers')} value={f.number(totals.activeUsers)} delta={previous ? ratioDelta(totals.activeUsers, previous.activeUsers, f) : undefined} />

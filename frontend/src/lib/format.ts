@@ -39,6 +39,19 @@ export function formatHoursAxis(hours: number, locale = 'fr'): string {
   }
   return `${nf(locale, { maximumFractionDigits: hours < 100 ? 1 : 0 }).format(hours)} h`
 }
+/**
+ * Axis tick on a free numeric scale (minutes per play…). Under 10 the labels keep two significant digits so the
+ * fractional steps of a small scale (0.2, 0.4, 0.01…) never collapse onto the same label; above, compact.
+ */
+export function formatAxisValue(v: number, locale = 'fr'): string {
+  if (Math.abs(v) < 10) return nf(locale, { maximumSignificantDigits: 2 }).format(v)
+  return formatCompact(v, locale)
+}
+/** Watch-time KPI as tile value + optional unit: whole hours from 1 h up (as before), else "42 min" / "40 s", never "0 h". */
+export function formatWatchKpi(seconds: number, hoursUnit: string, locale = 'fr'): { value: string; unit?: string } {
+  if (seconds > 0 && seconds < 3600) return { value: formatDuration(seconds, locale) }
+  return { value: formatNumber(seconds / 3600, locale), unit: hoursUnit }
+}
 export function formatPosition(seconds: number): string {
   const s = Math.max(0, Math.round(seconds)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60
   return (h ? `${h}:${String(m).padStart(2, '0')}` : String(m)) + ':' + String(x).padStart(2, '0')
@@ -81,7 +94,8 @@ export function useFormat() {
   const l = i18n.resolvedLanguage || 'fr'
   return useMemo(() => ({
     duration: (s: number) => formatDuration(s, l), position: formatPosition, number: (n: number) => formatNumber(n, l),
-    hoursAxis: (h: number) => formatHoursAxis(h, l),
+    hoursAxis: (h: number) => formatHoursAxis(h, l), axis: (v: number) => formatAxisValue(v, l),
+    watchKpi: (seconds: number, unit: string) => formatWatchKpi(seconds, unit, l),
     compact: (n: number) => formatCompact(n, l), percent: (r: number) => formatPercent(r, l), hour: formatHour,
     day: (d: Date) => formatDay(d, l), relative: (d: Date) => formatRelative(d, l), delta: (r: number) => formatDelta(r, l), bytes: (b: number) => formatBytes(b, l),
     weekdays: () => weekdayLabels(l), locale: l,
