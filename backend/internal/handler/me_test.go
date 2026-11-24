@@ -220,3 +220,76 @@ func TestMeStatic(t *testing.T) {
 		t.Errorf("no me.html: %d", w.Code)
 	}
 }
+
+func TestMeHabitsValues(t *testing.T) {
+	e := newMeEnv(t)
+	var got struct {
+		WeekHour [][]int
+		Hours    []int
+		Weekdays []int
+	}
+	if err := json.Unmarshal(e.get(t, "/api/me/habits?userId=u2", "u1").Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	// Alice's views: 20:00 (day 3), 21:00 + 21:05 (day 2), 21:00 (day 1).
+	// Bob's 20:01 and 08:00 views must not count.
+	want := make([]int, 24)
+	want[20], want[21] = 1, 3
+	for h := range want {
+		if got.Hours[h] != want[h] {
+			t.Fatalf("hours = %v, want %v", got.Hours, want)
+		}
+	}
+	sum, grid := 0, 0
+	for d := range got.Weekdays {
+		sum += got.Weekdays[d]
+		for _, v := range got.WeekHour[d] {
+			grid += v
+		}
+	}
+	if len(got.WeekHour) != 7 || sum != 4 || grid != 4 {
+		t.Fatalf("weekdays %v (sum %d), grid sum %d", got.Weekdays, sum, grid)
+	}
+}
+
+// /api/me/devices lists exactly the admin user page devices (R5).
+func TestMeDevicesMatchAdminUserPage(t *testing.T) {
+	e := newMeEnv(t)
+	type dev struct {
+		Device, Client, Version string
+		Views                   int
+	}
+	var admin struct{ Devices []dev }
+	var me struct{ Devices []dev }
+	v2JSON(t, e.db, "/api/v2/users/u1", &admin)
+	if err := json.Unmarshal(e.get(t, "/api/me/devices", "u1").Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if len(admin.Devices) == 0 || len(admin.Devices) != len(me.Devices) {
+		t.Fatalf("admin %+v, me %+v", admin.Devices, me.Devices)
+	}
+	for i := range admin.Devices {
+		if admin.Devices[i] != me.Devices[i] {
+			t.Fatalf("row %d: admin %+v, me %+v", i, admin.Devices[i], me.Devices[i])
+		}
+	}
+}
+
+// A real Jellyfin user id sent dashed / upper case by the plugin matches the
+// N-format id stored in jf_users.
+func TestMeDashedUserHeader(t *testing.T) {
+	e := newMeEnv(t)
+	const id = "5f2a8c0e1b3d4f6a7c9e0b1d2f3a4c5e"
+	e.db.Exec(`INSERT INTO jf_users ("Id", "Name") VALUES (?, 'Carol')`, id)
+	w := e.get(t, "/api/me/profile", "5F2A8C0E-1B3D-4F6A-7C9E-0B1D2F3A4C5E")
+	var got struct{ ID, Name, Timezone string }
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil || w.Code != 200 {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+	if got.ID != id || got.Name != "Carol" || got.Timezone != "UTC" {
+		t.Fatalf("profile = %+v", got)
+	}
+	if strings.Contains(w.Body.String(), "Alice") || strings.Contains(w.Body.String(), "Chrome") {
+		t.Fatalf("other user's data: %s", w.Body.String())
+	}
+}

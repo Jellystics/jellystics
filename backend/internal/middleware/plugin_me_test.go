@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Jellystics/Jellystics/internal/middleware"
@@ -84,5 +85,30 @@ func TestPluginMeEmptyStoredSecretRejects(t *testing.T) {
 		func(c *gin.Context) { c.Status(200) })
 	if w := meReq(r, map[string]string{"X-Jellystics-Secret": ""}); w.Code != 401 {
 		t.Fatalf("empty secret accepted: %d", w.Code)
+	}
+}
+
+func TestPluginMeUserLookupFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/api/me/x", middleware.PluginMe(
+		func(context.Context) (string, error) { return meSecret, nil },
+		func(context.Context, string) (bool, error) { return false, context.DeadlineExceeded }, true),
+		func(c *gin.Context) { c.Status(200) })
+	w := meReq(r, map[string]string{"X-Jellystics-Secret": meSecret, "X-Jellystics-User": "u1"})
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "internal error") {
+		t.Fatalf("lookup failure: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPluginMeSecretLookupFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/api/me/x", middleware.PluginMe(
+		func(context.Context) (string, error) { return "", context.DeadlineExceeded },
+		func(context.Context, string) (bool, error) { return true, nil }, true),
+		func(c *gin.Context) { c.Status(200) })
+	if w := meReq(r, map[string]string{"X-Jellystics-Secret": meSecret, "X-Jellystics-User": "u1"}); w.Code != http.StatusInternalServerError {
+		t.Fatalf("secret failure: %d", w.Code)
 	}
 }
