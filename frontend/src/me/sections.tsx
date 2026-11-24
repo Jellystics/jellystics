@@ -128,9 +128,7 @@ export function DailyCard({ session, range }: Props) {
         const daily = d.daily ?? []
         const values = daily.map(pick(metric))
         const labels = daily.map((p) => (week ? t('app.me.daily.week', { date: f.day(dateOf(p.date)) }) : f.day(dateOf(p.date))))
-        // One decimal for hours: small totals would otherwise repeat the same rounded tick (1 h, 1 h, 2 h…).
-        const hours = new Intl.NumberFormat(f.locale, { maximumFractionDigits: 1 })
-        const yFormat = metric === 'time' ? (v: number) => t('app.me.daily.hoursValue', { value: hours.format(v) }) : f.compact
+        const yFormat = metric === 'time' ? f.hoursAxis : f.compact
         const empty = values.every((v) => v === 0)
         return (
           <ChartFrame

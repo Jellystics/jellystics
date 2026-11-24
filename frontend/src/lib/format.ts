@@ -22,6 +22,23 @@ export function formatDuration(seconds: number, locale = 'fr'): string {
   if (h >= 100) return `${formatNumber(h, locale)} h`
   return `${h} h ${String(mm).padStart(2, '0')}`
 }
+/**
+ * Hours on watch-time axes and tooltips: "30 min", "1 h 30", "2 h", "12,5 h". Small values switch to minutes
+ * (seconds under 1 min, one decimal under 10 min) so adjacent axis ticks (0.5 h, 0.2 h… steps) never read the same.
+ */
+export function formatHoursAxis(hours: number, locale = 'fr'): string {
+  if (!(hours > 0)) return '0 h'
+  const min = hours * 60
+  if (min < 1) return `${Math.round(min * 60)} s`
+  if (min < 10 && Math.abs(min - Math.round(min)) > 1e-6) return `${nf(locale, { maximumFractionDigits: 1 }).format(min)} min`
+  const m = Math.round(min)
+  if (m < 60) return `${m} min`
+  if (hours < 10) {
+    const h = Math.floor(m / 60), mm = m % 60
+    return mm ? `${h} h ${String(mm).padStart(2, '0')}` : `${h} h`
+  }
+  return `${nf(locale, { maximumFractionDigits: hours < 100 ? 1 : 0 }).format(hours)} h`
+}
 export function formatPosition(seconds: number): string {
   const s = Math.max(0, Math.round(seconds)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60
   return (h ? `${h}:${String(m).padStart(2, '0')}` : String(m)) + ':' + String(x).padStart(2, '0')
@@ -64,6 +81,7 @@ export function useFormat() {
   const l = i18n.resolvedLanguage || 'fr'
   return useMemo(() => ({
     duration: (s: number) => formatDuration(s, l), position: formatPosition, number: (n: number) => formatNumber(n, l),
+    hoursAxis: (h: number) => formatHoursAxis(h, l),
     compact: (n: number) => formatCompact(n, l), percent: (r: number) => formatPercent(r, l), hour: formatHour,
     day: (d: Date) => formatDay(d, l), relative: (d: Date) => formatRelative(d, l), delta: (r: number) => formatDelta(r, l), bytes: (b: number) => formatBytes(b, l),
     weekdays: () => weekdayLabels(l), locale: l,

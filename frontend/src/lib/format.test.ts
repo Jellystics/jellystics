@@ -1,4 +1,5 @@
-import { formatDuration, formatPosition, formatNumber, formatCompact, formatPercent, formatHour, formatDay, formatRelative, formatDelta, weekdayLabels, formatBytes } from './format'
+import { formatDuration, formatPosition, formatNumber, formatCompact, formatPercent, formatHour, formatDay, formatRelative, formatDelta, weekdayLabels, formatBytes, formatHoursAxis } from './format'
+import { niceMax, ticks } from '@/charts/scale'
 
 const nb = (s: string) => s.replace(/[\u{a0}\u{202f}]/gu, ' ') // normalise fr spaces (NBSP, narrow NBSP)
 
@@ -70,5 +71,19 @@ describe('formatBytes', () => {
     expect(formatBytes(1_234_000_000_000, 'en')).toBe('1.2 TB')
     expect(formatBytes(950, 'en')).toBe('950 B')
     expect(formatBytes(-5, 'en')).toBe('0 B')
+  })
+})
+
+describe('formatHoursAxis', () => {
+  it.each([
+    [0, '0 h'], [0.5, '30 min'], [1, '1 h'], [1.5, '1 h 30'], [2.4, '2 h 24'], [0.025, '1,5 min'], [1 / 60, '1 min'],
+    [10, '10 h'], [12.5, '12,5 h'], [250, '250 h'], [0.005, '18 s'],
+  ])('%f h → %s', (h, out) => expect(nb(formatHoursAxis(h, 'fr'))).toBe(out))
+
+  it('never repeats adjacent axis tick labels', () => {
+    for (const max of [0.004, 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 1.2, 2, 2.4, 2.5, 3, 4, 5, 8, 10, 20, 25, 50, 100, 250, 1000]) {
+      const labels = ticks(niceMax(max)).map((v) => formatHoursAxis(v, 'fr'))
+      labels.slice(1).forEach((l, i) => expect(l, `max ${max}: ${labels.join(' | ')}`).not.toBe(labels[i]))
+    }
   })
 })
