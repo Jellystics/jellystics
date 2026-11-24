@@ -37,6 +37,15 @@ it('SegBar prints shares above 9 % and a legend', () => {
   expect(screen.getByText(/93/)).toBeInTheDocument() // 68/73 ≈ 93 %
   expect(screen.getAllByText('Stream')).toHaveLength(1) // legend only, no in-bar label under 9 %
 })
+it('SegBar draws no segment for an empty part but keeps it in the legend', () => {
+  const parts = [{ label: 'Série', value: 0, color: 'orange' }, { label: 'Film', value: 100, color: 'blue' }, { label: 'Musique', value: 0, color: 'green' }]
+  const { rerender } = render(<SegBar parts={parts} />)
+  expect(screen.getAllByRole('listitem').map((li) => li.getAttribute('aria-label'))).toEqual([expect.stringMatching(/^Film/)])
+  expect(screen.getByText('Série')).toBeInTheDocument()
+  expect(screen.getByText('Musique')).toBeInTheDocument()
+  rerender(<SegBar parts={parts} thin />)
+  expect(screen.getAllByRole('listitem')).toHaveLength(1)
+})
 it('Breadcrumbs: last item is current page, others are links', () => {
   render(<MemoryRouter><Breadcrumbs items={[{ label: 'Séries', to: '/libraries/a' }, { label: 'Station Nord' }]} /></MemoryRouter>)
   expect(screen.getByRole('link', { name: 'Séries' })).toHaveAttribute('href', '/libraries/a')
