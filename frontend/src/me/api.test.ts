@@ -5,6 +5,7 @@ describe('errorReason', () => {
     [503, { error: 'notLinked' }, 'notLinked'],
     [503, undefined, 'notLinked'],
     [502, { error: 'unreachable' }, 'unreachable'],
+    [502, { error: 'secretMismatch' }, 'relinking'],
     [504, '', 'unreachable'],
     [500, { error: 'timeout' }, 'unreachable'],
     [401, { error: 'invalid secret' }, 'notLinked'],

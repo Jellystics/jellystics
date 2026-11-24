@@ -123,6 +123,7 @@ describe('unavailable states', () => {
   it.each([
     [503, { error: 'notLinked' }, 'app.me.unavailable.notLinked'],
     [502, { error: 'unreachable' }, 'app.me.unavailable.unreachable'],
+    [502, { error: 'secretMismatch' }, 'app.me.unavailable.relinking'],
     [504, undefined, 'app.me.unavailable.unreachable'],
     [401, { error: 'invalid secret' }, 'app.me.unavailable.notLinked'],
     [403, { error: 'unknown user' }, 'app.me.unavailable.forbidden'],

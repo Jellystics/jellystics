@@ -718,7 +718,23 @@
           "copy": "Copier l'URL",
           "copied": "URL copiée"
         },
-        "lastErrorValue": "Dernière erreur : {{error}}"
+        "lastErrorValue": "Dernière erreur : {{error}}",
+        "me": {
+          "title": "Page « Mes statistiques »",
+          "active": "Active",
+          "activeHint": "Chaque utilisateur Jellyfin trouve « Mes statistiques » dans le menu de son avatar.",
+          "unreachable": "Jellystics injoignable depuis Jellyfin",
+          "unreachableHint": "Renseigne l’adresse de Jellystics dans les réglages du plugin, dans Jellyfin.",
+          "relinking": "Reconnexion en cours",
+          "relinkingHint": "Le plugin détient un ancien secret : Jellystics le relie à nouveau à la prochaine synchronisation.",
+          "notLinked": "Pas encore reliée",
+          "notLinkedHint": "Jellystics relie le plugin à la prochaine synchronisation (une version récente du plugin est requise).",
+          "url": "Adresse transmise au plugin",
+          "sourceEnv": "JELLYSTICS_PUBLIC_URL",
+          "sourceAuto": "détectée automatiquement",
+          "urlUnknown": "pas encore détectée",
+          "error": "Dernière erreur de liaison : {{error}}"
+        }
       },
       "quality": {
         "title": "Qualité des données",
@@ -1499,6 +1515,7 @@
         "title": "Statistiques indisponibles",
         "notLinked": "Jellystics n’est pas encore relié à ce serveur Jellyfin. Demande à ton administrateur de vérifier le plugin Jellystics.",
         "unreachable": "Jellyfin n’arrive pas à joindre Jellystics pour le moment. Réessaie dans un instant.",
+        "relinking": "Jellystics se reconnecte, réessaie dans une minute.",
         "forbidden": "Jellystics ne connaît pas encore ton compte. Ce sera le cas après sa prochaine synchronisation avec Jellyfin.",
         "signedOut": "Ta session Jellyfin a expiré. Reconnecte-toi à Jellyfin.",
         "error": "Une erreur est survenue au chargement de tes statistiques."

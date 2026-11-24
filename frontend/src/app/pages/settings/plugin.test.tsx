@@ -135,3 +135,35 @@ it('data quality: empty period', async () => {
   // The all-time undated note stays visible.
   expect(screen.getByText('app.settings.quality.undated:3')).toBeInTheDocument()
 })
+
+it.each([
+  [{ meLinked: true, meReachable: true, meError: null }, 'active'],
+  [{ meLinked: true, meReachable: null, meError: null }, 'active'],
+  [{ meLinked: true, meReachable: false, meError: 'unreachable' }, 'unreachable'],
+  [{ meLinked: true, meReachable: false, meError: null }, 'unreachable'],
+  [{ meLinked: true, meReachable: false, meError: 'secretMismatch' }, 'relinking'],
+  [{ meLinked: false, meReachable: null, meError: null }, 'notLinked'],
+  [{}, 'notLinked'],
+] as const)('my stats link %j → %s (read only)', async (me, state) => {
+  routes = {
+    'GET /api/plugin/status': () => ({ ...detected, meUrl: 'http://172.18.0.2:3000', meUrlSource: 'auto', meLinkError: null, ...me }),
+    'GET /api/plugin/push-history/status': () => ({ state: 'idle', total: 0, sent: 0, imported: 0, skipped: 0, rejected: 0, resumable: false }),
+  }
+  renderCard(<PluginCard />)
+  const block = await screen.findByTestId('me-link')
+  expect(within(block).getByText(`app.settings.plugin.me.${state}`)).toBeInTheDocument()
+  expect(within(block).getByText(`app.settings.plugin.me.${state}Hint`)).toBeInTheDocument()
+  expect(within(block).getByText('http://172.18.0.2:3000')).toBeInTheDocument()
+  expect(within(block).queryByRole('textbox')).not.toBeInTheDocument()
+})
+
+it('my stats link: shows the last link error', async () => {
+  routes = {
+    'GET /api/plugin/status': () => ({ ...detected, meLinked: false, meUrl: '', meUrlSource: 'auto', meLinkError: 'POST /Jellystics/Link: status 500' }),
+    'GET /api/plugin/push-history/status': () => ({ state: 'idle', total: 0, sent: 0, imported: 0, skipped: 0, rejected: 0, resumable: false }),
+  }
+  renderCard(<PluginCard />)
+  const block = await screen.findByTestId('me-link')
+  expect(within(block).getByText('app.settings.plugin.me.urlUnknown')).toBeInTheDocument()
+  expect(within(block).getByRole('alert')).toHaveTextContent('app.settings.plugin.me.error')
+})

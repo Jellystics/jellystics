@@ -718,7 +718,23 @@
           "copy": "Copy the URL",
           "copied": "URL copied"
         },
-        "lastErrorValue": "Last error: {{error}}"
+        "lastErrorValue": "Last error: {{error}}",
+        "me": {
+          "title": "“My statistics” page",
+          "active": "Active",
+          "activeHint": "Every Jellyfin user finds “My statistics” in their avatar menu.",
+          "unreachable": "Jellystics unreachable from Jellyfin",
+          "unreachableHint": "Enter the Jellystics address in the plugin settings, in Jellyfin.",
+          "relinking": "Reconnecting",
+          "relinkingHint": "The plugin holds an old secret: Jellystics links it again at the next sync.",
+          "notLinked": "Not linked yet",
+          "notLinkedHint": "Jellystics links the plugin at the next sync (a recent plugin version is required).",
+          "url": "Address sent to the plugin",
+          "sourceEnv": "JELLYSTICS_PUBLIC_URL",
+          "sourceAuto": "auto-detected",
+          "urlUnknown": "not detected yet",
+          "error": "Last link error: {{error}}"
+        }
       },
       "quality": {
         "title": "Data quality",
@@ -1499,6 +1515,7 @@
         "title": "Statistics unavailable",
         "notLinked": "Jellystics is not linked to this Jellyfin server yet. Ask your administrator to check the Jellystics plugin.",
         "unreachable": "Jellyfin cannot reach Jellystics right now. Try again in a moment.",
+        "relinking": "Jellystics is reconnecting, try again in a minute.",
         "forbidden": "Jellystics does not know your account yet. It will after its next sync with Jellyfin.",
         "signedOut": "Your Jellyfin session has expired. Sign in to Jellyfin again.",
         "error": "Something went wrong while loading your statistics."

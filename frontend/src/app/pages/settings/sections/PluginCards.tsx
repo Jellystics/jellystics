@@ -6,7 +6,7 @@ import { Badge, Button, Card, CardBody, CardHeader, ConfirmDialog, EmptyState, E
 import { useFormat } from '@/lib/format'
 import {
   DATA_SOURCES, PLUGIN_MANIFEST_URL, invalidatePluginData, useDataQuality, usePluginStatus, usePushStatus, useResync, useStartPush,
-  type DataQuality, type DataSource, type PluginStatus, type PushStatus,
+  meLinkState, type DataQuality, type DataSource, type MeLinkState, type PluginStatus, type PushStatus,
 } from '@/api/plugin'
 import { errorMessage } from '../net'
 import styles from './PluginCards.module.css'
@@ -109,6 +109,37 @@ function ResyncBlock() {
   )
 }
 
+const ME_TONE: Record<MeLinkState, { tone: 'good' | 'warning' | undefined; dot?: string }> = {
+  active: { tone: 'good', dot: 'var(--good)' },
+  unreachable: { tone: 'warning', dot: 'var(--warning)' },
+  relinking: { tone: 'warning', dot: 'var(--warning)' },
+  notLinked: { tone: undefined },
+}
+
+/** « Mes statistiques » link status (read only: the address override lives in the plugin settings). */
+function MeLinkBlock({ st }: { st: PluginStatus }) {
+  const { t } = useTranslation()
+  const state = meLinkState(st)
+  const { tone, dot } = ME_TONE[state]
+  return (
+    <div className={styles.block} data-testid="me-link">
+      <span className={styles.blockTitle}>{t('app.settings.plugin.me.title')}</span>
+      <div><Badge tone={tone} dot={dot}>{t(`app.settings.plugin.me.${state}`)}</Badge></div>
+      <p className={styles.text}>{t(`app.settings.plugin.me.${state}Hint`)}</p>
+      <dl className={styles.facts}>
+        <div>
+          <dt>{t('app.settings.plugin.me.url')}</dt>
+          <dd>
+            {st.meUrl ? <code className={styles.url}>{st.meUrl}</code> : t('app.settings.plugin.me.urlUnknown')}
+            {st.meUrl && ` (${t(st.meUrlSource === 'env' ? 'app.settings.plugin.me.sourceEnv' : 'app.settings.plugin.me.sourceAuto')})`}
+          </dd>
+        </div>
+      </dl>
+      {st.meLinkError && <span className={styles.error} role="alert">{t('app.settings.plugin.me.error', { error: st.meLinkError })}</span>}
+    </div>
+  )
+}
+
 function InstallHelp() {
   const { t } = useTranslation()
   const copy = async () => {
@@ -159,6 +190,7 @@ export function PluginCard() {
             </dl>
             {!st.healthy && <p className={styles.text}>{t('app.settings.plugin.unhealthyHint')}</p>}
             {st.lastError && <span className={styles.error} role="alert">{t('app.settings.plugin.lastErrorValue', { error: st.lastError })}</span>}
+            <MeLinkBlock st={st} />
             <PushBlock />
             <ResyncBlock />
           </>

@@ -6,7 +6,7 @@ import type { MeRange } from './period'
 import type { MeDevices, MeHabits, MeHistory, MeOverview, MeProfile, MeScatter, MeTop, MeTypes } from './types'
 
 /** Why the statistics cannot be shown. */
-export type UnavailableReason = 'signedOut' | 'notLinked' | 'unreachable' | 'forbidden' | 'error'
+export type UnavailableReason = 'signedOut' | 'notLinked' | 'unreachable' | 'relinking' | 'forbidden' | 'error'
 
 export class MeApiError extends Error {
   constructor(public status: number, public reason: UnavailableReason, public body: unknown) { super(`HTTP ${status}`) }
@@ -20,12 +20,14 @@ const errorCode = (body: unknown) => {
 /**
  * Reason of a failed call. The plugin answers 503 {error:"notLinked"} before Jellystics linked it, 502/504
  * {error:"unreachable"} when Jellystics does not answer; Jellystics answers 401 {error:"invalid secret"} when the
- * link is stale and 403 {error:"unknown user"} for a user it does not know yet. A bare 401 comes from Jellyfin
- * itself: the token is missing or expired.
+ * link is stale and 403 {error:"unknown user"} for a user it does not know yet. The plugin answers 502
+ * {error:"secretMismatch"} while Jellystics re-links it (next sync). A bare 401 comes from Jellyfin itself: the
+ * token is missing or expired.
  */
 export function errorReason(status: number, body: unknown): UnavailableReason {
   const code = errorCode(body)
   if (code === 'notlinked') return 'notLinked'
+  if (code === 'secretmismatch') return 'relinking'
   if (code === 'unreachable' || code === 'timeout') return 'unreachable'
   if (status === 401) return code === 'invalidsecret' ? 'notLinked' : 'signedOut'
   if (status === 403) return 'forbidden'
