@@ -97,6 +97,7 @@ func main() {
 	webhookSvc := webhooksvc.New(repos)
 	pluginSvc := pluginsync.New(repos)
 	pluginSvc.OnDataChanged = handler.ResetStatsCaches
+	pluginSvc.PublicURL, pluginSvc.Port = cfg.PublicURL, cfg.Port
 	svcs := &service.Container{
 		Auth:       authsvc.New(repos, jfClient, cfg),
 		Sync:       syncSvc,

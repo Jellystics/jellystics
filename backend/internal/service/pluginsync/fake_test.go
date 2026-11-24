@@ -43,6 +43,9 @@ type fakePlugin struct {
 	echoImports   bool                        // pushed plays are stored and served back (import-jellystics)
 	noCounts      bool                        // Import/Plays answers {} (no counts)
 	playsDelay    time.Duration               // delay of every /Plays page (concurrency tests)
+	meLinked      *bool                       // reported as meLinked by /Info when set
+	linkMissing   bool                        // older plugin: /Jellystics/Link answers 404
+	links         []map[string]string         // POST /Jellystics/Link bodies
 }
 
 func newFakePlugin(t *testing.T) *fakePlugin {
@@ -63,6 +66,9 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 			"counts": map[string]int{"plays": len(f.plays)}, "serverTimeZone": "UTC"}
 		if f.databaseId != "" {
 			info["databaseId"] = f.databaseId
+		}
+		if f.meLinked != nil {
+			info["meLinked"] = *f.meLinked
 		}
 		writeJSON(w, info)
 	})
@@ -204,6 +210,28 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 			res = map[string]int{}
 		}
 		writeJSON(w, res)
+	})
+	// Link: stores url / secret (the plugin is then linked and reachable).
+	mux.HandleFunc("/Jellystics/Link", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.linkMissing || r.Method != http.MethodPost {
+			f.calls[r.URL.Path]++
+			http.NotFound(w, r)
+			return
+		}
+		if f.fail(w, r.URL.Path) {
+			return
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		f.links = append(f.links, body)
+		linked := true
+		f.meLinked = &linked
+		writeJSON(w, map[string]any{"linked": true, "reachable": true})
 	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)

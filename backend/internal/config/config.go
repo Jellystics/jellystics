@@ -15,6 +15,9 @@ type Config struct {
 	JFApiKey         string
 	DisableDashboard bool
 	MetricsAPIKey    string
+	// PublicURL (JELLYSTICS_PUBLIC_URL): Jellystics base URL as seen from
+	// Jellyfin, pushed to the plugin; empty = auto-detected.
+	PublicURL        string
 }
 
 func Load() (*Config, error) {
@@ -44,6 +47,7 @@ func Load() (*Config, error) {
 		JFApiKey:         os.Getenv("JF_API_KEY"),
 		DisableDashboard: os.Getenv("DISABLE_DASHBOARD") == "true",
 		MetricsAPIKey:    os.Getenv("METRICS_API_KEY"),
+		PublicURL:        os.Getenv("JELLYSTICS_PUBLIC_URL"),
 	}, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -39,7 +40,12 @@ type JellysticsInfo struct {
 	DatabaseId     string    `json:"databaseId"` // changes when the plugin data is reset; empty if unsupported
 	FirstPlayAt    *FlexTime `json:"firstPlayAt"`
 	ServerTimeZone string    `json:"serverTimeZone"`
-	Counts         struct {
+	// « Mes statistiques » link (optional; nil = plugin without the feature):
+	// MeLinked = the plugin holds a Jellystics url + secret, MeReachable =
+	// its health check of /api/me/health (nil = not checked yet).
+	MeLinked    *bool `json:"meLinked"`
+	MeReachable *bool `json:"meReachable"`
+	Counts      struct {
 		Plays          int64 `json:"plays"`
 		LibraryEvents  int64 `json:"libraryEvents"`
 		UserDataEvents int64 `json:"userDataEvents"`
@@ -328,4 +334,61 @@ func (c *Client) PostJellysticsPlays(ctx context.Context, items []JellysticsPlay
 		err = nil
 	}
 	return res, err
+}
+
+// JellysticsLinkResult is the response of POST /Jellystics/Link. Reachable
+// (optional) is the plugin's health check of the pushed url.
+type JellysticsLinkResult struct {
+	Linked    bool  `json:"linked"`
+	Reachable *bool `json:"reachable"`
+}
+
+// ErrJellysticsLinkUnsupported: the plugin has no /Jellystics/Link route
+// (older plugin, 404).
+var ErrJellysticsLinkUnsupported = errors.New("plugin does not support the « Mes statistiques » link")
+
+// PostJellysticsLink gives the plugin the Jellystics URL (as seen from
+// Jellyfin) and the shared secret of the /api/me relay. An empty 2xx body
+// yields a zero result; 404 → ErrJellysticsLinkUnsupported.
+func (c *Client) PostJellysticsLink(ctx context.Context, jellysticsURL, secret string) (JellysticsLinkResult, error) {
+	var res JellysticsLinkResult
+	err := c.do(ctx, http.MethodPost, "/Jellystics/Link", nil, map[string]string{"url": jellysticsURL, "secret": secret}, &res)
+	if se, ok := err.(*StatusError); ok && se.Code == http.StatusNotFound {
+		return res, ErrJellysticsLinkUnsupported
+	}
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return res, err
+}
+
+// LocalAddr returns the local IP address of a TCP connection to the
+// Jellyfin host (the address Jellyfin sees Jellystics connecting from).
+// Default ports: 80 (http) / 443 (https).
+func (c *Client) LocalAddr(ctx context.Context) (net.IP, error) {
+	u, err := url.Parse(c.baseURL)
+	if err != nil {
+		return nil, err
+	}
+	if u.Hostname() == "" {
+		return nil, fmt.Errorf("invalid Jellyfin host %q", c.baseURL)
+	}
+	port := u.Port()
+	if port == "" {
+		port = "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
+	}
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(u.Hostname(), port))
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	addr, ok := conn.LocalAddr().(*net.TCPAddr)
+	if !ok {
+		return nil, fmt.Errorf("unexpected local address %v", conn.LocalAddr())
+	}
+	return addr.IP, nil
 }

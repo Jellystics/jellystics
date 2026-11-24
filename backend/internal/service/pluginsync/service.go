@@ -58,8 +58,15 @@ type Service struct {
 	// OnDataChanged is called after plays were written or tracker rows
 	// removed (main wires the stats cache reset).
 	OnDataChanged func()
+	// PublicURL (JELLYSTICS_PUBLIC_URL) overrides the auto-detected
+	// Jellystics URL pushed to the plugin; Port is the listen port used by
+	// the auto-detection (default 3000). Set by main before the first run.
+	PublicURL string
+	Port      string
 
 	mu             gosync.Mutex
+	meUnsupported  string // plugin version answering 404 on /Jellystics/Link
+	lastLinkErr    string
 	lastRefresh    time.Time
 	lastStaleCheck time.Time
 	lastLoggedErr  string
@@ -93,6 +100,17 @@ type Status struct {
 	// PlaysSynced counts the plays recorded by the plugin stored in Jellystics.
 	PlaysSynced            int64 `json:"playsSynced"`
 	SupportedSchemaVersion int   `json:"supportedSchemaVersion"`
+
+	// « Mes statistiques » link. MeURL / MeURLSource: the URL Jellystics
+	// pushes now (env | auto; "" when auto-detection fails or Jellyfin is
+	// not configured); MeLinkedURL: the URL of the last successful push.
+	MeLinked    bool       `json:"meLinked"`
+	MeReachable *bool      `json:"meReachable"`
+	MeURL       string     `json:"meUrl"`
+	MeURLSource string     `json:"meUrlSource"`
+	MeLinkedURL *string    `json:"meLinkedUrl"`
+	MeLinkedAt  *time.Time `json:"meLinkedAt"`
+	MeLinkError *string    `json:"meLinkError"`
 }
 
 // Status returns the persisted sync state and whether the plugin is
@@ -106,8 +124,19 @@ func (s *Service) Status(ctx context.Context) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Status{PluginSyncState: *st, Healthy: st.Healthy(s.now()), PlaysSynced: n,
-		SupportedSchemaVersion: SupportedSchemaVersion}, nil
+	out := &Status{PluginSyncState: *st, Healthy: st.Healthy(s.now()), PlaysSynced: n,
+		SupportedSchemaVersion: SupportedSchemaVersion,
+		MeLinked:               st.MeLinked, MeReachable: st.MeReachable, MeURLSource: MeURLSourceAuto,
+		MeLinkedURL: st.MeLinkedURL, MeLinkedAt: st.MeLinkedAt, MeLinkError: st.MeLinkError}
+	if s.PublicURL != "" {
+		u, _ := ResolveMeURL(ctx, s.PublicURL, nil, s.Port)
+		out.MeURL, out.MeURLSource = u.URL, u.Source
+	} else if jf, err := s.client(ctx); err == nil && jf != nil {
+		if u, err := s.resolveMeURL(ctx, jf); err == nil {
+			out.MeURL = u.URL
+		}
+	}
+	return out, nil
 }
 
 // Resync resets every cursor (the plugin data is re-read from the start;
@@ -263,6 +292,7 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	}
 	done := s.now()
 	st.LastSuccessAt, st.LastError = &done, nil
+	s.link(ctx, jf, st, info)
 
 	// Annex tables: failures are reported but do not affect health.
 	annex := []struct {

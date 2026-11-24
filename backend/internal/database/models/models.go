@@ -311,6 +311,14 @@ type PluginSyncState struct {
 	PushStartedAt  *time.Time `gorm:"column:push_started_at"                  json:"-"`
 	PushFinishedAt *time.Time `gorm:"column:push_finished_at"                 json:"-"`
 	PushError      *string    `gorm:"column:push_error"                       json:"-"`
+
+	// « Mes statistiques » link (migration 017), served by Status.
+	MeLinked           bool       `gorm:"column:me_linked;not null;default:false" json:"-"` // plugin reports it is linked
+	MeReachable        *bool      `gorm:"column:me_reachable"                     json:"-"` // plugin reached /api/me/health (nil = unknown)
+	MeLinkedURL        *string    `gorm:"column:me_linked_url"                    json:"-"` // url of the last successful link push
+	MeLinkedSecretHash *string    `gorm:"column:me_linked_secret_hash"            json:"-"` // sha256 hex of the secret pushed
+	MeLinkedAt         *time.Time `gorm:"column:me_linked_at"                     json:"-"`
+	MeLinkError        *string    `gorm:"column:me_link_error"                    json:"-"`
 }
 
 func (PluginSyncState) TableName() string { return "plugin_sync_state" }
