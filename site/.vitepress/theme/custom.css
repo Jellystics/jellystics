@@ -1,0 +1,142 @@
+/*
+ * Jellystics design tokens, copied from frontend/src/styles/tokens.css so the site matches the app:
+ * neutral surfaces, hairline borders, a single blue accent, 8 px radius.
+ */
+:root {
+  /* app tokens (light) */
+  --wf-surface: #fcfcfb;
+  --wf-surface-2: #f0efec;
+  --wf-border: rgba(11, 11, 11, 0.10);
+  --wf-border-strong: rgba(11, 11, 11, 0.18);
+  --wf-ink: #0b0b0b;
+  --wf-ink-2: #52514e;
+  --wf-ink-3: #898781;
+  --wf-line: #898781;
+  --wf-accent: #2a78d6;
+  --wf-accent-wash: rgba(42, 120, 214, 0.10);
+  --wf-on-accent: #ffffff;
+
+  /* VitePress mapped onto the app tokens */
+  --vp-c-bg: #f9f9f7;
+  --vp-c-bg-alt: #f0efec;
+  --vp-c-bg-elv: #fcfcfb;
+  --vp-c-bg-soft: #f0efec;
+  --vp-c-divider: #e1e0d9;
+  --vp-c-gutter: #e8e7e2;
+  --vp-c-border: rgba(11, 11, 11, 0.18);
+  --vp-c-text-1: #0b0b0b;
+  --vp-c-text-2: #52514e;
+  --vp-c-text-3: #898781;
+  --vp-c-brand-1: #2a78d6;
+  --vp-c-brand-2: #256abf;
+  --vp-c-brand-3: #2a78d6;
+  --vp-c-brand-soft: rgba(42, 120, 214, 0.10);
+  --vp-code-block-bg: #f0efec;
+  --vp-sidebar-bg-color: #f9f9f7;
+
+  /* hero: accent → cat-7 (the two hues of the logo, both app tokens) */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #2a78d6 15%, #6250d6 85%);
+  --vp-home-hero-image-background-image: radial-gradient(circle, rgba(42, 120, 214, 0.22) 0%, transparent 70%);
+  --vp-home-hero-image-filter: blur(56px);
+}
+
+.dark {
+  /* app tokens (dark) */
+  --wf-surface: #1a1a19;
+  --wf-surface-2: #232321;
+  --wf-border: rgba(255, 255, 255, 0.10);
+  --wf-border-strong: rgba(255, 255, 255, 0.18);
+  --wf-ink: #f0efec;
+  --wf-ink-2: #c3c2b7;
+  --wf-ink-3: #898781;
+  --wf-line: #898781;
+  --wf-accent: #3987e5;
+  --wf-accent-wash: rgba(57, 135, 229, 0.16);
+  --wf-on-accent: #ffffff;
+
+  --vp-c-bg: #0d0d0d;
+  --vp-c-bg-alt: #121211;
+  --vp-c-bg-elv: #1a1a19;
+  --vp-c-bg-soft: #1a1a19;
+  --vp-c-divider: #2c2c2a;
+  --vp-c-gutter: #0d0d0d;
+  --vp-c-border: rgba(255, 255, 255, 0.18);
+  --vp-c-text-1: #f0efec;
+  --vp-c-text-2: #c3c2b7;
+  --vp-c-text-3: #898781;
+  --vp-c-brand-1: #5598e7;
+  --vp-c-brand-2: #3987e5;
+  --vp-c-brand-3: #2a78d6;
+  --vp-c-brand-soft: rgba(57, 135, 229, 0.16);
+  --vp-code-block-bg: #1a1a19;
+  --vp-sidebar-bg-color: #0d0d0d;
+
+  --vp-home-hero-name-background: linear-gradient(120deg, #3987e5 15%, #9085e9 85%);
+  --vp-home-hero-image-background-image: radial-gradient(circle, rgba(57, 135, 229, 0.28) 0%, transparent 70%);
+}
+
+.VPHero .image-src {
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 48px;
+}
+
+/* Feature cards and buttons: app radius (8 px) and hairline borders. */
+.VPFeature { border-radius: 8px; border: 1px solid var(--vp-c-divider); }
+.VPButton { border-radius: 6px !important; }
+
+/* Screenshots: framed, and never wider than the column. */
+.vp-doc img.shot,
+.vp-doc .shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  margin: 16px 0 6px;
+}
+.vp-doc .caption {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  margin: 0 0 20px;
+}
+
+/* Home sections below the hero. */
+.home-section {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 48px 24px 0;
+}
+.home-section h2 {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+.home-section h2:not(:first-child) {
+  margin-top: 64px;
+}
+.home-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.home-gallery figure {
+  margin: 0;
+}
+.home-gallery figure img {
+  width: 100%;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+.home-gallery figcaption {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  margin-top: 6px;
+}
+.home-gallery figure.wide {
+  grid-column: 1 / -1;
+}
+@media (max-width: 720px) {
+  .home-gallery { grid-template-columns: 1fr; }
+}
