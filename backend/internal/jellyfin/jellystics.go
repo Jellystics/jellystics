@@ -45,7 +45,14 @@ type JellysticsInfo struct {
 	// its health check of /api/me/health (nil = not checked yet).
 	MeLinked    *bool `json:"meLinked"`
 	MeReachable *bool `json:"meReachable"`
-	Counts      struct {
+	// Newer plugins also report what they hold (nil = not reported):
+	// MeSecretFingerprint = first 16 lowercase hex chars of sha256(secret),
+	// MeLinkedURL = url last pushed via Link, MeError = null | "unreachable"
+	// | "secretMismatch".
+	MeSecretFingerprint *string `json:"meSecretFingerprint"`
+	MeLinkedURL         *string `json:"meLinkedUrl"`
+	MeError             *string `json:"meError"`
+	Counts              struct {
 		Plays          int64 `json:"plays"`
 		LibraryEvents  int64 `json:"libraryEvents"`
 		UserDataEvents int64 `json:"userDataEvents"`
@@ -380,15 +387,37 @@ func (c *Client) LocalAddr(ctx context.Context) (net.IP, error) {
 			port = "443"
 		}
 	}
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(u.Hostname(), port))
+	target := net.JoinHostPort(u.Hostname(), port)
+	dial := func(network string) (net.IP, error) {
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, network, target)
+		if err != nil {
+			return nil, err
+		}
+		defer conn.Close()
+		addr, ok := conn.LocalAddr().(*net.TCPAddr)
+		if !ok {
+			return nil, fmt.Errorf("unexpected local address %v", conn.LocalAddr())
+		}
+		return addr.IP, nil
+	}
+	ip, err := dial("tcp")
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
-	addr, ok := conn.LocalAddr().(*net.TCPAddr)
-	if !ok {
-		return nil, fmt.Errorf("unexpected local address %v", conn.LocalAddr())
+	return PreferUsableIP(ip, func() (net.IP, error) { return dial("tcp4") }), nil
+}
+
+// PreferUsableIP returns ip unless it is an IPv6 link-local or loopback
+// address (unusable in a URL without its zone, or meaningless to Jellyfin);
+// then an IPv4 address from v4 is preferred when one can be obtained,
+// else ip is kept as is.
+func PreferUsableIP(ip net.IP, v4 func() (net.IP, error)) net.IP {
+	if ip.To4() != nil || !(ip.IsLinkLocalUnicast() || ip.IsLoopback()) {
+		return ip
 	}
-	return addr.IP, nil
+	if alt, err := v4(); err == nil && alt.To4() != nil {
+		return alt
+	}
+	return ip
 }

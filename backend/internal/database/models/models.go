@@ -319,6 +319,7 @@ type PluginSyncState struct {
 	MeLinkedSecretHash *string    `gorm:"column:me_linked_secret_hash"            json:"-"` // sha256 hex of the secret pushed
 	MeLinkedAt         *time.Time `gorm:"column:me_linked_at"                     json:"-"`
 	MeLinkError        *string    `gorm:"column:me_link_error"                    json:"-"`
+	MeError            *string    `gorm:"column:me_error"                         json:"-"` // plugin-reported (migration 018)
 }
 
 func (PluginSyncState) TableName() string { return "plugin_sync_state" }
