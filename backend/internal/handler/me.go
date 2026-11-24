@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/middleware"
+	"github.com/Jellystics/Jellystics/internal/statsql"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -91,14 +92,17 @@ func toMeTotals(t Totals) meTotals {
 // ---------------------------------------------------------------------------
 
 type meProfile struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	PrimaryImageTag *string    `json:"primaryImageTag"`
-	MemberSince     *time.Time `json:"memberSince"`
-	Totals          meTotals   `json:"totals"`
-	Previous        *meTotals  `json:"previous,omitempty"`
-	FavoriteDevice  *string    `json:"favoriteDevice"`
-	Calendar        []struct {
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	PrimaryImageTag *string `json:"primaryImageTag"`
+	// Timezone: IANA display zone of every date / hour (the admin pages'
+	// zone); the me app computes its period presets in it.
+	Timezone       string     `json:"timezone"`
+	MemberSince    *time.Time `json:"memberSince"`
+	Totals         meTotals   `json:"totals"`
+	Previous       *meTotals  `json:"previous,omitempty"`
+	FavoriteDevice *string    `json:"favoriteDevice"`
+	Calendar       []struct {
 		Date         string `json:"date"`
 		WatchSeconds int64  `json:"watchSeconds"`
 	} `json:"calendar"`
@@ -149,6 +153,7 @@ func (m *MeHandler) Profile(c *gin.Context) {
 		return
 	}
 	out.PrimaryImageTag = u.PrimaryImageTag
+	out.Timezone, _ = statsql.Timezone()
 	c.JSON(http.StatusOK, out)
 }
 
@@ -394,31 +399,15 @@ func (m *MeHandler) Habits(c *gin.Context) {
 // GET /api/me/devices — devices and clients (no IP).
 // ---------------------------------------------------------------------------
 
-type meDevice struct {
-	Device       string     `json:"device"`
-	Client       string     `json:"client"`
-	Version      string     `json:"version"`
-	Views        int        `json:"views"`
-	Clicks       int        `json:"clicks"`
-	WatchSeconds int64      `json:"watchSeconds"`
-	LastUsed     *time.Time `json:"lastUsed"`
-}
-
 func (m *MeHandler) Devices(c *gin.Context) {
 	p, ok := m.params(c)
 	if !ok {
 		return
 	}
 	h, f := m.v2, p.filter(p.Range)
-	devices := []meDevice{}
-	q, args := f.sql(`SELECT COALESCE(device_name, '') AS device, COALESCE(client, '') AS client, COALESCE(app_version, '') AS version,
-		` + aggPlays + ` AS views, ` + aggClicks + ` AS clicks, ` + aggSeconds + ` AS watch_seconds, MAX(started_at) AS last_used
-		FROM acts GROUP BY 1, 2, 3 ORDER BY views DESC, clicks DESC, device LIMIT 20`)
-	if v2Fail(c, h.raw(c, &devices, q, args...)) {
+	devices, err := h.userDevices(c, f) // same list as the admin user page
+	if v2Fail(c, err) {
 		return
-	}
-	for i := range devices {
-		devices[i].LastUsed = localTimePtr(devices[i].LastUsed)
 	}
 	clients, err := h.clients(c, f)
 	if v2Fail(c, err) {
