@@ -11,7 +11,6 @@ import (
 	"github.com/Jellystics/Jellystics/internal/jellyfin"
 )
 
-
 func runOK(t *testing.T, s *Service) {
 	t.Helper()
 	if _, err := s.Run(context.Background()); err != nil {
