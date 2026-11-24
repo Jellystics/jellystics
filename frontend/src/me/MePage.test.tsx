@@ -126,13 +126,14 @@ describe('unavailable states', () => {
     [502, { error: 'secretMismatch' }, 'app.me.unavailable.relinking'],
     [504, undefined, 'app.me.unavailable.unreachable'],
     [401, { error: 'invalid secret' }, 'app.me.unavailable.notLinked'],
-    [403, { error: 'unknown user' }, 'app.me.unavailable.forbidden'],
+    [403, { error: 'unknown user' }, 'app.me.unavailable.unknownUser'],
+    [403, { error: 'nope' }, 'app.me.unavailable.forbidden'],
     [500, { error: 'internal error' }, 'app.me.unavailable.error'],
   ])('%i %j shows the reason', async (status, body, text) => {
     stubApi({ '*': { status, body } })
     renderMe()
     const alert = await screen.findByRole('alert', undefined, { timeout: 3000 }) // a plain error is retried once
-    expect(within(alert).getByText('app.me.unavailable.title')).toBeInTheDocument()
+    expect(within(alert).getByText(text.endsWith('unknownUser') ? 'app.me.unavailable.unknownUserTitle' : 'app.me.unavailable.title')).toBeInTheDocument()
     expect(within(alert).getByText(text)).toBeInTheDocument()
     expect(within(alert).getByRole('button', { name: 'app.action.retry' })).toBeInTheDocument()
     expect(within(alert).getByRole('link', { name: 'app.me.back' })).toHaveAttribute('href', '/jellyfin/web/')

@@ -1517,6 +1517,8 @@
         "unreachable": "Jellyfin cannot reach Jellystics right now. Try again in a moment.",
         "relinking": "Jellystics is reconnecting, try again in a minute.",
         "forbidden": "Jellystics does not know your account yet. It will after its next sync with Jellyfin.",
+        "unknownUserTitle": "Your stats are on the way",
+        "unknownUser": "Jellystics has not synced your account yet.",
         "signedOut": "Your Jellyfin session has expired. Sign in to Jellyfin again.",
         "error": "Something went wrong while loading your statistics."
       }

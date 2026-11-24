@@ -1517,6 +1517,8 @@
         "unreachable": "Jellyfin n’arrive pas à joindre Jellystics pour le moment. Réessaie dans un instant.",
         "relinking": "Jellystics se reconnecte, réessaie dans une minute.",
         "forbidden": "Jellystics ne connaît pas encore ton compte. Ce sera le cas après sa prochaine synchronisation avec Jellyfin.",
+        "unknownUserTitle": "Tes statistiques arrivent",
+        "unknownUser": "Jellystics n’a pas encore synchronisé ton compte.",
         "signedOut": "Ta session Jellyfin a expiré. Reconnecte-toi à Jellyfin.",
         "error": "Une erreur est survenue au chargement de tes statistiques."
       }

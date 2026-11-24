@@ -6,7 +6,7 @@ import type { MeRange } from './period'
 import type { MeDevices, MeHabits, MeHistory, MeOverview, MeProfile, MeScatter, MeTop, MeTypes } from './types'
 
 /** Why the statistics cannot be shown. */
-export type UnavailableReason = 'signedOut' | 'notLinked' | 'unreachable' | 'relinking' | 'forbidden' | 'error'
+export type UnavailableReason = 'signedOut' | 'notLinked' | 'unreachable' | 'relinking' | 'forbidden' | 'unknownUser' | 'error'
 
 export class MeApiError extends Error {
   constructor(public status: number, public reason: UnavailableReason, public body: unknown) { super(`HTTP ${status}`) }
@@ -30,7 +30,7 @@ export function errorReason(status: number, body: unknown): UnavailableReason {
   if (code === 'secretmismatch') return 'relinking'
   if (code === 'unreachable' || code === 'timeout') return 'unreachable'
   if (status === 401) return code === 'invalidsecret' ? 'notLinked' : 'signedOut'
-  if (status === 403) return 'forbidden'
+  if (status === 403) return code === 'unknownuser' ? 'unknownUser' : 'forbidden'
   if (status === 503) return 'notLinked'
   if (status === 502 || status === 504) return 'unreachable'
   return 'error'

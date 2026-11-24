@@ -10,7 +10,9 @@ describe('errorReason', () => {
     [500, { error: 'timeout' }, 'unreachable'],
     [401, { error: 'invalid secret' }, 'notLinked'],
     [401, '', 'signedOut'],
-    [403, { error: 'unknown user' }, 'forbidden'],
+    [403, { error: 'unknown user' }, 'unknownUser'],
+    [403, { error: 'forbidden' }, 'forbidden'],
+    [403, undefined, 'forbidden'],
     [500, { error: 'internal error' }, 'error'],
     [400, { error: 'invalid from' }, 'error'],
   ])('%i %j → %s', (status, body, reason) => expect(errorReason(status, body)).toBe(reason))

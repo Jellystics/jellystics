@@ -70,7 +70,7 @@ export function Unavailable({ basePath, reason, onRetry }: { basePath: string; r
           <EmptyState
             role="alert"
             icon={<PlugZap size={20} strokeWidth={1.6} />}
-            title={t('app.me.unavailable.title')}
+            title={t(reason === 'unknownUser' ? 'app.me.unavailable.unknownUserTitle' : 'app.me.unavailable.title')}
             description={t(`app.me.unavailable.${reason}`)}
             action={
               <div className={s.actions}>
