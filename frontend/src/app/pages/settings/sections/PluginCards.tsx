@@ -130,8 +130,8 @@ function MeLinkBlock({ st }: { st: PluginStatus }) {
         <div>
           <dt>{t('app.settings.plugin.me.url')}</dt>
           <dd>
-            {st.meUrl ? <code className={styles.url}>{st.meUrl}</code> : t('app.settings.plugin.me.urlUnknown')}
-            {st.meUrl && ` (${t(st.meUrlSource === 'env' ? 'app.settings.plugin.me.sourceEnv' : 'app.settings.plugin.me.sourceAuto')})`}
+            {st.meUrl ? <code className={styles.url} title={st.meUrl}>{st.meUrl}</code> : t('app.settings.plugin.me.urlUnknown')}
+            {st.meUrl && <span className={styles.text}>{`(${t(st.meUrlSource === 'env' ? 'app.settings.plugin.me.sourceEnv' : 'app.settings.plugin.me.sourceAuto')})`}</span>}
           </dd>
         </div>
       </dl>
@@ -155,7 +155,7 @@ function InstallHelp() {
       </ul>
       <p className={styles.text}>{t('app.settings.plugin.absent.steps')}</p>
       <div className={styles.manifest}>
-        <code className={styles.url} aria-label={t('app.settings.plugin.absent.manifest')}>{PLUGIN_MANIFEST_URL}</code>
+        <code className={styles.url} title={PLUGIN_MANIFEST_URL} aria-label={t('app.settings.plugin.absent.manifest')}>{PLUGIN_MANIFEST_URL}</code>
         <Button icon={<Copy size={16} strokeWidth={1.6} />} onClick={copy}>{t('app.settings.plugin.absent.copy')}</Button>
       </div>
     </div>
