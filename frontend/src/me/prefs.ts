@@ -22,12 +22,12 @@ export function pickLanguage(candidates: (string | null | undefined)[]): Languag
 const LIGHT_THEMES = new Set(['light', 'appletv', 'catppuccin-latte'])
 
 /**
- * Page theme: the Jellyfin theme of the user when known, else light only when the browser asks for it,
- * dark otherwise (Jellyfin's default).
+ * Page theme: dark (Jellyfin's default) unless the stored Jellyfin theme of the user is a light one; the browser
+ * color scheme is deliberately ignored.
  */
-export function resolveTheme(jellyfinTheme: string | null | undefined, prefersLight: boolean): 'light' | 'dark' {
+export function resolveTheme(jellyfinTheme: string | null | undefined): 'light' | 'dark' {
   if (jellyfinTheme) return LIGHT_THEMES.has(jellyfinTheme.toLowerCase()) ? 'light' : 'dark'
-  return prefersLight ? 'light' : 'dark'
+  return 'dark'
 }
 
 /** Per-user jellyfin-web setting (null when absent or storage is blocked). */

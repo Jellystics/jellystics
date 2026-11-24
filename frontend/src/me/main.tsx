@@ -19,10 +19,8 @@ function start() {
   const userId = session?.userId ?? null
   const basePath = basePathFrom(window.location.pathname)
 
-  const light = window.matchMedia?.('(prefers-color-scheme: light)')
-  const applyTheme = () => { document.documentElement.dataset.theme = resolveTheme(jellyfinSetting(store, userId, 'appTheme'), !!light?.matches) }
+  const applyTheme = () => { document.documentElement.dataset.theme = resolveTheme(jellyfinSetting(store, userId, 'appTheme')) }
   applyTheme()
-  light?.addEventListener?.('change', applyTheme)
 
   initMeI18n(pickLanguage([jellyfinSetting(store, userId, 'language'), ...(navigator.languages ?? []), navigator.language]))
 

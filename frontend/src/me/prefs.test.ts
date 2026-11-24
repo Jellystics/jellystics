@@ -8,15 +8,16 @@ describe('pickLanguage', () => {
 
 describe('resolveTheme', () => {
   it('follows the Jellyfin theme when set', () => {
-    expect(resolveTheme('light', false)).toBe('light')
-    expect(resolveTheme('appletv', false)).toBe('light')
-    expect(resolveTheme('catppuccin-latte', false)).toBe('light')
-    expect(resolveTheme('purplehaze', true)).toBe('dark')
-    expect(resolveTheme('dark', true)).toBe('dark')
+    expect(resolveTheme('light')).toBe('light')
+    expect(resolveTheme('appletv')).toBe('light')
+    expect(resolveTheme('catppuccin-latte')).toBe('light')
+    expect(resolveTheme('purplehaze')).toBe('dark')
+    expect(resolveTheme('dark')).toBe('dark')
   })
-  it('is dark by default, light when the browser prefers it', () => {
-    expect(resolveTheme(null, false)).toBe('dark')
-    expect(resolveTheme(null, true)).toBe('light')
+  it('is dark by default, whatever the browser prefers', () => {
+    expect(resolveTheme(null)).toBe('dark')
+    expect(resolveTheme(undefined)).toBe('dark')
+    expect(resolveTheme('')).toBe('dark')
   })
 })
 

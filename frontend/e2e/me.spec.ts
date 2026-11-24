@@ -81,7 +81,7 @@ test('me page: renders every section under the plugin path, no console error, no
   await expect(page.getByText('Living room TV')).toBeVisible()
   await page.waitForLoadState('networkidle')
   await expectNoOverflow(page)
-  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe(info.project.use.colorScheme === 'light' ? 'light' : 'dark')
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark') // no stored Jellyfin theme: dark, whatever the browser prefers
   for (const s of seen) {
     expect(s).toMatch(/\|MediaBrowser Token="tok-123"$/)
     expect(s.toLowerCase()).not.toContain('user')
