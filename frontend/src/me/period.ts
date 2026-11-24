@@ -15,7 +15,23 @@ export function meRange(preset: MePreset, today: string): MeRange {
   return { preset, from: addDays(today, 1 - DAYS[preset]), to, compare: true }
 }
 
-/** Local calendar date of the browser (the server display zone is not exposed to the page). */
+/** Local calendar date of the browser. */
 export function localToday(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Calendar date in the server display zone (IANA name from /api/me/profile, the zone of the admin pages), so the
+ * presets cover the same days as the server; the browser date when the zone is missing or unknown.
+ */
+export function todayIn(timeZone: string | null | undefined, now = new Date()): string {
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now)
+      const get = (type: string) => parts.find((x) => x.type === type)?.value
+      const y = get('year'), m = get('month'), d = get('day')
+      if (y && m && d) return `${y}-${m}-${d}`
+    } catch { /* unknown zone: browser date */ }
+  }
+  return localToday(now)
 }

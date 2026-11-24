@@ -9,7 +9,7 @@ const day = (i: number) => `2026-11-${String(i + 1).padStart(2, '0')}`
 export const ME_USER_ID = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
 
 export const meProfile: MeProfile = {
-  id: ME_USER_ID, name: 'Alice', primaryImageTag: 'tag1', memberSince: '2025-11-24T12:00:00+01:00',
+  id: ME_USER_ID, name: 'Alice', primaryImageTag: 'tag1', timezone: 'Europe/Paris', memberSince: '2025-11-24T12:00:00+01:00',
   totals: { watchSeconds: 34_200, views: 18, clicks: 21, completion: 0.8625 },
   previous: { watchSeconds: 0, views: 0, clicks: 0, completion: null },
   favoriteDevice: 'Chrome',

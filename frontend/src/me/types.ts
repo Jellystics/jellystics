@@ -10,6 +10,8 @@ export interface MeProfile {
   id: string
   name: string
   primaryImageTag: string | null
+  /** IANA display zone of the server (dates, hours, period presets). */
+  timezone: string
   memberSince: string | null
   totals: Totals
   previous?: Totals

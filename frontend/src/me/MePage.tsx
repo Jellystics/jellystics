@@ -10,7 +10,7 @@ import { Skeleton } from '@/ui/Skeleton'
 import { useFormat } from '@/lib/format'
 import { dateOf } from '@/app/pages/history/links'
 import { MeApiError, useMeProfile, type UnavailableReason } from './api'
-import { isPreset, localToday, meRange, ME_PRESETS, type MePreset } from './period'
+import { isPreset, meRange, ME_PRESETS, todayIn, type MePreset } from './period'
 import { jellyfinHome, userImageUrl, type Session } from './session'
 import { DailyCard, DevicesCards, HabitsCard, HistoryCard, KpiStrip, PlaysCard, TopCard, TypesCard } from './sections'
 import l from '@/app/pages/overview/layout.module.css'
@@ -101,10 +101,11 @@ export function MePage({ session, basePath }: { session: Session; basePath: stri
   const { t } = useTranslation()
   const f = useFormat()
   const [preset, setPreset] = useState<MePreset>(readPreset)
-  const [today] = useState(localToday)
-  const range = meRange(preset, today)
+  const [now] = useState(() => new Date())
   const profile = useMeProfile(session)
   const p = profile.data
+  // Sections render once the profile is known, so the range is always in the server display zone.
+  const range = meRange(preset, todayIn(p?.timezone, now))
 
   const err = profile.error
   if (!p && err instanceof MeApiError && err.reason !== 'error') return <Unavailable basePath={basePath} reason={err.reason} onRetry={() => profile.refetch()} />
