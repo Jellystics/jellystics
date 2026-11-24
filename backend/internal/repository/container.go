@@ -21,6 +21,7 @@ type Container struct {
 	Stats       StatsRepository
 	AuthSession AuthSessionRepository
 	PluginSync  PluginSyncRepository
+	MeLink      MeLinkRepository
 }
 
 // New wires all GORM-backed repository implementations.
@@ -43,5 +44,6 @@ func New(db *gorm.DB) *Container {
 		Stats:       &statsRepo{db},
 		AuthSession: &authSessionRepo{db},
 		PluginSync:  &pluginSyncRepo{db},
+		MeLink:      &meLinkRepo{db},
 	}
 }

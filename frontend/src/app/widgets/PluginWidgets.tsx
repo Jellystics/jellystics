@@ -1,16 +1,16 @@
 // Widgets fed by the precise data of the Jellystics plugin. Each one hides
 // itself when the plugin has no data for the period (never a row of zeros)
 // and says "data collected from …" when the plugin started inside it.
-import type { ReactNode } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { Info } from 'lucide-react'
-import type { PlayedToEnd, SkipStats } from '@/api'
+import type { SkipStats } from '@/api'
 import { useUserLogins, type ItemMarks, type LoginDevice } from '@/api/pluginData'
 import { useFormat } from '@/lib/format'
-import { Card, CardBody, CardHeader, DataTable, EmptyState, SegBar, StatStrip, StatTile, Tooltip } from '@/ui'
+import { Card, CardBody, CardHeader, DataTable, EmptyState, SegBar, StatStrip, StatTile } from '@/ui'
 import { usePluginPartial } from './plugin'
 import s from './PluginWidgets.module.css'
+
+export { FinishedFoot, FinishedTile } from './Finished'
 
 /** "Data collected from …" when the plugin data starts after the period start. */
 export function PluginSinceNote({ since }: { since: string | null | undefined }) {
@@ -19,38 +19,6 @@ export function PluginSinceNote({ since }: { since: string | null | undefined })
   const partial = usePluginPartial(since)
   if (!partial || !since) return null
   return <p className={s.note}>{t('app.analytics.collectedSince', { date: f.day(new Date(`${since}T12:00:00`)) })}</p>
-}
-
-/** Foot of a finished-views figure: how many units the plugin measured (Jellyfin end-of-playback report) vs estimated from the stop position. */
-export function FinishedFoot({ data }: { data: PlayedToEnd }) {
-  const { t } = useTranslation()
-  const f = useFormat()
-  const estimated = data.plays - data.measured
-  const foot = estimated > 0
-    ? t('app.plugin.playedToEnd.footMixed', { measured: f.number(data.measured), estimated: f.number(estimated) })
-    : t('app.plugin.playedToEnd.footMeasured', { count: data.measured })
-  return (
-    <Tooltip content={t('app.plugin.playedToEnd.tip')}>
-      <span tabIndex={0} className={s.tipFoot}>{foot}<Info size={12} aria-hidden="true" /></span>
-    </Tooltip>
-  )
-}
-
-/**
- * The "finished views" tile of an entity page: (user, item, day) units
- * finished per Jellyfin's report when the plugin measured it, else per the
- * stop position (>= 90 %). Same count as the funnel's last step.
- */
-export function FinishedTile({ data, foot }: { data: PlayedToEnd; foot?: ReactNode }) {
-  const { t } = useTranslation()
-  const f = useFormat()
-  return (
-    <StatTile
-      label={t('app.metric.finishedViews')}
-      value={data.ratio == null ? '—' : f.percent(data.ratio)}
-      foot={data.measured > 0 ? <FinishedFoot data={data} /> : foot}
-    />
-  )
 }
 
 /** Skipped time to the second (seconds matter for an intro skip). */

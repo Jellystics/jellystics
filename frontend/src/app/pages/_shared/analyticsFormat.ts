@@ -1,4 +1,5 @@
 // Formatting helpers of the analysis pages.
+import { formatHoursAxis } from '@/lib/format'
 
 /** Bit/s → "8,5" (Mb/s, unit added by the caller's translation). */
 export function formatMbps(bps: number, locale = 'fr'): string {
@@ -11,10 +12,9 @@ export function formatBitrate(bps: number, locale = 'fr'): string {
   return `${formatMbps(bps, locale)} Mb/s`
 }
 
-/** Hours with one decimal under 10 (y axes of watch-time charts). */
+/** Seconds on watch-time axes: see formatHoursAxis (distinct labels for small ticks). */
 export function formatHours(seconds: number, locale = 'fr'): string {
-  const h = seconds / 3600
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: h < 10 ? 1 : 0 }).format(h)} h`
+  return formatHoursAxis(seconds / 3600, locale)
 }
 
 /** "2026-11" → "nov." (+ year when it is not the current one). */

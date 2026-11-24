@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/Jellystics/Jellystics/internal/config"
@@ -82,6 +83,10 @@ func New(svcs *service.Container, repos *repository.Container, hub *ws.Hub, db *
 	}
 	r.POST("/auth/logout", middleware.Auth(svcs.Auth), frontAuthH.Logout)
 	r.GET("/auth/me", middleware.Auth(svcs.Auth), frontAuthH.Me)
+
+	// ── « Mes statistiques » (plugin relay) ───────────────────────────────────
+	// Plugin shared secret + forwarded Jellyfin user; no session auth.
+	RegisterMe(r, repos, db)
 
 	// ── Authenticated routes ──────────────────────────────────────────────────
 	authed := r.Group("", middleware.Auth(svcs.Auth))
@@ -225,4 +230,21 @@ func metricsAuth(repos *repository.Container) gin.HandlerFunc {
 		c.Header("WWW-Authenticate", "Bearer")
 		c.AbortWithStatus(401)
 	}
+}
+
+// RegisterMe mounts /api/me: health needs the plugin secret, every other
+// endpoint also the X-Jellystics-User of a known Jellyfin user.
+func RegisterMe(r gin.IRouter, repos *repository.Container, db *gorm.DB) {
+	secret := repos.MeLink.Secret
+	userExists := func(ctx context.Context, id string) (bool, error) {
+		_, err := repos.User.GetByID(ctx, id)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	}
+	meH := handler.NewMeHandler(db)
+	me := r.Group("/api/me")
+	me.GET("/health", middleware.PluginMe(secret, userExists, false), meH.Health)
+	meH.Register(me.Group("", middleware.PluginMe(secret, userExists, true)))
 }

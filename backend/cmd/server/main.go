@@ -97,6 +97,7 @@ func main() {
 	webhookSvc := webhooksvc.New(repos)
 	pluginSvc := pluginsync.New(repos)
 	pluginSvc.OnDataChanged = handler.ResetStatsCaches
+	pluginSvc.PublicURL, pluginSvc.Port = cfg.PublicURL, cfg.Port
 	svcs := &service.Container{
 		Auth:       authsvc.New(repos, jfClient, cfg),
 		Sync:       syncSvc,
@@ -182,6 +183,8 @@ func main() {
 	if !cfg.DisableDashboard {
 		webFS, err := fs.Sub(assets.Web, "web")
 		if err == nil {
+			// « Mes statistiques » app (proxied by the plugin under /Jellystics/Me/).
+			r.GET("/me/*path", handler.MeStatic(webFS))
 			r.NoRoute(spaHandler(webFS))
 		}
 	} else {

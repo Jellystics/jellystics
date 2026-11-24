@@ -89,7 +89,7 @@ function PlaysScatter({ data, title, subtitle }: { data: OverviewPlays; title: s
             radius={4}
             xLabel={t('app.overview.plays.x')}
             yLabel={t('app.overview.plays.y')}
-            yFormat={f.compact}
+            yFormat={f.axis}
             onPointClick={(i) => { const it = plays[i].item; navigate(withPeriod(entityPath(it.kind, it.id, it.parentId), new URLSearchParams(search))) }}
           />
           {data.capped && <div className={l.note}>{t('app.overview.plays.capped', { value: f.number(data.limit) })}</div>}

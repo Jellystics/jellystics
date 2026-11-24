@@ -329,11 +329,13 @@ func (h *V2Handler) User(c *gin.Context) {
 		Version string `json:"version"`
 		Views   int    `json:"views"`
 	}
-	devices := []device{}
-	q, args = f.sql(`SELECT COALESCE(device_name, '') AS device, COALESCE(client, '') AS client, COALESCE(app_version, '') AS version,
-		COUNT(*)::int AS views FROM acts WHERE is_view GROUP BY 1, 2, 3 ORDER BY views DESC, device LIMIT 20`)
-	if v2Fail(c, h.raw(c, &devices, q, args...)) {
+	rows, err := h.userDevices(c, f)
+	if v2Fail(c, err) {
 		return
+	}
+	devices := make([]device, len(rows))
+	for i, d := range rows {
+		devices[i] = device{d.Device, d.Client, d.Version, d.Views}
 	}
 	out["devices"] = devices
 
@@ -350,6 +352,35 @@ func (h *V2Handler) User(c *gin.Context) {
 	out["streak"] = gin.H{"current": cur, "best": best}
 
 	c.JSON(http.StatusOK, out)
+}
+
+// deviceRow is one (device, client, version) of the user page device list.
+type deviceRow struct {
+	Device       string     `json:"device"`
+	Client       string     `json:"client"`
+	Version      string     `json:"version"`
+	Views        int        `json:"views"`
+	Clicks       int        `json:"clicks"`
+	WatchSeconds int64      `json:"watchSeconds"`
+	LastUsed     *time.Time `json:"lastUsed"`
+}
+
+// userDevices returns the 20 (device, client, version) with the most views
+// (combinations without a view are left out), shared by the admin user page
+// and /api/me/devices.
+func (h *V2Handler) userDevices(c *gin.Context, f *actFilter) ([]deviceRow, error) {
+	out := []deviceRow{}
+	q, args := f.sql(`SELECT COALESCE(device_name, '') AS device, COALESCE(client, '') AS client, COALESCE(app_version, '') AS version,
+		` + aggPlays + ` AS views, ` + aggClicks + ` AS clicks, ` + aggSeconds + ` AS watch_seconds, MAX(started_at) AS last_used
+		FROM acts GROUP BY 1, 2, 3 HAVING ` + aggPlays + ` > 0
+		ORDER BY views DESC, device, client, version LIMIT 20`)
+	if err := h.raw(c, &out, q, args...); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].LastUsed = localTimePtr(out[i].LastUsed)
+	}
+	return out, nil
 }
 
 // streaks returns the current (ending today or yesterday) and best runs of

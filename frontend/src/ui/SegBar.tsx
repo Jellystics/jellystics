@@ -8,10 +8,12 @@ export function SegBar({ parts, thin }: { parts: SegPart[]; thin?: boolean }) {
   const { i18n } = useTranslation()
   const locale = i18n.resolvedLanguage ?? 'fr'
   const total = parts.reduce((a, p) => a + p.value, 0) || 1
+  // An empty part would still show its padding (and a gap) as a sliver of color: it only goes in the legend.
+  const drawn = parts.filter((p) => p.value > 0)
   if (thin) {
     return (
       <div className={styles.thin} role="list">
-        {parts.map((p) => (
+        {drawn.map((p) => (
           <span key={p.label} role="listitem" tabIndex={0} aria-label={`${p.label} : ${p.display ?? formatPercent(p.value / total, locale)}`} style={{ flex: p.value, background: p.color }} />
         ))}
       </div>
@@ -20,7 +22,7 @@ export function SegBar({ parts, thin }: { parts: SegPart[]; thin?: boolean }) {
   return (
     <>
       <div className={styles.tall} role="list">
-        {parts.map((p) => {
+        {drawn.map((p) => {
           const share = p.value / total
           const pct = formatPercent(share, locale)
           return (

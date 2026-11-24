@@ -23,6 +23,30 @@ export interface PluginStatus {
   healthy: boolean
   /** Plays recorded by the plugin stored in Jellystics. */
   playsSynced: number
+  // « Mes statistiques » link (read only; the URL override lives in the plugin settings, in Jellyfin).
+  /** The plugin holds a Jellystics url + secret. */
+  meLinked?: boolean
+  /** The plugin's check of Jellystics /api/me/health; null = not checked yet. */
+  meReachable?: boolean | null
+  /** URL Jellystics pushes to the plugin ("" = not detected yet). */
+  meUrl?: string
+  meUrlSource?: 'env' | 'auto'
+  meLinkedUrl?: string | null
+  meLinkedAt?: ISOTime | null
+  /** Last push error (cleared on success). */
+  meLinkError?: string | null
+  /** Plugin-reported error. */
+  meError?: 'unreachable' | 'secretMismatch' | null
+}
+
+export type MeLinkState = 'active' | 'unreachable' | 'relinking' | 'notLinked'
+
+/** State of the « Mes statistiques » link shown in Settings. */
+export function meLinkState(st: Pick<PluginStatus, 'meLinked' | 'meReachable' | 'meError'>): MeLinkState {
+  if (st.meError === 'secretMismatch') return 'relinking'
+  if (!st.meLinked) return 'notLinked'
+  if (st.meError === 'unreachable' || st.meReachable === false) return 'unreachable'
+  return 'active'
 }
 
 export type PushState = 'idle' | 'running' | 'done' | 'error' | 'interrupted'

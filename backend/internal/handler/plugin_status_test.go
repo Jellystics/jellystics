@@ -33,6 +33,16 @@ func TestPluginStatus(t *testing.T) {
 		body["playsSynced"] != float64(0) || body["supportedSchemaVersion"] != float64(1) {
 		t.Fatalf("body = %v", body)
 	}
+	for _, k := range []string{"meLinked", "meReachable", "meUrl", "meUrlSource", "meLinkedUrl", "meLinkError"} {
+		if _, ok := body[k]; !ok {
+			t.Errorf("missing %s: %v", k, body)
+		}
+	}
+	for _, k := range []string{"MeLinkedSecretHash", "meLinkedSecretHash", "secret"} {
+		if _, leaked := body[k]; leaked {
+			t.Errorf("%s must not be serialised", k)
+		}
+	}
 	if _, leaked := body["PushCursor"]; leaked {
 		t.Fatalf("push columns must not be serialised: %v", body)
 	}

@@ -157,14 +157,23 @@ func (h *V2Handler) PlaybackClients(c *gin.Context) {
 	if !ok {
 		return
 	}
+	out, err := h.clients(c, p.filter(p.Range))
+	if v2Fail(c, err) {
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// clients returns the 20 clients with the most clicks.
+func (h *V2Handler) clients(c *gin.Context, f *actFilter) ([]clientRow, error) {
 	var rows []clientRow
-	q, args := p.filter(p.Range).sql(`
+	q, args := f.sql(`
 		SELECT COALESCE(NULLIF(client, ''), 'Unknown') AS client, ` + aggClicks + ` AS clicks, ` + aggPlays + ` AS views,
 		       COUNT(*) FILTER (WHERE is_view AND play_method = 'Transcode')::int AS transcodes,
 		       COUNT(*) FILTER (WHERE NOT is_view)::int AS false_starts
 		FROM acts GROUP BY 1 ORDER BY clicks DESC, client LIMIT 20`)
-	if v2Fail(c, h.raw(c, &rows, q, args...)) {
-		return
+	if err := h.raw(c, &rows, q, args...); err != nil {
+		return nil, err
 	}
 	out := make([]clientRow, len(rows))
 	for i, r := range rows {
@@ -172,7 +181,7 @@ func (h *V2Handler) PlaybackClients(c *gin.Context) {
 		r.FalseStartRatio = ratioPtr(r.FalseStarts, r.Clicks)
 		out[i] = r
 	}
-	c.JSON(http.StatusOK, out)
+	return out, nil
 }
 
 // ---------------------------------------------------------------------------

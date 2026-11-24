@@ -43,6 +43,14 @@ type fakePlugin struct {
 	echoImports   bool                        // pushed plays are stored and served back (import-jellystics)
 	noCounts      bool                        // Import/Plays answers {} (no counts)
 	playsDelay    time.Duration               // delay of every /Plays page (concurrency tests)
+	meLinked      *bool                       // reported as meLinked by /Info when set
+	linkMissing   bool                        // older plugin: /Jellystics/Link answers 404
+	links         []map[string]string         // POST /Jellystics/Link bodies
+	linkFail      bool                        // /Jellystics/Link always answers 500
+	reportHeld    bool                        // newer plugin: Link stores and /Info reports fingerprint + url
+	meFingerprint *string                     // reported as meSecretFingerprint when set
+	meLinkedURL   *string                     // reported as meLinkedUrl when set
+	meError       *string                     // reported as meError when set
 }
 
 func newFakePlugin(t *testing.T) *fakePlugin {
@@ -63,6 +71,18 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 			"counts": map[string]int{"plays": len(f.plays)}, "serverTimeZone": "UTC"}
 		if f.databaseId != "" {
 			info["databaseId"] = f.databaseId
+		}
+		if f.meLinked != nil {
+			info["meLinked"] = *f.meLinked
+		}
+		if f.meFingerprint != nil {
+			info["meSecretFingerprint"] = *f.meFingerprint
+		}
+		if f.meLinkedURL != nil {
+			info["meLinkedUrl"] = *f.meLinkedURL
+		}
+		if f.meError != nil {
+			info["meError"] = *f.meError
 		}
 		writeJSON(w, info)
 	})
@@ -204,6 +224,37 @@ func newFakePlugin(t *testing.T) *fakePlugin {
 			res = map[string]int{}
 		}
 		writeJSON(w, res)
+	})
+	// Link: stores url / secret (the plugin is then linked and reachable).
+	mux.HandleFunc("/Jellystics/Link", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.linkMissing || r.Method != http.MethodPost {
+			f.calls[r.URL.Path]++
+			http.NotFound(w, r)
+			return
+		}
+		if f.fail(w, r.URL.Path) {
+			return
+		}
+		if f.linkFail {
+			f.links = append(f.links, nil)
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		f.links = append(f.links, body)
+		linked := true
+		f.meLinked = &linked
+		if f.reportHeld {
+			fp, u := SecretFingerprint(body["secret"]), body["url"]
+			f.meFingerprint, f.meLinkedURL, f.meError = &fp, &u, nil
+		}
+		writeJSON(w, map[string]any{"linked": true, "reachable": true})
 	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)

@@ -56,7 +56,7 @@ export function UserOverview({ user }: { user: UserDetail }) {
     <div className={s.tabBody}>
       <Card>
         <StatStrip columns={5}>
-          <StatTile label={t('app.userPage.tiles.time')} value={f.number(totals.watchSeconds / 3600)} unit={t('app.userPage.tiles.hoursUnit')} delta={previous ? ratioDelta(totals.watchSeconds, previous.watchSeconds, f) : undefined} />
+          <StatTile label={t('app.userPage.tiles.time')} {...f.watchKpi(totals.watchSeconds, t('app.userPage.tiles.hoursUnit'))} delta={previous ? ratioDelta(totals.watchSeconds, previous.watchSeconds, f) : undefined} />
           <StatTile label={t('app.userPage.tiles.views')} value={f.number(totals.views)} delta={previous ? ratioDelta(totals.views, previous.views, f) : undefined} />
           <StatTile label={t('app.userPage.tiles.activeDays')} value={f.number(active)} unit={`/ ${f.number(days)}`} />
           <StatTile label={t('app.userPage.tiles.streak')} value={f.number(user.streak.current)} unit={t('app.userPage.tiles.daysUnit')} foot={t('app.userPage.tiles.record', { count: user.streak.best })} />

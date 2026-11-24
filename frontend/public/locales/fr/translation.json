@@ -718,7 +718,23 @@
           "copy": "Copier l'URL",
           "copied": "URL copiée"
         },
-        "lastErrorValue": "Dernière erreur : {{error}}"
+        "lastErrorValue": "Dernière erreur : {{error}}",
+        "me": {
+          "title": "Page « Mes statistiques »",
+          "active": "Active",
+          "activeHint": "Chaque utilisateur Jellyfin trouve « Mes statistiques » dans le menu de son avatar.",
+          "unreachable": "Jellystics injoignable depuis Jellyfin",
+          "unreachableHint": "Renseigne l’adresse de Jellystics dans les réglages du plugin, dans Jellyfin.",
+          "relinking": "Reconnexion en cours",
+          "relinkingHint": "Le plugin détient un ancien secret : Jellystics le relie à nouveau à la prochaine synchronisation.",
+          "notLinked": "Pas encore reliée",
+          "notLinkedHint": "Jellystics relie le plugin à la prochaine synchronisation (une version récente du plugin est requise).",
+          "url": "Adresse transmise au plugin",
+          "sourceEnv": "JELLYSTICS_PUBLIC_URL",
+          "sourceAuto": "détectée automatiquement",
+          "urlUnknown": "pas encore détectée",
+          "error": "Dernière erreur de liaison : {{error}}"
+        }
       },
       "quality": {
         "title": "Qualité des données",
@@ -1397,6 +1413,114 @@
       },
       "funnel": {
         "ofViews": "{{pct}} des vues · {{done}}/{{views}}"
+      }
+    },
+    "me": {
+      "title": "Mes statistiques",
+      "back": "Retour à Jellyfin",
+      "memberSince": "Spectateur depuis le {{date}}",
+      "sectionError": "Impossible de charger cette section",
+      "period": {
+        "label": "Période",
+        "7d": "7 jours",
+        "30d": "30 jours",
+        "90d": "90 jours",
+        "1y": "1 an",
+        "all": "Depuis le début"
+      },
+      "kpi": {
+        "title": "Chiffres clés",
+        "time": "Temps de visionnage",
+        "hoursUnit": "h",
+        "views": "Vues",
+        "clicks": "Clics",
+        "streak": "Série en cours",
+        "daysUnit": "j",
+        "record_one": "record {{count}} jour",
+        "record_other": "record {{count}} jours",
+        "estimated": "estimé d’après l’arrêt de lecture"
+      },
+      "daily": {
+        "titleDay": "{{metric}} par jour",
+        "titleWeek": "{{metric}} par semaine",
+        "metric": "Mesure",
+        "date": "Date",
+        "week": "Semaine du {{date}}",
+        "hoursValue": "{{value}} h",
+        "empty": "Rien regardé sur cette période"
+      },
+      "top": {
+        "title": "Contenus préférés",
+        "subtitle": "Les plus vus sur la période",
+        "filter": "Type de contenu",
+        "all": "Tout",
+        "movies": "Films",
+        "series": "Séries",
+        "music": "Musique",
+        "content": "Contenu",
+        "empty": "Rien regardé sur cette période"
+      },
+      "types": {
+        "title": "Par type de média",
+        "subtitle": "Temps, vues et vues terminées par type",
+        "type": "Type",
+        "method": "Mode de lecture (vues)",
+        "empty": "Rien regardé sur cette période"
+      },
+      "habits": {
+        "title": "Quand tu regardes",
+        "subtitle": "Vues par jour de la semaine et par heure",
+        "peak": "Créneau le plus chargé : {{day}} à {{hour}}",
+        "day": "Jour",
+        "empty": "Aucune vue sur cette période"
+      },
+      "plays": {
+        "title": "Toutes tes lectures",
+        "subtitle": "Un point par lecture : son début et la durée regardée",
+        "x": "Début",
+        "y": "Minutes regardées",
+        "date": "Date",
+        "duration": "Regardé",
+        "content": "Contenu",
+        "minutes": "Minutes",
+        "empty": "Aucune lecture sur cette période",
+        "capped": "Affichage de tes {{value}} dernières lectures"
+      },
+      "devices": {
+        "title": "Appareils",
+        "subtitle": "Les appareils sur lesquels tu as regardé",
+        "device": "Appareil",
+        "client": "Application",
+        "lastUsed": "Dernière utilisation",
+        "empty": "Aucun appareil sur cette période"
+      },
+      "clients": {
+        "title": "Applications",
+        "subtitle": "Clics, vues, transcodage et faux départs par application",
+        "transcodes": "Transcodé",
+        "falseStarts": "Faux départs"
+      },
+      "history": {
+        "title": "Historique",
+        "subtitle_one": "{{count}} lecture sur cette période",
+        "subtitle_other": "{{count}} lectures sur cette période",
+        "empty": "Aucune lecture sur cette période"
+      },
+      "signedOut": {
+        "title": "Connecte-toi à Jellyfin",
+        "description": "Cette page affiche les statistiques du compte connecté à Jellyfin dans ce navigateur.",
+        "action": "Ouvrir Jellyfin"
+      },
+      "unavailable": {
+        "title": "Statistiques indisponibles",
+        "notLinked": "Jellystics n’est pas encore relié à ce serveur Jellyfin. Demande à ton administrateur de vérifier le plugin Jellystics.",
+        "unreachable": "Jellyfin n’arrive pas à joindre Jellystics pour le moment. Réessaie dans un instant.",
+        "relinking": "Jellystics se reconnecte, réessaie dans une minute.",
+        "forbidden": "Jellystics ne connaît pas encore ton compte. Ce sera le cas après sa prochaine synchronisation avec Jellyfin.",
+        "unknownUserTitle": "Tes statistiques arrivent",
+        "unknownUser": "Jellystics n’a pas encore synchronisé ton compte.",
+        "signedOut": "Ta session Jellyfin a expiré. Reconnecte-toi à Jellyfin.",
+        "error": "Une erreur est survenue au chargement de tes statistiques."
       }
     }
   }

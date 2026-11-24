@@ -58,11 +58,26 @@ type Service struct {
 	// OnDataChanged is called after plays were written or tracker rows
 	// removed (main wires the stats cache reset).
 	OnDataChanged func()
+	// PublicURL (JELLYSTICS_PUBLIC_URL) overrides the auto-detected
+	// Jellystics URL pushed to the plugin; Port is the listen port used by
+	// the auto-detection (default 3000). Set by main before the first run.
+	PublicURL string
+	Port      string
 
 	mu             gosync.Mutex
 	lastRefresh    time.Time
 	lastStaleCheck time.Time
 	lastLoggedErr  string
+
+	// « Mes statistiques » link (melink.go), guarded by mu.
+	meUnsupported string    // plugin version answering 404 on /Jellystics/Link
+	lastLinkErr   string    // last logged link error
+	linkFailures  int       // consecutive failed link pushes (backoff)
+	linkRetryAt   time.Time // no push before this after a failure
+
+	meMu    gosync.Mutex // guards the auto-detected URL (also read by Status)
+	meURL   string
+	meURLAt time.Time
 
 	// History push (push.go).
 	pushMu  gosync.Mutex
@@ -93,6 +108,19 @@ type Status struct {
 	// PlaysSynced counts the plays recorded by the plugin stored in Jellystics.
 	PlaysSynced            int64 `json:"playsSynced"`
 	SupportedSchemaVersion int   `json:"supportedSchemaVersion"`
+
+	// « Mes statistiques » link. MeURL / MeURLSource: the URL Jellystics
+	// pushes now (env | auto; "" when auto-detection fails or Jellyfin is
+	// not configured); MeLinkedURL: the URL of the last successful push.
+	MeLinked    bool       `json:"meLinked"`
+	MeReachable *bool      `json:"meReachable"`
+	MeURL       string     `json:"meUrl"`
+	MeURLSource string     `json:"meUrlSource"`
+	MeLinkedURL *string    `json:"meLinkedUrl"`
+	MeLinkedAt  *time.Time `json:"meLinkedAt"`
+	MeLinkError *string    `json:"meLinkError"`
+	// MeError: what the plugin reports (null | unreachable | secretMismatch).
+	MeError *string `json:"meError"`
 }
 
 // Status returns the persisted sync state and whether the plugin is
@@ -106,8 +134,13 @@ func (s *Service) Status(ctx context.Context) (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Status{PluginSyncState: *st, Healthy: st.Healthy(s.now()), PlaysSynced: n,
-		SupportedSchemaVersion: SupportedSchemaVersion}, nil
+	out := &Status{PluginSyncState: *st, Healthy: st.Healthy(s.now()), PlaysSynced: n,
+		SupportedSchemaVersion: SupportedSchemaVersion,
+		MeLinked:               st.MeLinked, MeReachable: st.MeReachable, MeURLSource: MeURLSourceAuto,
+		MeLinkedURL: st.MeLinkedURL, MeLinkedAt: st.MeLinkedAt, MeLinkError: st.MeLinkError, MeError: st.MeError}
+	u := s.currentMeURL() // never dials Jellyfin
+	out.MeURL, out.MeURLSource = u.URL, u.Source
+	return out, nil
 }
 
 // Resync resets every cursor (the plugin data is re-read from the start;
@@ -195,6 +228,7 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 			log.Printf("[plugin-sync] Jellystics plugin no longer detected: the tracker records plays")
 		}
 		st.Detected, st.LastError = false, nil
+		resetLink(st)
 		s.lastLoggedErr = ""
 		s.closeStale(ctx, st, now)
 		return res, s.repos.PluginSync.SaveState(ctx, st)
@@ -207,6 +241,7 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 	pv, sv := info.PluginVersion, info.SchemaVersion
 	st.PluginVersion, st.SchemaVersion = &pv, &sv
 	if sv != SupportedSchemaVersion {
+		resetLink(st)
 		s.closeStale(ctx, st, now)
 		return res, s.fail(ctx, st, fmt.Errorf("incompatible plugin schema version %d (supported: %d): plugin ignored, update Jellystics or the plugin", sv, SupportedSchemaVersion))
 	}
@@ -301,6 +336,8 @@ func (s *Service) Run(ctx context.Context) (Result, error) {
 			annexErr = errors.Join(annexErr, err)
 		}
 	}
+	// « Mes statistiques » link, after the data tables (never holds them up).
+	s.link(ctx, jf, st, info)
 	// Library / user-data / login rows feed plugin-only stats (and their
 	// cached "data since" dates); a resync may also change plays.
 	if (res.Library+res.UserData+res.Logins > 0 || res.CursorReset) && s.OnDataChanged != nil {

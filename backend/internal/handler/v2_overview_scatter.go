@@ -33,6 +33,15 @@ func (h *V2Handler) OverviewPlays(c *gin.Context) {
 	if !ok {
 		return
 	}
+	out, err := h.plays(c, p.filter(p.Range))
+	if v2Fail(c, err) {
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// plays returns the playsLimit most recent plays of f, newest first.
+func (h *V2Handler) plays(c *gin.Context, f *actFilter) (playsResponse, error) {
 	var rows []struct {
 		ID           string
 		StartedAt    time.Time
@@ -47,7 +56,7 @@ func (h *V2Handler) OverviewPlays(c *gin.Context) {
 		ParentName   *string
 		Total        int
 	}
-	q, args := p.filter(p.Range).sql(`
+	q, args := f.sql(`
 		SELECT id, started_at, GREATEST(duration, 0)::bigint AS watch_seconds, media_type,
 		       user_id, user_name, item_id, `+itemKindExpr+` AS kind, item_name,
 		       group_id AS parent_id, group_name AS parent_name,
@@ -55,8 +64,8 @@ func (h *V2Handler) OverviewPlays(c *gin.Context) {
 		FROM acts
 		ORDER BY started_at DESC, id DESC
 		LIMIT ?`, playsLimit)
-	if v2Fail(c, h.raw(c, &rows, q, args...)) {
-		return
+	if err := h.raw(c, &rows, q, args...); err != nil {
+		return playsResponse{}, err
 	}
 	out := playsResponse{Limit: playsLimit, Points: make([]playPoint, 0, len(rows))}
 	for _, r := range rows {
@@ -72,7 +81,7 @@ func (h *V2Handler) OverviewPlays(c *gin.Context) {
 		out.Points = append(out.Points, pt)
 	}
 	out.Capped = out.Total > len(out.Points)
-	c.JSON(http.StatusOK, out)
+	return out, nil
 }
 
 // mediaFamily maps a stored MediaType to the v2 family (movie|series|music).
