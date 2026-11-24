@@ -1398,6 +1398,111 @@
       "funnel": {
         "ofViews": "{{pct}} of views · {{done}}/{{views}}"
       }
+    },
+    "me": {
+      "title": "My statistics",
+      "back": "Back to Jellyfin",
+      "memberSince": "Watching since {{date}}",
+      "sectionError": "This section could not be loaded",
+      "period": {
+        "label": "Period",
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "1y": "1 year",
+        "all": "All time"
+      },
+      "kpi": {
+        "title": "Key figures",
+        "time": "Watch time",
+        "hoursUnit": "h",
+        "views": "Views",
+        "clicks": "Clicks",
+        "streak": "Current streak",
+        "daysUnit": "d",
+        "record_one": "record {{count}} day",
+        "record_other": "record {{count}} days",
+        "estimated": "estimated from where playback stopped"
+      },
+      "daily": {
+        "titleDay": "{{metric}} per day",
+        "titleWeek": "{{metric}} per week",
+        "metric": "Metric",
+        "date": "Date",
+        "week": "Week of {{date}}",
+        "hoursValue": "{{value}} h",
+        "empty": "Nothing watched in this period"
+      },
+      "top": {
+        "title": "Top content",
+        "subtitle": "Most viewed over the period",
+        "filter": "Content type",
+        "all": "All",
+        "movies": "Movies",
+        "series": "Series",
+        "music": "Music",
+        "content": "Content",
+        "empty": "Nothing watched in this period"
+      },
+      "types": {
+        "title": "By media type",
+        "subtitle": "Watch time, views and finished views per type",
+        "type": "Type",
+        "method": "Playback method (views)",
+        "empty": "Nothing watched in this period"
+      },
+      "habits": {
+        "title": "When you watch",
+        "subtitle": "Views by weekday and hour",
+        "peak": "Busiest slot: {{day}} at {{hour}}",
+        "day": "Day",
+        "empty": "No views in this period"
+      },
+      "plays": {
+        "title": "All your plays",
+        "subtitle": "One dot per play: when it started and how long you watched",
+        "x": "Start",
+        "y": "Minutes watched",
+        "date": "Date",
+        "duration": "Watched",
+        "content": "Content",
+        "minutes": "Minutes",
+        "empty": "No plays in this period",
+        "capped": "Showing your latest {{value}} plays"
+      },
+      "devices": {
+        "title": "Devices",
+        "subtitle": "Devices you watched on",
+        "device": "Device",
+        "client": "App",
+        "lastUsed": "Last used",
+        "empty": "No device in this period"
+      },
+      "clients": {
+        "title": "Apps",
+        "subtitle": "Clicks, views, transcoding and false starts per app",
+        "transcodes": "Transcoded",
+        "falseStarts": "False starts"
+      },
+      "history": {
+        "title": "History",
+        "subtitle_one": "{{count}} play in this period",
+        "subtitle_other": "{{count}} plays in this period",
+        "empty": "No plays in this period"
+      },
+      "signedOut": {
+        "title": "Sign in to Jellyfin",
+        "description": "This page shows the statistics of the account signed in to Jellyfin in this browser.",
+        "action": "Open Jellyfin"
+      },
+      "unavailable": {
+        "title": "Statistics unavailable",
+        "notLinked": "Jellystics is not linked to this Jellyfin server yet. Ask your administrator to check the Jellystics plugin.",
+        "unreachable": "Jellyfin cannot reach Jellystics right now. Try again in a moment.",
+        "forbidden": "Jellystics does not know your account yet. It will after its next sync with Jellyfin.",
+        "signedOut": "Your Jellyfin session has expired. Sign in to Jellyfin again.",
+        "error": "Something went wrong while loading your statistics."
+      }
     }
   }
 }

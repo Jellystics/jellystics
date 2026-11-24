@@ -1398,6 +1398,111 @@
       "funnel": {
         "ofViews": "{{pct}} des vues · {{done}}/{{views}}"
       }
+    },
+    "me": {
+      "title": "Mes statistiques",
+      "back": "Retour à Jellyfin",
+      "memberSince": "Spectateur depuis le {{date}}",
+      "sectionError": "Impossible de charger cette section",
+      "period": {
+        "label": "Période",
+        "7d": "7 jours",
+        "30d": "30 jours",
+        "90d": "90 jours",
+        "1y": "1 an",
+        "all": "Depuis le début"
+      },
+      "kpi": {
+        "title": "Chiffres clés",
+        "time": "Temps de visionnage",
+        "hoursUnit": "h",
+        "views": "Vues",
+        "clicks": "Clics",
+        "streak": "Série en cours",
+        "daysUnit": "j",
+        "record_one": "record {{count}} jour",
+        "record_other": "record {{count}} jours",
+        "estimated": "estimé d’après l’arrêt de lecture"
+      },
+      "daily": {
+        "titleDay": "{{metric}} par jour",
+        "titleWeek": "{{metric}} par semaine",
+        "metric": "Mesure",
+        "date": "Date",
+        "week": "Semaine du {{date}}",
+        "hoursValue": "{{value}} h",
+        "empty": "Rien regardé sur cette période"
+      },
+      "top": {
+        "title": "Contenus préférés",
+        "subtitle": "Les plus vus sur la période",
+        "filter": "Type de contenu",
+        "all": "Tout",
+        "movies": "Films",
+        "series": "Séries",
+        "music": "Musique",
+        "content": "Contenu",
+        "empty": "Rien regardé sur cette période"
+      },
+      "types": {
+        "title": "Par type de média",
+        "subtitle": "Temps, vues et vues terminées par type",
+        "type": "Type",
+        "method": "Mode de lecture (vues)",
+        "empty": "Rien regardé sur cette période"
+      },
+      "habits": {
+        "title": "Quand tu regardes",
+        "subtitle": "Vues par jour de la semaine et par heure",
+        "peak": "Créneau le plus chargé : {{day}} à {{hour}}",
+        "day": "Jour",
+        "empty": "Aucune vue sur cette période"
+      },
+      "plays": {
+        "title": "Toutes tes lectures",
+        "subtitle": "Un point par lecture : son début et la durée regardée",
+        "x": "Début",
+        "y": "Minutes regardées",
+        "date": "Date",
+        "duration": "Regardé",
+        "content": "Contenu",
+        "minutes": "Minutes",
+        "empty": "Aucune lecture sur cette période",
+        "capped": "Affichage de tes {{value}} dernières lectures"
+      },
+      "devices": {
+        "title": "Appareils",
+        "subtitle": "Les appareils sur lesquels tu as regardé",
+        "device": "Appareil",
+        "client": "Application",
+        "lastUsed": "Dernière utilisation",
+        "empty": "Aucun appareil sur cette période"
+      },
+      "clients": {
+        "title": "Applications",
+        "subtitle": "Clics, vues, transcodage et faux départs par application",
+        "transcodes": "Transcodé",
+        "falseStarts": "Faux départs"
+      },
+      "history": {
+        "title": "Historique",
+        "subtitle_one": "{{count}} lecture sur cette période",
+        "subtitle_other": "{{count}} lectures sur cette période",
+        "empty": "Aucune lecture sur cette période"
+      },
+      "signedOut": {
+        "title": "Connecte-toi à Jellyfin",
+        "description": "Cette page affiche les statistiques du compte connecté à Jellyfin dans ce navigateur.",
+        "action": "Ouvrir Jellyfin"
+      },
+      "unavailable": {
+        "title": "Statistiques indisponibles",
+        "notLinked": "Jellystics n’est pas encore relié à ce serveur Jellyfin. Demande à ton administrateur de vérifier le plugin Jellystics.",
+        "unreachable": "Jellyfin n’arrive pas à joindre Jellystics pour le moment. Réessaie dans un instant.",
+        "forbidden": "Jellystics ne connaît pas encore ton compte. Ce sera le cas après sa prochaine synchronisation avec Jellyfin.",
+        "signedOut": "Ta session Jellyfin a expiré. Reconnecte-toi à Jellyfin.",
+        "error": "Une erreur est survenue au chargement de tes statistiques."
+      }
     }
   }
 }

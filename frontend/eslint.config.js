@@ -34,7 +34,7 @@ export default tseslint.config(
   },
   {
     // New code must stay free of the legacy UI stack.
-    files: ['src/{styles,lib,ui,charts,app,api}/**/*.{ts,tsx}'],
+    files: ['src/{styles,lib,ui,charts,app,api,me}/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [{ group: BANNED, message: 'Legacy UI stack is not allowed in new code.' }] }],
     },
