@@ -6,10 +6,7 @@
     <meta name="referrer" content="same-origin" />
     <link rel="icon" type="image/png" sizes="64x64" href="./logo-64.png" />
     <title>Jellystics</title>
-    <script>
-      // Relative URLs (./assets/, ./api/, ./locales/) need the trailing slash: /Jellystics/Me → /Jellystics/Me/.
-      if (/\/jellystics\/me$/i.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash)
-    </script>
+    <!-- No inline script (strict CSP script-src 'self'): the plugin redirects /Jellystics/Me to /Jellystics/Me/ server side. -->
   </head>
   <body>
     <div id="root"></div>

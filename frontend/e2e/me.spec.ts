@@ -18,6 +18,8 @@ const file = (rel: string) => {
   return { status: 200, contentType: TYPES[extname(path)] ?? 'application/octet-stream', body: readFileSync(path) }
 }
 
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+
 type Api = (path: string, query: URLSearchParams) => { status: number; body?: unknown }
 
 async function serveMe(page: Page, api: Api = (p, q) => ({ status: 200, body: meResponse(p, q) })) {
@@ -31,9 +33,12 @@ async function serveMe(page: Page, api: Api = (p, q) => ({ status: 200, body: me
       const r = api(path, url.searchParams)
       return route.fulfill({ status: r.status, contentType: 'application/json', body: r.body === undefined ? '' : JSON.stringify(r.body) })
     }
-    if (p.startsWith(ME) || p === ME.slice(0, -1)) {
+    // /Jellystics/Me → /Jellystics/Me/ is a server-side redirect of the plugin (me.html has no inline script).
+    if (p.startsWith(ME)) {
       const rest = p.slice(ME.length) || 'me.html'
-      return route.fulfill(file(rest))
+      const r = file(rest)
+      // Strict CSP: the page must work without inline scripts.
+      return route.fulfill(r.contentType === 'text/html' ? { ...r, headers: { 'content-security-policy': CSP } } : r)
     }
     // Jellyfin images: answer with the Jellystics logo (any PNG will do).
     if (/\/Images\/Primary$/.test(p)) return route.fulfill(file('logo-64.png'))
@@ -100,9 +105,23 @@ test('me page: unavailable state when Jellystics is unreachable', async ({ page 
 
 test('me page: asks to sign in to Jellyfin without credentials', async ({ page }) => {
   const seen = await serveMe(page)
-  await page.goto(`${BASE}/Jellystics/Me`) // no trailing slash: redirected so relative URLs resolve
-  await expect(page).toHaveURL(new RegExp(`${ME}$`))
+  await page.goto(ME)
   await expect(page.getByRole('link', { name: /Jellyfin/ }).last()).toHaveAttribute('href', `${BASE}/web/`)
   await expect(page.getByRole('alert')).toBeVisible()
   expect(seen).toEqual([])
+})
+
+test('me page: works under a strict CSP (no inline script)', async ({ page }) => {
+  const errors = watchErrors(page)
+  const csp: string[] = []
+  page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) csp.push(m.text()) })
+  await serveMe(page)
+  await signIn(page)
+  const res = page.waitForResponse((r) => r.url().endsWith(ME))
+  await page.goto(ME)
+  expect((await res).headers()['content-security-policy']).toContain("script-src 'self'")
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Alice' })).toBeVisible()
+  expect(csp).toEqual([])
+  expect(errors).toEqual([])
 })

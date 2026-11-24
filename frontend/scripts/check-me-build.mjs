@@ -16,6 +16,10 @@ if (!meRefs.some((r) => /^\.\/assets\/.+\.js$/.test(r))) fail('me.html has no ./
 const absolute = meRefs.filter((r) => r.startsWith('/'))
 if (absolute.length) fail(`me.html has absolute URLs: ${absolute.join(', ')}`)
 for (const r of meRefs.filter((x) => x.startsWith('./'))) if (!existsSync(resolve(dist, r))) fail(`me.html references a missing file: ${r}`)
+// Strict CSP (script-src 'self'): every <script> must load a file, no inline code or event handler attribute.
+const inline = [...me.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].filter((m) => !/\bsrc=/.test(m[1]) || m[2].trim())
+if (inline.length) fail('me.html has an inline script')
+if (/\son[a-z]+\s*=/i.test(me)) fail('me.html has an inline event handler')
 
 const index = read('index.html')
 if (!refs(index).some((r) => /^\/assets\/.+\.js$/.test(r))) fail('index.html lost its absolute /assets/*.js script')
