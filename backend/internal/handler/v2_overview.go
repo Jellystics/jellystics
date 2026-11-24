@@ -113,24 +113,12 @@ func (h *V2Handler) Overview(c *gin.Context) {
 		}
 	}
 
-	// Top items: the 10 best of each kind (movie / series / album) by views.
-	out.TopItems = []topItem{}
-	q, args := f.sql(`
-		SELECT id, kind, name, views, watch_seconds, id AS art_id FROM (
-		  SELECT group_id AS id, ` + kindExpr + ` AS kind, COALESCE(MAX(group_name), '') AS name,
-		         ` + aggPlays + ` AS views, ` + aggSeconds + ` AS watch_seconds,
-		         ROW_NUMBER() OVER (PARTITION BY ` + kindExpr + ` ORDER BY ` + aggPlays + ` DESC, ` + aggSeconds + ` DESC, group_id) AS rn
-		  FROM acts WHERE group_id IS NOT NULL
-		  GROUP BY group_id, display_type
-		  HAVING ` + aggPlays + ` > 0
-		) t WHERE rn <= 10
-		ORDER BY views DESC, watch_seconds DESC, id`)
-	if v2Fail(c, h.raw(c, &out.TopItems, q, args...)) {
+	if out.TopItems, err = h.topItems(c, f, 10); v2Fail(c, err) {
 		return
 	}
 
 	out.TopUsers = []topUser{}
-	q, args = f.sql(`
+	q, args := f.sql(`
 		SELECT user_id AS id, COALESCE(MAX(user_name), '') AS name,
 		       ` + aggSeconds + ` AS watch_seconds, ` + aggPlays + ` AS views
 		FROM acts WHERE user_id IS NOT NULL
@@ -141,12 +129,7 @@ func (h *V2Handler) Overview(c *gin.Context) {
 		return
 	}
 
-	q, args = f.sql(`
-		SELECT COUNT(*) FILTER (WHERE play_method = 'DirectPlay')::int AS direct,
-		       COUNT(*) FILTER (WHERE play_method = 'DirectStream')::int AS stream,
-		       COUNT(*) FILTER (WHERE play_method = 'Transcode')::int AS transcode
-		FROM acts WHERE is_view`)
-	if v2Fail(c, h.raw(c, &out.ByMethod, q, args...)) {
+	if out.ByMethod, err = h.byMethod(c, f); v2Fail(c, err) {
 		return
 	}
 
@@ -160,6 +143,36 @@ func (h *V2Handler) Overview(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// topItems returns the perKind best groups of each kind (movie / series /
+// album) by views, then watch time.
+func (h *V2Handler) topItems(c *gin.Context, f *actFilter, perKind int) ([]topItem, error) {
+	out := []topItem{}
+	q, args := f.sql(`
+		SELECT id, kind, name, views, watch_seconds, id AS art_id FROM (
+		  SELECT group_id AS id, `+kindExpr+` AS kind, COALESCE(MAX(group_name), '') AS name,
+		         `+aggPlays+` AS views, `+aggSeconds+` AS watch_seconds,
+		         ROW_NUMBER() OVER (PARTITION BY `+kindExpr+` ORDER BY `+aggPlays+` DESC, `+aggSeconds+` DESC, group_id) AS rn
+		  FROM acts WHERE group_id IS NOT NULL
+		  GROUP BY group_id, display_type
+		  HAVING `+aggPlays+` > 0
+		) t WHERE rn <= ?
+		ORDER BY views DESC, watch_seconds DESC, id`, perKind)
+	err := h.raw(c, &out, q, args...)
+	return out, err
+}
+
+// byMethod splits the views by play method.
+func (h *V2Handler) byMethod(c *gin.Context, f *actFilter) (methodSplit, error) {
+	var out methodSplit
+	q, args := f.sql(`
+		SELECT COUNT(*) FILTER (WHERE play_method = 'DirectPlay')::int AS direct,
+		       COUNT(*) FILTER (WHERE play_method = 'DirectStream')::int AS stream,
+		       COUNT(*) FILTER (WHERE play_method = 'Transcode')::int AS transcode
+		FROM acts WHERE is_view`)
+	err := h.raw(c, &out, q, args...)
+	return out, err
 }
 
 // weekBucketDays: ranges longer than this are bucketed by ISO week.
